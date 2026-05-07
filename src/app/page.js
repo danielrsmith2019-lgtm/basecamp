@@ -223,11 +223,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* RECENT PRs */}
-      <div className="mb-6">
-        <RecentPRs prs={prs.recent} />
-      </div>
-
+      {logTarget && <LogForm workout={logTarget} onSave={handleSave} onClose={() => setLogTarget(null)} />}
       {/* RECENT ACTIVITY */}
       <p className="stride-section-label">Recent Activity</p>
       <div className="space-y-2 mb-6">
@@ -240,6 +236,7 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-primary">{w.type === 'run' ? w.details.runType : w.details.sessionName}</p>
                 <p className="text-xs text-secondary">{formatDate(w.date)}</p>
               </div>
+              
             </div>
             <div className="flex items-center gap-3">
               {w.type === 'run' && w.details.actualDistance && <span className="stride-data text-sm text-secondary">{w.details.actualDistance} mi</span>}
@@ -250,10 +247,17 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* RECENT PRs */}
+      <div className="mb-6">
+        <RecentPRs prs={prs.recent} />
+      </div>
+
       {logTarget && <LogForm workout={logTarget} onSave={handleSave} onClose={() => setLogTarget(null)} />}
     </div>
   );
 }
+
+
 
 // ── Helpers (unchanged) ──
 function getWeeklyData(workouts, getValue) {
