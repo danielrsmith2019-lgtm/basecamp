@@ -12,13 +12,14 @@ import WorkoutDetailModal from '@/components/shared/WorkoutDetailModal';
 import LogForm from '@/components/shared/LogForm';
 import { createWorkout } from '@/data/types';
 
-// ─── Type config ──────────────────────────────────────
+import { Footprints, Dumbbell, Bike, Moon, Activity } from 'lucide-react';
+
 const TYPE_CONFIG = {
-  run:    { emoji: '🏃', label: 'Run',    color: 'text-activity-run',    bg: 'bg-activity-run/15' },
-  lift:   { emoji: '🏋️', label: 'Lift',   color: 'text-activity-lift',   bg: 'bg-activity-lift/15' },
-  cardio: { emoji: '🚴', label: 'Cardio', color: 'text-activity-cardio', bg: 'bg-activity-cardio/15' },
-  rest:   { emoji: '😴', label: 'Rest',   color: 'text-activity-rest',   bg: 'bg-activity-rest/15' },
-  other:  { emoji: '📋', label: 'Other',  color: 'text-secondary',       bg: 'bg-secondary/15' },
+  run:    { Icon: Footprints, label: 'Run',    color: 'text-activity-run',    bg: 'bg-activity-run/15' },
+  lift:   { Icon: Dumbbell,   label: 'Lift',   color: 'text-activity-lift',   bg: 'bg-activity-lift/15' },
+  cardio: { Icon: Bike,       label: 'Cardio', color: 'text-activity-cardio', bg: 'bg-activity-cardio/15' },
+  rest:   { Icon: Moon,       label: 'Rest',   color: 'text-activity-rest',   bg: 'bg-activity-rest/15' },
+  other:  { Icon: Activity,   label: 'Other',  color: 'text-secondary',       bg: 'bg-secondary/15' },
 };
 
 const STATUS_DOT = {
@@ -346,9 +347,9 @@ function WorkoutRow({ workout, onClick }) {
 
       {/* Type emoji */}
       <td className="px-3 py-3 text-center">
-        <span className={`stride-badge text-xs ${typeInfo.bg} ${typeInfo.color}`}>
-          {typeInfo.emoji}
-        </span>
+        <div className={`stride-badge ${typeInfo.bg} ${typeInfo.color} inline-flex`}>
+          <typeInfo.Icon size={14} strokeWidth={2} />
+        </div>
       </td>
 
       {/* Status */}
