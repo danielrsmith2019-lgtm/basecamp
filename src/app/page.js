@@ -2,50 +2,28 @@
 
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import sampleRunData from '@/data/sampleRunData';
-import sampleLiftData from '@/data/sampleLiftData';
 import { formatDate, getRunTypeEmoji } from '@/utils/runUtils';
 import { getSessionEmoji, formatVolume } from '@/utils/liftUtils';
 import { generateInsights, calculateTrainingLoad } from '@/utils/insights';
 import Sparkline from '@/components/shared/Sparkline';
 import InsightCard from '@/components/shared/InsightCard';
 import TrainingLoadCard from '@/components/shared/TrainingLoadCard';
+import RecentPRs from '@/components/shared/RecentPRs';
 import LogForm from '@/components/shared/LogForm';
-import { createWorkout } from '@/data/types';
+import { useWorkouts } from '@/lib/WorkoutContext';
 
 export default function Dashboard() {
-  const [workouts, setWorkouts] = useState(() => {
-    return [...sampleRunData, ...sampleLiftData].filter(w => w != null);
-  });
+  const { workouts, prs, saveWorkout, isLoaded } = useWorkouts();
   const [logTarget, setLogTarget] = useState(null);
   const [dismissedInsights, setDismissedInsights] = useState(new Set());
 
   const today = new Date().toISOString().split('T')[0];
 
-  // ═══════════════════════════════════════════════════
-  // INSIGHTS
-  // ═══════════════════════════════════════════════════
-
   const allInsights = useMemo(() => generateInsights(workouts), [workouts]);
   const trainingLoad = useMemo(() => calculateTrainingLoad(workouts), [workouts]);
-
   const visibleInsights = useMemo(() => {
     return allInsights.filter(i => !dismissedInsights.has(i.id));
   }, [allInsights, dismissedInsights]);
-
-  function handleDismissInsight(id) {
-    setDismissedInsights(prev => new Set([...prev, id]));
-  }
-
-  function handleInsightAction(insight) {
-    // For now, just dismiss after acknowledging.
-    // In future iterations these will trigger real actions (swap sessions, adjust paces, etc.)
-    handleDismissInsight(insight.id);
-  }
-
-  // ═══════════════════════════════════════════════════
-  // STATS
-  // ═══════════════════════════════════════════════════
 
   const stats = useMemo(() => {
     const runs = workouts.filter(w => w.type === 'run');
@@ -55,56 +33,46 @@ export default function Dashboard() {
     const plannedRuns = runs.filter(w => w.status !== 'skipped');
     const plannedLifts = lifts.filter(w => w.status !== 'skipped');
 
-    const runCompletionRate = plannedRuns.length > 0
-      ? Math.round((completedRuns.length / plannedRuns.length) * 100) : 0;
-    const liftCompletionRate = plannedLifts.length > 0
-      ? Math.round((completedLifts.length / plannedLifts.length) * 100) : 0;
-
-    const weeklyMileage = getWeeklyData(completedRuns, w => w.details.actualDistance || 0);
-    const weeklyVolume = getWeeklyData(completedLifts, w => w.details.totalVolume || 0);
-
     return {
-      runCompletionRate,
-      liftCompletionRate,
+      runCompletionRate: plannedRuns.length > 0
+        ? Math.round((completedRuns.length / plannedRuns.length) * 100) : 0,
+      liftCompletionRate: plannedLifts.length > 0
+        ? Math.round((completedLifts.length / plannedLifts.length) * 100) : 0,
       completedRuns: completedRuns.length,
       totalRuns: plannedRuns.length,
       completedLifts: completedLifts.length,
       totalLifts: plannedLifts.length,
-      currentWeekMileage: (weeklyMileage[3] || 0).toFixed(1),
-      weeklyMileageData: weeklyMileage,
-      currentWeekVolume: weeklyVolume[3] || 0,
-      weeklyVolumeData: weeklyVolume,
+      currentWeekMileage: (getWeeklyData(completedRuns, w => w.details.actualDistance || 0)[3] || 0).toFixed(1),
+      weeklyMileageData: getWeeklyData(completedRuns, w => w.details.actualDistance || 0),
+      currentWeekVolume: getWeeklyData(completedLifts, w => w.details.totalVolume || 0)[3] || 0,
+      weeklyVolumeData: getWeeklyData(completedLifts, w => w.details.totalVolume || 0),
       streak: calculateStreak(workouts),
     };
   }, [workouts]);
 
   const todayWorkouts = useMemo(() => workouts.filter(w => w.date === today), [workouts, today]);
   const recentActivity = useMemo(() => {
-    return workouts
-      .filter(w => w.status === 'completed')
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 6);
+    return workouts.filter(w => w.status === 'completed')
+      .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
   }, [workouts]);
-
   const weeklyChartData = useMemo(() => buildWeeklyChartData(workouts), [workouts]);
 
   function handleSave(data) {
-    setWorkouts(prev => {
-      if (data.id) {
-        return prev.map(w =>
-          w.id !== data.id ? w : { ...w, ...data, status: 'completed', updatedAt: new Date().toISOString() }
-        );
-      }
-      return [...prev, createWorkout({ date: data.date, type: data.type, status: 'completed', details: data.details })];
-    });
+    saveWorkout(data);
     setLogTarget(null);
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <p className="text-muted text-sm">Loading...</p>
+      </div>
+    );
   }
 
   return (
     <div>
-      {/* ═══════════════════════════════════════════════ */}
-      {/* INSIGHTS (the feature no other app has) */}
-      {/* ═══════════════════════════════════════════════ */}
+      {/* INSIGHTS */}
       {visibleInsights.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
@@ -118,34 +86,26 @@ export default function Dashboard() {
               <InsightCard
                 key={insight.id}
                 insight={insight}
-                onDismiss={handleDismissInsight}
-                onAction={handleInsightAction}
+                onDismiss={(id) => setDismissedInsights(prev => new Set([...prev, id]))}
+                onAction={(i) => setDismissedInsights(prev => new Set([...prev, i.id]))}
               />
             ))}
           </div>
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════ */}
       {/* TODAY'S PLAN */}
-      {/* ═══════════════════════════════════════════════ */}
       <div className="stride-card p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
           <p className="stride-section-label mb-0">Today&apos;s Plan</p>
           <span className="text-xs text-secondary">{formatDate(today)}</span>
         </div>
-
         {todayWorkouts.length > 0 ? (
           <div className="space-y-3">
             {todayWorkouts.map(w => (
-              <div
-                key={w.id}
-                className={`
-                  flex items-center justify-between p-3 rounded-lg border-l-4
-                  ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}
-                  ${w.status === 'completed' ? 'bg-status-done/5' : 'bg-surface'}
-                `}
-              >
+              <div key={w.id} className={`flex items-center justify-between p-3 rounded-lg border-l-4
+                ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}
+                ${w.status === 'completed' ? 'bg-status-done/5' : 'bg-surface'}`}>
                 <div className="flex items-center gap-3">
                   <span className="text-xl">
                     {w.type === 'run' ? getRunTypeEmoji(w.details.runType) : getSessionEmoji(w.details.sessionName)}
@@ -155,20 +115,14 @@ export default function Dashboard() {
                       {w.type === 'run' ? w.details.runDescription || w.details.runType : w.details.sessionName}
                     </p>
                     <p className="text-xs text-secondary">
-                      {w.type === 'run' && (
-                        <><span className="stride-data">{w.details.plannedDistance} mi</span> @ <span className="stride-data">{w.details.targetPace}</span></>
-                      )}
+                      {w.type === 'run' && (<><span className="stride-data">{w.details.plannedDistance} mi</span> @ <span className="stride-data">{w.details.targetPace}</span></>)}
                       {w.type === 'lift' && (w.details.muscleGroups || []).join(', ')}
                     </p>
                   </div>
                 </div>
-
                 {w.status === 'planned' ? (
-                  <button
-                    onClick={() => setLogTarget(w)}
-                    className="px-3 py-1.5 bg-accent text-white text-xs font-medium
-                               rounded-lg hover:brightness-110 transition-all"
-                  >
+                  <button onClick={() => setLogTarget(w)}
+                    className="px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:brightness-110 transition-all">
                     Log It
                   </button>
                 ) : (
@@ -185,13 +139,9 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════════ */}
       {/* KPI CARDS */}
-      {/* ═══════════════════════════════════════════════ */}
       <p className="stride-section-label">Performance</p>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-
-        {/* Run Completion */}
         <div className="stride-card p-4">
           <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Run Completion</p>
           <p className="stride-data text-2xl font-bold text-phase-base mb-1">{stats.runCompletionRate}%</p>
@@ -199,12 +149,9 @@ export default function Dashboard() {
             <div className="h-full rounded-full bg-[image:var(--gradient-completion)]"
               style={{ width: `${stats.runCompletionRate}%`, transition: 'width 0.8s ease' }} />
           </div>
-          <p className="text-[10px] text-muted">
-            <span className="stride-data">{stats.completedRuns}</span> of <span className="stride-data">{stats.totalRuns}</span> runs
-          </p>
+          <p className="text-[10px] text-muted"><span className="stride-data">{stats.completedRuns}</span> of <span className="stride-data">{stats.totalRuns}</span> runs</p>
         </div>
 
-        {/* Lift Completion */}
         <div className="stride-card p-4">
           <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Lift Completion</p>
           <p className="stride-data text-2xl font-bold text-activity-lift mb-1">{stats.liftCompletionRate}%</p>
@@ -212,15 +159,11 @@ export default function Dashboard() {
             <div className="h-full rounded-full bg-[image:var(--gradient-mileage)]"
               style={{ width: `${stats.liftCompletionRate}%`, transition: 'width 0.8s ease' }} />
           </div>
-          <p className="text-[10px] text-muted">
-            <span className="stride-data">{stats.completedLifts}</span> of <span className="stride-data">{stats.totalLifts}</span> lifts
-          </p>
+          <p className="text-[10px] text-muted"><span className="stride-data">{stats.completedLifts}</span> of <span className="stride-data">{stats.totalLifts}</span> lifts</p>
         </div>
 
-        {/* Training Load */}
         <TrainingLoadCard load={trainingLoad} />
 
-        {/* Weekly Mileage */}
         <div className="stride-card p-4">
           <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Weekly Miles</p>
           <div className="flex items-end justify-between mb-1">
@@ -230,7 +173,6 @@ export default function Dashboard() {
           <p className="text-[10px] text-muted">Last 4 weeks trend</p>
         </div>
 
-        {/* Weekly Volume */}
         <div className="stride-card p-4">
           <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Weekly Volume</p>
           <div className="flex items-end justify-between mb-1">
@@ -242,7 +184,6 @@ export default function Dashboard() {
           <p className="text-[10px] text-muted">lbs · Last 4 weeks</p>
         </div>
 
-        {/* Streak */}
         <div className="stride-card p-4">
           <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Streak</p>
           <div className="flex items-center gap-2">
@@ -253,9 +194,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════ */}
       {/* WEEKLY CHART */}
-      {/* ═══════════════════════════════════════════════ */}
       <p className="stride-section-label">Weekly Training Load</p>
       <div className="stride-card p-5 mb-6">
         <div className="h-48 w-full">
@@ -268,87 +207,59 @@ export default function Dashboard() {
                 contentStyle={{ backgroundColor: '#111827', border: '1px solid #1E293B', borderRadius: '8px', fontSize: '12px', fontFamily: 'var(--font-jetbrains)' }}
                 labelStyle={{ color: '#E2E8F0', marginBottom: '4px' }}
                 itemStyle={{ color: '#94A3B8', padding: '1px 0' }}
-                cursor={{ fill: 'rgba(37, 99, 235, 0.1)' }}
-              />
+                cursor={{ fill: 'rgba(37, 99, 235, 0.1)' }} />
               <Bar dataKey="runMiles" name="Run (mi)" stackId="stack" radius={[0, 0, 0, 0]}>
-                {weeklyChartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.runMiles > 0 ? '#4ADE80' : 'transparent'} fillOpacity={0.8} />
-                ))}
+                {weeklyChartData.map((_, i) => <Cell key={i} fill="#4ADE80" fillOpacity={0.8} />)}
               </Bar>
               <Bar dataKey="liftScore" name="Lift (score)" stackId="stack" radius={[4, 4, 0, 0]}>
-                {weeklyChartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.liftScore > 0 ? '#60A5FA' : 'transparent'} fillOpacity={0.8} />
-                ))}
+                {weeklyChartData.map((_, i) => <Cell key={i} fill="#60A5FA" fillOpacity={0.8} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="flex items-center justify-center gap-6 mt-3">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-activity-run opacity-80" />
-            <span className="text-xs text-muted">Run Miles</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-activity-lift opacity-80" />
-            <span className="text-xs text-muted">Lift Score</span>
-          </div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-activity-run opacity-80" /><span className="text-xs text-muted">Run Miles</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-activity-lift opacity-80" /><span className="text-xs text-muted">Lift Score</span></div>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════ */}
+      {/* RECENT PRs */}
+      <div className="mb-6">
+        <RecentPRs prs={prs.recent} />
+      </div>
+
       {/* RECENT ACTIVITY */}
-      {/* ═══════════════════════════════════════════════ */}
       <p className="stride-section-label">Recent Activity</p>
       <div className="space-y-2 mb-6">
         {recentActivity.map(w => (
-          <div key={w.id} className={`
-            stride-card stride-accent-left p-3 flex items-center justify-between
-            ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}
-          `}>
+          <div key={w.id} className={`stride-card stride-accent-left p-3 flex items-center justify-between
+            ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}`}>
             <div className="flex items-center gap-3">
-              <span className="text-lg">
-                {w.type === 'run' ? getRunTypeEmoji(w.details.runType) : getSessionEmoji(w.details.sessionName)}
-              </span>
+              <span className="text-lg">{w.type === 'run' ? getRunTypeEmoji(w.details.runType) : getSessionEmoji(w.details.sessionName)}</span>
               <div>
-                <p className="text-sm font-medium text-primary">
-                  {w.type === 'run' ? w.details.runType : w.details.sessionName}
-                </p>
+                <p className="text-sm font-medium text-primary">{w.type === 'run' ? w.details.runType : w.details.sessionName}</p>
                 <p className="text-xs text-secondary">{formatDate(w.date)}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {w.type === 'run' && w.details.actualDistance && (
-                <span className="stride-data text-sm text-secondary">{w.details.actualDistance} mi</span>
-              )}
-              {w.type === 'run' && w.details.actualPace && (
-                <span className="stride-data text-sm text-primary">{w.details.actualPace}</span>
-              )}
-              {w.type === 'lift' && w.details.totalVolume && (
-                <span className="stride-data text-sm text-activity-lift">{formatVolume(w.details.totalVolume)}</span>
-              )}
+              {w.type === 'run' && w.details.actualDistance && <span className="stride-data text-sm text-secondary">{w.details.actualDistance} mi</span>}
+              {w.type === 'run' && w.details.actualPace && <span className="stride-data text-sm text-primary">{w.details.actualPace}</span>}
+              {w.type === 'lift' && w.details.totalVolume && <span className="stride-data text-sm text-activity-lift">{formatVolume(w.details.totalVolume)}</span>}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Log Form */}
-      {logTarget && (
-        <LogForm workout={logTarget} onSave={handleSave} onClose={() => setLogTarget(null)} />
-      )}
+      {logTarget && <LogForm workout={logTarget} onSave={handleSave} onClose={() => setLogTarget(null)} />}
     </div>
   );
 }
 
-
-// ════════════════════════════════════════════════════════
-// HELPER FUNCTIONS (same as before)
-// ════════════════════════════════════════════════════════
-
+// ── Helpers (unchanged) ──
 function getWeeklyData(workouts, getValue) {
   if (workouts.length === 0) return [0, 0, 0, 0];
   const now = new Date();
   const weeks = [0, 0, 0, 0];
-
   workouts.forEach(w => {
     const diffDays = Math.floor((now - new Date(w.date + 'T00:00:00')) / (1000 * 60 * 60 * 24));
     if (diffDays < 7) weeks[3] += getValue(w);
@@ -356,31 +267,20 @@ function getWeeklyData(workouts, getValue) {
     else if (diffDays < 21) weeks[1] += getValue(w);
     else if (diffDays < 28) weeks[0] += getValue(w);
   });
-
   return weeks;
 }
 
 function calculateStreak(workouts) {
-  const completedDates = new Set(
-    workouts.filter(w => w.status === 'completed').map(w => w.date)
-  );
-
+  const completedDates = new Set(workouts.filter(w => w.status === 'completed').map(w => w.date));
   let streak = 0;
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  if (completedDates.has(todayStr)) streak++;
-
+  if (completedDates.has(now.toISOString().split('T')[0])) streak++;
   const check = new Date(now);
   check.setDate(check.getDate() - 1);
-
   for (let i = 0; i < 365; i++) {
     const dateStr = check.toISOString().split('T')[0];
-    if (completedDates.has(dateStr)) {
-      streak++;
-      check.setDate(check.getDate() - 1);
-    } else {
-      break;
-    }
+    if (completedDates.has(dateStr)) { streak++; check.setDate(check.getDate() - 1); }
+    else break;
   }
   return streak;
 }
@@ -399,20 +299,10 @@ function buildWeeklyChartData(workouts) {
     date.setDate(date.getDate() + i);
     const dateStr = date.toISOString().split('T')[0];
     const dayWorkouts = workouts.filter(w => w.date === dateStr);
-
-    const runMiles = dayWorkouts
-      .filter(w => w.type === 'run' && w.status === 'completed')
+    const runMiles = dayWorkouts.filter(w => w.type === 'run' && w.status === 'completed')
       .reduce((sum, w) => sum + (w.details.actualDistance || w.details.plannedDistance || 0), 0);
-
-    const liftVolume = dayWorkouts
-      .filter(w => w.type === 'lift' && w.status === 'completed')
+    const liftVolume = dayWorkouts.filter(w => w.type === 'lift' && w.status === 'completed')
       .reduce((sum, w) => sum + (w.details.totalVolume || 0), 0);
-
-    return {
-      day,
-      date: dateStr,
-      runMiles: Math.round(runMiles * 10) / 10,
-      liftScore: Math.round((liftVolume / 1000) * 10) / 10,
-    };
+    return { day, date: dateStr, runMiles: Math.round(runMiles * 10) / 10, liftScore: Math.round((liftVolume / 1000) * 10) / 10 };
   });
 }

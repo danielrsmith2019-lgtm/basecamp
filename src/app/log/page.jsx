@@ -6,8 +6,6 @@
  */
 
 import { useState, useMemo } from 'react';
-import sampleRunData from '@/data/sampleRunData';
-import sampleLiftData from '@/data/sampleLiftData';
 import { formatDate, comparePaces, getRunTypeEmoji } from '@/utils/runUtils';
 import { getSessionEmoji, formatVolume, summarizeExercises } from '@/utils/liftUtils';
 import WorkoutDetailModal from '@/components/shared/WorkoutDetailModal';
@@ -36,16 +34,17 @@ const FILTERS = [
   { key: 'rest',   label: 'Rest' },
 ];
 
+import { useWorkouts } from '@/lib/WorkoutContext';
+
+// Inside the component, replace the useState with:
 export default function TrainingLog() {
-  const [workouts, setWorkouts] = useState(() => {
-    return [...sampleRunData, ...sampleLiftData].filter(w => w != null);
-  });
+  const { workouts, saveWorkout, isLoaded } = useWorkouts();
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
-  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // ── Filter + sort workouts ──
   const filtered = useMemo(() => {
@@ -84,14 +83,7 @@ export default function TrainingLog() {
   }, [filtered]);
 
   function handleSave(data) {
-    setWorkouts(prev => {
-      if (data.id) {
-        return prev.map(w =>
-          w.id !== data.id ? w : { ...w, ...data, status: 'completed', updatedAt: new Date().toISOString() }
-        );
-      }
-      return [...prev, createWorkout({ date: data.date, type: data.type, status: 'completed', details: data.details })];
-    });
+    saveWorkout(data);
     setSelectedWorkout(null);
     setShowNewForm(false);
   }
@@ -103,6 +95,10 @@ export default function TrainingLog() {
   }
 
   const hasActiveFilters = typeFilter !== 'all' || dateFrom || dateTo;
+
+  if (!isLoaded) {
+    return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted text-sm">Loading...</p></div>;
+  }
 
   return (
     <div>

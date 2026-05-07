@@ -1,55 +1,146 @@
 'use client';
 
 /**
- * LayoutShell — Client-side wrapper for Header + Navigation + content.
- * Separated from layout.js so the root layout stays a server component.
- * 
- * Loads sample data for the header stats. Once storage.js is wired up,
- * this will read from localStorage/Supabase instead.
+ * LayoutShell — Client-side wrapper for the app.
+ * Provides WorkoutContext to all pages.
+ * Shows PR celebrations when triggered.
  */
 
 import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Navigation from './Navigation';
-import sampleRunData from '@/data/sampleRunData';
-import sampleLiftData from '@/data/sampleLiftData';
+import { WorkoutProvider, useWorkouts } from '@/lib/WorkoutContext';
 
-// Auth pages don't get the app shell
 const AUTH_ROUTES = ['/login', '/signup'];
-
-// Test pages get their own layout (they have their own headers)
 const STANDALONE_ROUTES = ['/running', '/lifting'];
 
 export default function LayoutShell({ children }) {
+  return (
+    <WorkoutProvider>
+      <ShellContent>{children}</ShellContent>
+    </WorkoutProvider>
+  );
+}
+
+function ShellContent({ children }) {
   const pathname = usePathname();
+  const { workouts, newPR, clearNewPR } = useWorkouts();
 
   // Auth pages render without the shell
   if (AUTH_ROUTES.includes(pathname)) {
     return <>{children}</>;
   }
 
-  // Test pages render standalone (they have their own headers)
+  // Test pages render standalone
   if (STANDALONE_ROUTES.some(r => pathname.startsWith(r))) {
     return <>{children}</>;
   }
 
-  // Combine all workout data for header stats
-  const allWorkouts = [...sampleRunData, ...sampleLiftData];
-
   return (
     <>
-      <Header workouts={allWorkouts} />
+      <Header workouts={workouts} />
       <Navigation />
 
-      {/* ── Main Content Area ── */}
-      {/* pt-14: clears the fixed header (h-14) */}
-      {/* md:pl-56: clears the desktop sidebar (w-56) */}
-      {/* pb-20: clears the mobile bottom tabs on small screens */}
       <main className="pt-14 md:pl-56 pb-20 md:pb-0 min-h-screen">
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
           {children}
         </div>
       </main>
+
+      {/* ── PR Celebration ── */}
+      {newPR && <PRCelebration pr={newPR} onClose={clearNewPR} />}
     </>
+  );
+}
+
+/**
+ * Inline PR celebration to avoid importing the full component
+ * (keeps Celebration.jsx optional for code splitting).
+ */
+function PRCelebration({ pr, onClose }) {
+  return (
+    <>
+      {/* Confetti particles */}
+      <ConfettiOverlay />
+
+      {/* Announcement banner */}
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[99] animate-fade-in">
+        <div className="bg-card border-2 border-phase-base rounded-card shadow-modal
+                        px-6 py-4 flex items-center gap-4 min-w-[300px]">
+          <span className="text-3xl">🏆</span>
+          <div>
+            <p className="text-xs text-phase-base uppercase tracking-wider font-semibold">
+              New Personal Record!
+            </p>
+            <p className="text-sm font-bold text-primary mt-0.5">{pr.label}</p>
+            <p className="stride-data text-lg text-primary">{pr.value}</p>
+            {pr.previousValue && (
+              <p className="text-xs text-secondary mt-0.5">
+                Previous: <span className="stride-data">{pr.previousValue}</span>
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-primary ml-auto text-xl"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      {/* Auto-dismiss after 5 seconds */}
+      <AutoDismiss onDismiss={onClose} delay={5000} />
+    </>
+  );
+}
+
+function AutoDismiss({ onDismiss, delay }) {
+  const { useEffect } = require('react');
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, delay);
+    return () => clearTimeout(timer);
+  }, [onDismiss, delay]);
+  return null;
+}
+
+function ConfettiOverlay() {
+  const COLORS = ['#4ADE80', '#60A5FA', '#C084FC', '#FB923C', '#22D3EE', '#F472B6', '#FACC15'];
+
+  const particles = Array.from({ length: 30 }, (_, i) => {
+    const x = Math.random() * 100;
+    const delay = Math.random() * 0.5;
+    const color = COLORS[i % COLORS.length];
+    const size = 4 + Math.random() * 6;
+    const drift = (Math.random() - 0.5) * 40;
+
+    return (
+      <div
+        key={i}
+        className="absolute rounded-sm"
+        style={{
+          left: `${x}%`,
+          top: '-10px',
+          width: `${size}px`,
+          height: `${size * 1.5}px`,
+          backgroundColor: color,
+          animation: `confetti-drop 2.5s ease-out ${delay}s forwards`,
+          transform: `rotate(${Math.random() * 360}deg)`,
+          opacity: 0,
+        }}
+      />
+    );
+  });
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
+      {particles}
+      <style jsx>{`
+        @keyframes confetti-drop {
+          0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+          100% { opacity: 0; transform: translateY(100vh) rotate(720deg); }
+        }
+      `}</style>
+    </div>
   );
 }
