@@ -4,13 +4,14 @@ import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { generateInsights, calculateTrainingLoad } from '@/utils/insights';
 import Sparkline from '@/components/shared/Sparkline';
+import { formatDate } from '@/utils/runUtils';
 import InsightCard from '@/components/shared/InsightCard';
 import TrainingLoadCard from '@/components/shared/TrainingLoadCard';
 import RecentPRs from '@/components/shared/RecentPRs';
 import LogForm from '@/components/shared/LogForm';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import Metric, { MetricRow } from '@/components/shared/Metric';
-import { formatDate } from '@/utils/runUtils';
+import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon, StreakIcon } from '@/utils/icons';
 import { Flame } from 'lucide-react';
 
@@ -213,11 +214,15 @@ export default function Dashboard() {
         {/* Streak — quarter tile */}
         <div className="glass-card p-4 bento-quarter">
           <div className="relative z-10">
-            <Metric label="Streak" value={stats.streak} unit={stats.streak === 1 ? 'day' : 'days'} size="lg" />
-            <div className="flex items-center gap-2 mt-1">
-              <Flame size={24} className="text-phase-peak" />
-              <p className="text-[10px] text-muted">in a row</p>
+            <p className="perf-header text-[10px] mb-2">Streak</p>
+            <div className="flex items-end justify-between mb-1">
+              <div className="flex items-baseline gap-1">
+                <span className="stride-data text-2xl font-bold text-primary">{stats.streak}</span>
+                <span className="stride-data text-sm text-muted">{stats.streak === 1 ? 'day' : 'days'}</span>
+              </div>
+              <Flame size={22} className="text-phase-peak" />
             </div>
+            <p className="text-[10px] text-muted">in a row</p>
           </div>
         </div>
 

@@ -5,7 +5,9 @@ import { getMuscleGroupColors, formatVolume, summarizeExercises } from '@/utils/
 import { RunTypeIcon, LiftSessionIcon, StatusIcon, ActivityIcon } from '@/utils/icons';
 import { Moon } from 'lucide-react';
 
-export default function DayTimeline({ date, workouts, onWorkoutClick }) {
+export default function DayTimeline({ date, workouts: rawWorkouts = [], onWorkoutClick }) {
+  if (!date) return null;
+  const workouts = Array.isArray(rawWorkouts) ? rawWorkouts : [];
   const dayName = getDayOfWeek(date);
   const isToday = date === new Date().toISOString().split('T')[0];
   const runs = workouts.filter(w => w.type === 'run');

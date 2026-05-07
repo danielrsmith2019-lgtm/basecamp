@@ -85,7 +85,7 @@ export default function SchedulePage() {
       {viewMode === 'list' && (
         <div className="space-y-5">
           {groupedByDate.length > 0 ? groupedByDate.map(([date, dayWorkouts]) => (
-            <DayTimeline key={date} date={date} workouts={dayWorkouts} onWorkoutClick={setSelectedWorkout} />
+            <DayTimeline key={date} date={date}  workouts={dayWorkouts || []} onWorkoutClick={setSelectedWorkout} />
           )) : (
             <div className="stride-card p-8 text-center">
               <p className="text-secondary">No workouts match your filter.</p>

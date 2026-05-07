@@ -181,21 +181,50 @@ export {
 // INSIGHT TYPE ICONS
 // ═══════════════════════════════════════════════════════
 
-const INSIGHT_ICONS = {
+const INSIGHT_ICONS_BY_ID = {
+  'leg-run-conflict':  AlertTriangle,
+  'volume-spike':      TrendingUp,
+  'rest-needed':       BedDouble,
+  'rest-soon':         Moon,
+  'overtraining-rpe':  Heart,
+  'effort-creep':      Activity,
+  'skip-pattern-runs': Footprints,
+  'skip-pattern-lifts': Dumbbell,
+  'pace-creep-easy':   Gauge,
+};
+
+const INSIGHT_ICONS_BY_TYPE = {
   'warning':    AlertTriangle,
-  'suggestion': Info,
-  'info':       Info,
+  'suggestion': Shield,
+  'info':       Gauge,
 };
 
 /**
- * Renders an insight icon based on type.
+ * Renders an insight icon. Tries to match by insight ID first
+ * for a specific icon, falls back to type-based icon.
  */
-export function InsightIcon({ type, size = 20, className }) {
-  const Icon = INSIGHT_ICONS[type] || Info;
+export function InsightIcon({ type, insightId, size = 20, className }) {
+  // Try specific icon by ID prefix
+  let Icon = null;
+  if (insightId) {
+    for (const [prefix, icon] of Object.entries(INSIGHT_ICONS_BY_ID)) {
+      if (insightId.startsWith(prefix)) {
+        Icon = icon;
+        break;
+      }
+    }
+  }
+
+  // Fall back to type-based
+  if (!Icon) {
+    Icon = INSIGHT_ICONS_BY_TYPE[type] || Gauge;
+  }
+
   const defaultColor = {
     warning: 'text-phase-peak',
     suggestion: 'text-phase-build',
     info: 'text-secondary',
   };
+
   return <Icon size={size} strokeWidth={2} className={className || defaultColor[type] || 'text-secondary'} />;
 }
