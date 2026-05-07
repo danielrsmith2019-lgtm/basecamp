@@ -11,6 +11,7 @@ import TrainingLoadCard from '@/components/shared/TrainingLoadCard';
 import RecentPRs from '@/components/shared/RecentPRs';
 import LogForm from '@/components/shared/LogForm';
 import { useWorkouts } from '@/lib/WorkoutContext';
+import Metric, { MetricRow } from '@/components/shared/Metric';
 
 export default function Dashboard() {
   const { workouts, prs, saveWorkout, isLoaded } = useWorkouts();
@@ -141,57 +142,81 @@ export default function Dashboard() {
 
       {/* KPI CARDS */}
       <p className="stride-section-label">Performance</p>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-        <div className="stride-card p-4">
-          <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Run Completion</p>
-          <p className="stride-data text-2xl font-bold text-phase-base mb-1">{stats.runCompletionRate}%</p>
-          <div className="stride-progress-track mb-1">
-            <div className="h-full rounded-full bg-[image:var(--gradient-completion)]"
-              style={{ width: `${stats.runCompletionRate}%`, transition: 'width 0.8s ease' }} />
-          </div>
-          <p className="text-[10px] text-muted"><span className="stride-data">{stats.completedRuns}</span> of <span className="stride-data">{stats.totalRuns}</span> runs</p>
-        </div>
+      <div className="bento-grid mb-6">
 
-        <div className="stride-card p-4">
-          <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Lift Completion</p>
-          <p className="stride-data text-2xl font-bold text-activity-lift mb-1">{stats.liftCompletionRate}%</p>
-          <div className="stride-progress-track mb-1">
-            <div className="h-full rounded-full bg-[image:var(--gradient-mileage)]"
-              style={{ width: `${stats.liftCompletionRate}%`, transition: 'width 0.8s ease' }} />
-          </div>
-          <p className="text-[10px] text-muted"><span className="stride-data">{stats.completedLifts}</span> of <span className="stride-data">{stats.totalLifts}</span> lifts</p>
-        </div>
-
-        <TrainingLoadCard load={trainingLoad} />
-
-        <div className="stride-card p-4">
-          <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Weekly Miles</p>
-          <div className="flex items-end justify-between mb-1">
-            <p className="stride-data text-2xl font-bold text-primary">{stats.currentWeekMileage}</p>
-            <Sparkline data={stats.weeklyMileageData} color="#4ADE80" width={60} height={20} />
-          </div>
-          <p className="text-[10px] text-muted">Last 4 weeks trend</p>
-        </div>
-
-        <div className="stride-card p-4">
-          <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Weekly Volume</p>
-          <div className="flex items-end justify-between mb-1">
-            <p className="stride-data text-xl font-bold text-primary">
-              {stats.currentWeekVolume > 0 ? (stats.currentWeekVolume / 1000).toFixed(1) + 'k' : '0'}
+        {/* Run Completion — hero tile */}
+        <div className="glass-card p-5 bento-hero">
+          <div className="relative z-10">
+            <Metric label="Run Completion" value={`${stats.runCompletionRate}%`} size="hero" color="text-phase-base" />
+            <div className="stride-progress-track mt-3 mb-2">
+              <div className="h-full rounded-full bg-[image:var(--gradient-completion)]"
+                style={{ width: `${stats.runCompletionRate}%`, transition: 'width 0.8s ease' }} />
+            </div>
+            <p className="text-xs text-muted">
+              <span className="stride-data">{stats.completedRuns}</span> of <span className="stride-data">{stats.totalRuns}</span> runs
             </p>
-            <Sparkline data={stats.weeklyVolumeData} color="#60A5FA" width={60} height={20} />
           </div>
-          <p className="text-[10px] text-muted">lbs · Last 4 weeks</p>
         </div>
 
-        <div className="stride-card p-4">
-          <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Streak</p>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🔥</span>
-            <p className="stride-data text-3xl font-bold text-primary">{stats.streak}</p>
+        {/* Lift Completion — hero tile */}
+        <div className="glass-card p-5 bento-half">
+          <div className="relative z-10">
+            <Metric label="Lift Completion" value={`${stats.liftCompletionRate}%`} size="hero" color="text-activity-lift" />
+            <div className="stride-progress-track mt-3 mb-2">
+              <div className="h-full rounded-full bg-[image:var(--gradient-mileage)]"
+                style={{ width: `${stats.liftCompletionRate}%`, transition: 'width 0.8s ease' }} />
+            </div>
+            <p className="text-xs text-muted">
+              <span className="stride-data">{stats.completedLifts}</span> of <span className="stride-data">{stats.totalLifts}</span> lifts
+            </p>
           </div>
-          <p className="text-[10px] text-muted mt-1">{stats.streak === 1 ? 'day' : 'days'} in a row</p>
         </div>
+
+        {/* Training Load — quarter tile */}
+        <div className="bento-third">
+          <TrainingLoadCard load={trainingLoad} />
+        </div>
+
+        {/* Weekly Miles — quarter tile */}
+        <div className="glass-card p-4 bento-quarter">
+          <div className="relative z-10">
+            <div className="flex items-end justify-between mb-1">
+              <Metric label="Weekly Miles" value={stats.currentWeekMileage} size="lg" />
+              <Sparkline data={stats.weeklyMileageData} color="#4ADE80" width={60} height={20} />
+            </div>
+            <p className="text-[10px] text-muted">Last 4 weeks trend</p>
+          </div>
+        </div>
+
+        {/* Weekly Volume — quarter tile */}
+        <div className="glass-card p-4 bento-quarter">
+          <div className="relative z-10">
+            <div className="flex items-end justify-between mb-1">
+              <Metric
+                label="Weekly Volume"
+                value={stats.currentWeekVolume > 0 ? (stats.currentWeekVolume / 1000).toFixed(1) + 'k' : '0'}
+                unit="lbs"
+                size="lg"
+              />
+              <Sparkline data={stats.weeklyVolumeData} color="#60A5FA" width={60} height={20} />
+            </div>
+            <p className="text-[10px] text-muted">Last 4 weeks</p>
+          </div>
+        </div>
+
+        {/* Streak — quarter tile */}
+        <div className="glass-card p-4 bento-quarter">
+          <div className="relative z-10">
+            <Metric label="Streak" value={stats.streak} unit={stats.streak === 1 ? 'day' : 'days'} size="lg" />
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-2xl">🔥</span>
+              <p className="text-[10px] text-muted">in a row</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Streak filler for grid alignment */}
+        <div className="bento-quarter hidden md:block" />
       </div>
 
       {/* WEEKLY CHART */}

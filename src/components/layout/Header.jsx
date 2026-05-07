@@ -51,9 +51,15 @@ export default function Header({ workouts = [] }) {
   }, [workouts]);
 
   return (
-    <header className="bg-card border-b border-border px-4 md:px-6 h-14
+    <header className="border-b px-4 md:px-6 h-14
                         flex items-center justify-between
-                        fixed top-0 left-0 right-0 z-40">
+                        fixed top-0 left-0 right-0 z-40"
+            style={{
+              background: 'oklch(0.12 0.01 260 / 0.65)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              borderColor: 'rgba(255,255,255,0.08)',
+            }}>
       {/* ── Wordmark ── */}
       <h1 className="text-lg font-bold tracking-tight">
         <span className="text-accent">BASE</span>

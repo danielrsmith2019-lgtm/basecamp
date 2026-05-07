@@ -47,8 +47,16 @@ export default function Navigation() {
   return (
     <>
       {/* ── Desktop Sidebar ── */}
-      <aside className="hidden md:flex flex-col w-56 bg-card border-r border-border
-                         fixed top-0 left-0 h-screen pt-16 z-30">
+      <aside
+        className="hidden md:flex flex-col w-56 border-r
+                   fixed top-0 left-0 h-screen pt-16 z-30"
+        style={{
+          background: 'oklch(0.12 0.01 260 / 0.6)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderColor: 'rgba(255,255,255,0.08)',
+        }}
+      >
         <nav className="flex flex-col gap-1 px-3 py-4">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
@@ -85,8 +93,16 @@ export default function Navigation() {
       </aside>
 
       {/* ── Mobile Bottom Tabs ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border
-                       z-50 pb-[env(safe-area-inset-bottom)]">
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 border-t
+                   z-50 pb-[env(safe-area-inset-bottom)]"
+        style={{
+          background: 'oklch(0.12 0.01 260 / 0.7)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderColor: 'rgba(255,255,255,0.08)',
+        }}
+      >
         <div className="flex items-center justify-around h-16">
           {MOBILE_ITEMS.map(item => {
             const Icon = item.icon;

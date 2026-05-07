@@ -148,10 +148,168 @@
   }
 
   .stride-section-label {
-    @apply text-xs uppercase tracking-widest text-muted font-semibold mb-3;
+    @apply uppercase tracking-wider font-black text-sm italic text-primary mb-4;
   }
 
   .stride-accent-left {
     @apply border-l-4;
   }
+  
+.input-glass {
+    @apply w-full rounded-lg px-3 py-2.5 text-sm text-primary
+           focus:outline-none transition-all min-h-[48px]
+           placeholder:text-muted;
+    background: oklch(0.15 0.01 260 / 0.3);
+    border: 1px solid var(--glass-border);
+  }
+
+  .btn-primary {
+    @apply px-4 py-2.5 text-sm font-medium rounded-lg
+           bg-accent text-white min-h-[48px]
+           hover:brightness-110 active:scale-[0.98]
+           transition-all duration-150;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2.5 text-sm font-medium rounded-lg
+           text-secondary min-h-[48px]
+           hover:text-primary active:scale-[0.98]
+           transition-all duration-150;
+    background: oklch(0.15 0.01 260 / 0.3);
+    border: 1px solid var(--glass-border);
+  }
+
+  .btn-secondary:hover {
+    background: oklch(0.2 0.01 260 / 0.4);
+  }
+
+  .filter-pill {
+    @apply px-3 py-1.5 text-xs font-medium rounded-lg
+           transition-all duration-150 min-h-[48px];
+  }
+
+  .filter-pill-active {
+    @apply px-3 py-1.5 text-xs font-medium rounded-lg
+           transition-all duration-150 min-h-[48px]
+           bg-accent text-white;
+  }
+
+  .filter-pill-inactive {
+    @apply px-3 py-1.5 text-xs font-medium rounded-lg
+           transition-all duration-150 min-h-[48px]
+           text-secondary hover:text-primary;
+    background: oklch(0.15 0.01 260 / 0.3);
+  }
+
+}
+
+/* ─── PERFORMANCE DESIGN SYSTEM (from Style Manifest) ─── */
+
+@theme {
+  /* Intensity spectrum tokens (for future dynamic coloring) */
+  --color-intensity-high: #FF0026;
+  --color-intensity-med:  #FFDE00;
+  --color-intensity-low:  #16EC06;
+
+  /* Glass material values */
+  --glass-bg-dark:   oklch(0.15 0.01 260 / 0.2);
+  --glass-bg-light:  oklch(1 0 0 / 0.1);
+  --glass-border:    oklch(1 0 0 / 0.12);
+  --glass-highlight: oklch(1 0 0 / 0.06);
+  --glass-shadow:    0 8px 32px 0 rgba(0, 0, 0, 0.25);
+}
+
+@layer components {
+  /* ── Glass material card (replaces stride-card over time) ── */
+  .glass-card {
+    @apply relative rounded-card overflow-hidden
+           transition-all duration-200
+           hover:brightness-110;
+    background: var(--glass-bg-dark);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+
+  /* Interior highlight — the subtle top-edge light reflection */
+  .glass-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0px rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+  }
+
+  /* Glass card WITHOUT the hover effect (for static containers) */
+  .glass-card-static {
+    @apply relative rounded-card overflow-hidden;
+    background: var(--glass-bg-dark);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+
+  .glass-card-static::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0px rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+  }
+
+  /* ── Bento grid foundation ── */
+  .bento-grid {
+    @apply grid grid-cols-4 md:grid-cols-12 gap-4;
+  }
+  .bento-hero {
+    @apply col-span-4 md:col-span-6;
+  }
+  .bento-half {
+    @apply col-span-4 md:col-span-6;
+  }
+  .bento-third {
+    @apply col-span-2 md:col-span-4;
+  }
+  .bento-quarter {
+    @apply col-span-2 md:col-span-3;
+  }
+  .bento-full {
+    @apply col-span-4 md:col-span-12;
+  }
+
+  /* ── Performance header typography ── */
+  .perf-header {
+    @apply uppercase tracking-widest font-black text-xs text-muted;
+  }
+  .perf-header-lg {
+    @apply uppercase tracking-wider font-black text-sm italic;
+  }
+
+  /* ── Updated stride-card to hybrid glass ── */
+  /* This makes the existing stride-card adopt glass properties */
+  /* while keeping the accent-left border pattern intact */
+  .stride-card {
+    @apply relative rounded-card overflow-hidden
+           transition-all duration-200
+           hover:brightness-110;
+    background: oklch(0.15 0.01 260 / 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2);
+  }
+
+  .stride-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0px rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+  }
+  
 }

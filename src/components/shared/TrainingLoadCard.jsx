@@ -19,7 +19,8 @@ export default function TrainingLoadCard({ load }) {
   const trend = trendConfig[load.trend] || trendConfig.stable;
 
   return (
-    <div className="stride-card p-4">
+    <div className="glass-card p-4">
+      <div className="relative z-10">
       <p className="text-[10px] uppercase tracking-wider text-muted mb-2">Training Load</p>
 
       <div className="flex items-end justify-between mb-2">
@@ -40,6 +41,7 @@ export default function TrainingLoadCard({ load }) {
       <p className="text-[10px] text-muted mt-1">
         Run miles × 10 + lift volume / 100
       </p>
+    </div> {/* close relative z-10 */}
     </div>
   );
 }
