@@ -109,7 +109,7 @@ function detectRunningPRs(runs) {
       value: longestDist + ' mi',
       detail: longestRun.details.actualPace ? `@ ${longestRun.details.actualPace}` : '',
       date: longestRun.date,
-      icon: '🏔️',
+      icon: null,
     });
   }
 
@@ -153,7 +153,7 @@ function detectRunningPRs(runs) {
         value: fastest.details.actualPace + '/mi',
         detail: `${fastest.details.actualDistance} mi actual`,
         date: fastest.date,
-        icon: '⏱️',
+        icon: null,
       });
     }
   });
@@ -186,7 +186,7 @@ function detectRunningPRs(runs) {
       value: `${bestPI.details.actualDistance} mi @ ${bestPI.details.actualPace}`,
       detail: 'Distance × speed composite',
       date: bestPI.date,
-      icon: '🏆',
+      icon: null,
     });
   }
 
@@ -248,7 +248,7 @@ function detectLiftingPRs(lifts) {
       value: `${best.e1rm} lbs e1RM`,
       detail: `${best.weight} × ${best.reps} actual`,
       date: best.date,
-      icon: '💪',
+      icon: null,
       muscleGroup: best.muscleGroup,
     });
   });
@@ -287,7 +287,7 @@ function detectLiftingPRs(lifts) {
       value: `${best.weight} lbs × ${best.reps}`,
       detail: 'Heaviest single set',
       date: best.date,
-      icon: '🏋️',
+      icon: null,
     });
   });
 
@@ -312,7 +312,7 @@ function detectLiftingPRs(lifts) {
       value: bestVolume.toLocaleString() + ' lbs',
       detail: bestVolumeSession.details.sessionName || 'Workout',
       date: bestVolumeSession.date,
-      icon: '📊',
+      icon: null,
     });
   }
 

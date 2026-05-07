@@ -159,21 +159,10 @@ export function getToday() {
  * Maps run types to emoji icons.
  * These are the same emojis STRIDE used in RunCard.
  */
+// Emoji icons removed — use RunTypeIcon from '@/utils/icons' instead.
+// This stub prevents import errors during migration.
 export function getRunTypeEmoji(runType) {
-  const map = {
-    'Easy Run':    '🏃',
-    'Tempo':       '🔥',
-    'Intervals':   '⚡',
-    'Long Run':    '🏔️',
-    'Race':        '🏁',
-    'Shakeout':    '🚶',
-    'REST':        '😴',
-    'Rest':        '😴',
-    'Rest/Lift':   '😴',
-    'Optional':    '🤷',
-    'Recovery':    '🧘',
-  };
-  return map[runType] || '🏃';
+  return null; // Deprecated: use <RunTypeIcon> component
 }
 
 /**

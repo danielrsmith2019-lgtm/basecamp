@@ -4,18 +4,20 @@ import { useState, useMemo } from 'react';
 import { formatDate } from '@/utils/runUtils';
 import { getMuscleGroupColors } from '@/utils/liftUtils';
 import { useWorkouts } from '@/lib/WorkoutContext';
+import { ActivityIcon, PRIcon } from '@/utils/icons';
+import { Footprints, Dumbbell, Trophy } from 'lucide-react';
+
 
 export default function RecordsPage() {
   const [activeTab, setActiveTab] = useState('running');
 
-  
 
 // Inside the component:
   const { workouts, prs } = useWorkouts();
 
   const tabs = [
-    { key: 'running', label: `🏃 Running (${prs.running.length})` },
-    { key: 'lifting', label: `🏋️ Lifting (${prs.lifting.length})` },
+    { key: 'running', label: 'Running', count: prs.running.length, Icon: Footprints, color: 'text-activity-run' },
+    { key: 'lifting', label: 'Lifting', count: prs.lifting.length, Icon: Dumbbell, color: 'text-activity-lift' },
   ];
 
   return (
@@ -25,20 +27,25 @@ export default function RecordsPage() {
       {/* ── Tab Toggle ── */}
       <div className="flex gap-1.5 mb-6">
         {tabs.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`
-              px-4 py-2 text-sm font-medium rounded-lg transition-colors
-              ${activeTab === tab.key
-                ? 'bg-accent text-white'
-                : 'bg-surface text-secondary hover:text-primary'
-              }
-            `}
-          >
-            {tab.label}
-          </button>
-        ))}
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`
+                px-4 py-2 text-sm font-medium rounded-lg transition-colors
+                flex items-center gap-2
+                ${activeTab === tab.key
+                  ? 'bg-accent text-white'
+                  : 'bg-surface text-secondary hover:text-primary'
+                }
+              `}
+            >
+              <tab.Icon size={16} strokeWidth={activeTab === tab.key ? 2.5 : 2} />
+              {tab.label}
+              <span className={`stride-data text-xs ${activeTab === tab.key ? 'text-white/70' : 'text-muted'}`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
       </div>
 
       {/* ═══════════════════════════════════════════════ */}
@@ -134,7 +141,9 @@ function PRCard({ pr, accentColor, showMuscleGroup }) {
         <div className="flex-1">
           {/* Label */}
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{pr.icon}</span>
+            <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center">
+              <ActivityIcon type={pr.sport === 'run' ? 'run' : 'lift'} size={16} />
+            </div>
             <span className="text-sm font-semibold text-primary">{pr.label}</span>
           </div>
 
@@ -174,7 +183,9 @@ function PRCard({ pr, accentColor, showMuscleGroup }) {
 function EmptyState({ type }) {
   return (
     <div className="stride-card p-8 text-center">
-      <span className="text-4xl block mb-3">{type === 'running' ? '🏃' : '🏋️'}</span>
+      <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center mx-auto mb-3">
+        <ActivityIcon type={type === 'running' ? 'run' : 'lift'} size={24} />
+      </div>
       <p className="text-secondary text-sm">
         No {type} records yet. Complete more workouts to start setting PRs.
       </p>

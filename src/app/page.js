@@ -2,8 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { formatDate, getRunTypeEmoji } from '@/utils/runUtils';
-import { getSessionEmoji, formatVolume } from '@/utils/liftUtils';
 import { generateInsights, calculateTrainingLoad } from '@/utils/insights';
 import Sparkline from '@/components/shared/Sparkline';
 import InsightCard from '@/components/shared/InsightCard';
@@ -12,6 +10,9 @@ import RecentPRs from '@/components/shared/RecentPRs';
 import LogForm from '@/components/shared/LogForm';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import Metric, { MetricRow } from '@/components/shared/Metric';
+import { formatDate } from '@/utils/runUtils';
+import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon, StreakIcon } from '@/utils/icons';
+import { Flame } from 'lucide-react';
 
 export default function Dashboard() {
   const { workouts, prs, saveWorkout, isLoaded } = useWorkouts();
@@ -108,9 +109,12 @@ export default function Dashboard() {
                 ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}
                 ${w.status === 'completed' ? 'bg-status-done/5' : 'bg-surface'}`}>
                 <div className="flex items-center gap-3">
-                  <span className="text-xl">
-                    {w.type === 'run' ? getRunTypeEmoji(w.details.runType) : getSessionEmoji(w.details.sessionName)}
-                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
+                    {w.type === 'run'
+                      ? <RunTypeIcon runType={w.details.runType} size={18} />
+                      : <LiftSessionIcon sessionName={w.details.sessionName} size={18} />
+                    }
+                  </div>
                   <div>
                     <p className="text-sm font-medium text-primary">
                       {w.type === 'run' ? w.details.runDescription || w.details.runType : w.details.sessionName}
@@ -127,7 +131,9 @@ export default function Dashboard() {
                     Log It
                   </button>
                 ) : (
-                  <span className="stride-badge bg-status-done/20 text-status-done text-xs">✓ Done</span>
+                  <span className="stride-badge bg-status-done/20 text-status-done text-xs flex items-center gap-1">
+                    <StatusIcon status="completed" size={10} /> Done
+                  </span>
                 )}
               </div>
             ))}
@@ -209,7 +215,7 @@ export default function Dashboard() {
           <div className="relative z-10">
             <Metric label="Streak" value={stats.streak} unit={stats.streak === 1 ? 'day' : 'days'} size="lg" />
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-2xl">🔥</span>
+              <Flame size={24} className="text-phase-peak" />
               <p className="text-[10px] text-muted">in a row</p>
             </div>
           </div>
@@ -256,7 +262,9 @@ export default function Dashboard() {
           <div key={w.id} className={`stride-card stride-accent-left p-3 flex items-center justify-between
             ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}`}>
             <div className="flex items-center gap-3">
-              <span className="text-lg">{w.type === 'run' ? getRunTypeEmoji(w.details.runType) : getSessionEmoji(w.details.sessionName)}</span>
+              <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
+                <ActivityIcon type={w.type} size={16} />
+              </div>
               <div>
                 <p className="text-sm font-medium text-primary">{w.type === 'run' ? w.details.runType : w.details.sessionName}</p>
                 <p className="text-xs text-secondary">{formatDate(w.date)}</p>

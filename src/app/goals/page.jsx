@@ -13,6 +13,7 @@ import { useWorkouts } from '@/lib/WorkoutContext';
 import { formatDate, parsePace } from '@/utils/runUtils';
 import { calculateE1RM, formatVolume } from '@/utils/liftUtils';
 import ProgressRing from '@/components/shared/ProgressRing';
+import { Flame, Trophy, Target, Footprints, Dumbbell, BarChart3, CalendarCheck, Repeat, Scale } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════
 // GOAL DEFINITIONS
@@ -24,14 +25,14 @@ const GOAL_TEMPLATES = {
       id: 'run-plan-completion',
       title: 'Complete Training Plan',
       description: 'Finish all planned runs in the training plan.',
-      icon: '📋',
+      icon: CalendarCheck,
       compute: computePlanCompletion,
     },
     {
       id: 'run-weekly-mileage',
       title: 'Weekly Mileage Target',
       description: 'Hit 25+ miles in a single week.',
-      icon: '🏃',
+      icon: Footprints,
       target: 25,
       compute: computeWeeklyMileage,
     },
@@ -39,15 +40,15 @@ const GOAL_TEMPLATES = {
       id: 'run-race-pace',
       title: 'Sub-4:00 Marathon Pace',
       description: 'Average pace under 9:09/mi on long runs.',
-      icon: '🏁',
-      targetPace: 9.15, // 9:09 in decimal
+      icon: Target,
+      targetPace: 9.15,
       compute: computeRacePace,
     },
     {
       id: 'run-long-run-distance',
       title: 'Long Run 10+ Miles',
       description: 'Complete a long run of 10 miles or more.',
-      icon: '🏔️',
+      icon: Footprints,
       target: 10,
       compute: computeLongRunDistance,
     },
@@ -57,7 +58,7 @@ const GOAL_TEMPLATES = {
       id: 'lift-bench-pr',
       title: 'Bench Press 225 lbs',
       description: 'Estimated 1RM of 225 lbs on bench press.',
-      icon: '💪',
+      icon: Dumbbell,
       exercise: 'Barbell Bench Press',
       target: 225,
       compute: computeLiftE1RM,
@@ -66,7 +67,7 @@ const GOAL_TEMPLATES = {
       id: 'lift-squat-pr',
       title: 'Squat 315 lbs',
       description: 'Estimated 1RM of 315 lbs on back squat.',
-      icon: '🦵',
+      icon: Dumbbell,
       exercise: 'Barbell Back Squat',
       target: 315,
       compute: computeLiftE1RM,
@@ -75,14 +76,14 @@ const GOAL_TEMPLATES = {
       id: 'lift-plan-completion',
       title: 'Complete All Lifts',
       description: 'Finish all planned lifting sessions.',
-      icon: '📋',
+      icon: CalendarCheck,
       compute: computeLiftPlanCompletion,
     },
     {
       id: 'lift-weekly-volume',
       title: '20k Weekly Volume',
       description: 'Hit 20,000 lbs total volume in a single week.',
-      icon: '📊',
+      icon: BarChart3,
       target: 20000,
       compute: computeWeeklyVolume,
     },
@@ -92,7 +93,7 @@ const GOAL_TEMPLATES = {
       id: 'combined-training-days',
       title: 'Train 5 Days/Week',
       description: 'Complete at least 5 training sessions per week (any type).',
-      icon: '🔥',
+      icon: Flame,
       target: 5,
       compute: computeTrainingDays,
     },
@@ -100,7 +101,7 @@ const GOAL_TEMPLATES = {
       id: 'combined-streak',
       title: '14-Day Streak',
       description: 'Complete a planned workout for 14 consecutive days.',
-      icon: '🔥',
+      icon: Flame,
       target: 14,
       compute: computeStreak,
     },
@@ -108,7 +109,7 @@ const GOAL_TEMPLATES = {
       id: 'combined-consistency',
       title: '80% Overall Adherence',
       description: 'Complete at least 80% of all planned workouts.',
-      icon: '✅',
+      icon: Repeat,
       target: 80,
       compute: computeOverallAdherence,
     },
@@ -116,13 +117,12 @@ const GOAL_TEMPLATES = {
       id: 'combined-balance',
       title: 'Balanced Training',
       description: 'Complete at least 3 runs AND 3 lifts every week for 4 weeks.',
-      icon: '⚖️',
+      icon: Scale,
       target: 4,
       compute: computeTrainingBalance,
     },
   ],
 };
-
 
 // ═══════════════════════════════════════════════════════
 // COMPONENT
@@ -160,10 +160,10 @@ export default function GoalsPage() {
   const activeGoals = allGoals.filter(g => g.percentage < 100);
 
   const tabs = [
-    { key: 'all',      label: `All (${allGoals.length})` },
-    { key: 'running',  label: `🏃 Running (${goals.running.length})` },
-    { key: 'lifting',  label: `🏋️ Lifting (${goals.lifting.length})` },
-    { key: 'combined', label: `🔥 Combined (${goals.combined.length})` },
+    { key: 'all',      label: 'All',      count: allGoals.length,         Icon: Target,     color: 'text-primary' },
+    { key: 'running',  label: 'Running',  count: goals.running.length,    Icon: Footprints, color: 'text-activity-run' },
+    { key: 'lifting',  label: 'Lifting',  count: goals.lifting.length,    Icon: Dumbbell,   color: 'text-activity-lift' },
+    { key: 'combined', label: 'Combined', count: goals.combined.length,   Icon: Flame,      color: 'text-phase-peak' },
   ];
 
   if (!isLoaded) {
@@ -201,12 +201,17 @@ export default function GoalsPage() {
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
+              flex items-center gap-2
               ${activeTab === tab.key
                 ? 'bg-accent text-white'
                 : 'bg-surface text-secondary hover:text-primary'
               }`}
           >
+            <tab.Icon size={14} strokeWidth={activeTab === tab.key ? 2.5 : 2} />
             {tab.label}
+            <span className={`stride-data text-xs ${activeTab === tab.key ? 'text-white/70' : 'text-muted'}`}>
+              {tab.count}
+            </span>
           </button>
         ))}
       </div>
@@ -231,7 +236,12 @@ export default function GoalsPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {completedGoals.map(goal => (
               <div key={goal.id} className="stride-card p-4 text-center border-phase-base/30">
-                <span className="text-3xl block mb-2">{goal.icon}</span>
+                <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center mx-auto mb-2">
+                  {goal.icon && typeof goal.icon === 'string'
+                    ? (() => { const Icon = goal.icon; return <Icon size={20} className="text-phase-base" />; })()
+                    : <Trophy size={20} className="text-phase-base" />
+                  }
+                </div>
                 <p className="text-xs font-semibold text-primary">{goal.title}</p>
                 <span className="stride-badge bg-status-done/20 text-status-done text-[10px] mt-2">
                   ✓ Achieved
@@ -271,11 +281,11 @@ function GoalSection({ title, goals, accentColor }) {
 function GoalCard({ goal, accentColor }) {
   const isComplete = goal.percentage >= 100;
   const statusConfig = getGoalStatus(goal);
+  const GoalIcon = goal.icon && typeof goal.icon !== 'string' ? goal.icon : null;
 
   return (
     <div className={`stride-card p-5 ${isComplete ? 'border-phase-base/30' : ''}`}>
       <div className="flex gap-4">
-        {/* Progress Ring */}
         <ProgressRing
           percentage={goal.percentage}
           size={72}
@@ -283,29 +293,26 @@ function GoalCard({ goal, accentColor }) {
           color={isComplete ? '#4ADE80' : accentColor}
         />
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Title row */}
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{goal.icon}</span>
+            <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
+              {GoalIcon
+                ? <GoalIcon size={16} className="text-primary" />
+                : <Target size={16} className="text-primary" />
+              }
+            </div>
             <h4 className="text-sm font-semibold text-primary truncate">{goal.title}</h4>
           </div>
 
-          {/* Description */}
           <p className="text-xs text-secondary mb-2">{goal.description}</p>
-
-          {/* Progress detail */}
           <p className="stride-data text-xs text-primary mb-2">{goal.progressText}</p>
 
-          {/* Status badge + projection */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`stride-badge text-[10px] ${statusConfig.bg} ${statusConfig.text}`}>
               {statusConfig.icon} {statusConfig.label}
             </span>
             {goal.projectedDate && !isComplete && (
-              <span className="text-[10px] text-muted">
-                Est. {goal.projectedDate}
-              </span>
+              <span className="text-[10px] text-muted">Est. {goal.projectedDate}</span>
             )}
           </div>
         </div>

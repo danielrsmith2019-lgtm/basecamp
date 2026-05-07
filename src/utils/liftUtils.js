@@ -35,20 +35,9 @@ export function getMuscleGroupColors(muscleGroup) {
  * Maps session names to emoji icons.
  * Follows STRIDE's emoji-first iconography pattern.
  */
+// Emoji icons removed — use LiftSessionIcon from '@/utils/icons' instead.
 export function getSessionEmoji(sessionName) {
-  const lower = (sessionName || '').toLowerCase();
-  if (lower.includes('push'))      return '💪';
-  if (lower.includes('pull'))      return '🏋️';
-  if (lower.includes('leg'))       return '🦵';
-  if (lower.includes('upper'))     return '💪';
-  if (lower.includes('lower'))     return '🦵';
-  if (lower.includes('full body')) return '🏋️';
-  if (lower.includes('abs'))       return '🧘';
-  if (lower.includes('arm'))       return '💪';
-  if (lower.includes('back'))      return '🏋️';
-  if (lower.includes('chest'))     return '💪';
-  if (lower.includes('shoulder'))  return '🏋️';
-  return '🏋️';
+  return null; // Deprecated: use <LiftSessionIcon> component
 }
 
 
