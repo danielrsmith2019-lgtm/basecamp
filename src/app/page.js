@@ -15,6 +15,7 @@ import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon, StreakIcon } from '@/utils/icons';
 import { Flame } from 'lucide-react';
 
+
 export default function Dashboard() {
   const { workouts, prs, saveWorkout, isLoaded } = useWorkouts();
   const [logTarget, setLogTarget] = useState(null);

@@ -1,6 +1,7 @@
 import { DM_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import LayoutShell from '@/components/layout/LayoutShell';
+import { AuthProvider } from '@/lib/auth'
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -25,9 +26,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`}>
       <body className="bg-base text-primary font-sans antialiased min-h-screen">
-        <LayoutShell>
-          {children}
-        </LayoutShell>
+        <AuthProvider>
+  <LayoutShell>
+    {children}
+  </LayoutShell>
+</AuthProvider>
       </body>
     </html>
   );

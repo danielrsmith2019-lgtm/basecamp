@@ -4,7 +4,7 @@
  * Header — BASECAMP wordmark + combined training stats.
  * Stats use the STRIDE pattern: font-mono numbers, uppercase labels.
  */
-
+import LogoutButton from '@/components/shared/LogoutButton';
 import { useMemo } from 'react';
 
 export default function Header({ workouts = [] }) {
@@ -106,6 +106,8 @@ export default function Header({ workouts = [] }) {
           <span className="text-[10px] uppercase tracking-wider text-muted">lbs</span>
         </div>
       </div>
+
+      <LogoutButton />
     </header>
   );
 }
