@@ -435,7 +435,7 @@ export function calculateLiftVolume(exercises) {
   let setCount = 0;
 
   for (const exercise of exercises) {
-    for (const set of exercise.sets) {
+    for (const set of (Array.isArray(exercise.sets) ? exercise.sets : [])) {
       if (set.completed && set.weight && set.reps) {
         volume += set.weight * set.reps;
         setCount++;

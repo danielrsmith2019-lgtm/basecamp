@@ -46,6 +46,7 @@ export default function TrainingLog() {
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [sortOrder, setSortOrder] = useState('desc');
+  const [showPast, setShowPast] = useState(false);
 
   // ── Filter + sort workouts ──
   const filtered = useMemo(() => {
@@ -63,9 +64,27 @@ export default function TrainingLog() {
   }, [workouts, typeFilter, dateFrom, dateTo, sortOrder]);
 
   // ── Build rows with weekly summary inserts ──
-  const tableRows = useMemo(() => {
-    return buildTableRows(filtered, sortOrder);
-  }, [filtered, sortOrder]);
+  const allRows = useMemo(() => buildTableRows(filtered, sortOrder), [filtered, sortOrder]);
+
+  const { currentAndFutureRows, pastRows } = useMemo(() => {
+    const currentWeekKey = getISOWeek(new Date().toISOString().split('T')[0]);
+    let hitPast = false;
+    const current = [];
+    const past = [];
+
+    allRows.forEach(row => {
+      if (row.isSummary && row.isPast) hitPast = true;
+      if (hitPast) {
+        past.push(row);
+      } else {
+        current.push(row);
+      }
+    });
+
+    return { currentAndFutureRows: current, pastRows: past };
+  }, [allRows]);
+
+  const tableRows = showPast ? [...currentAndFutureRows, ...pastRows] : currentAndFutureRows;
 
   // ── Aggregate stats for the filter bar ──
   const stats = useMemo(() => {
@@ -189,6 +208,19 @@ export default function TrainingLog() {
         </div>
       </div>
 
+       {/* Past weeks toggle */}
+      {pastRows.length > 0 && (
+        <button
+          onClick={() => setShowPast(!showPast)}
+          className="flex items-center gap-2 text-xs text-muted hover:text-secondary transition-colors mb-3"
+        >
+          {showPast ? '▲ Hide' : '▼ Show'} past weeks
+          <span className="stride-data text-[10px]">
+            ({pastRows.filter(r => r.isSummary).length} week{pastRows.filter(r => r.isSummary).length !== 1 ? 's' : ''})
+          </span>
+        </button>
+      )}
+
       {/* ═══════════════════════════════════════════════ */}
       {/* TABLE */}
       {/* ═══════════════════════════════════════════════ */}
@@ -241,7 +273,7 @@ export default function TrainingLog() {
         </div>
 
         {/* Empty state */}
-        {tableRows.length === 0 && (
+        {allRows.length === 0 && (
           <div className="p-8 text-center">
             <p className="text-secondary">No workouts match your filters.</p>
             <button onClick={clearFilters} className="text-accent text-sm mt-2 hover:underline">
@@ -309,7 +341,7 @@ function WorkoutRow({ workout, onClick }) {
     // Average RPE across all sets
     if (!rpe && details.exercises) {
       const allRpe = details.exercises.flatMap(e =>
-        (e.sets || []).filter(s => s.rpe != null).map(s => s.rpe)
+        (Array.isArray(e.sets) ? e.sets : []).filter(s => s.rpe != null).map(s => s.rpe)
       );
       if (allRpe.length > 0) {
         rpe = Math.round(allRpe.reduce((a, b) => a + b, 0) / allRpe.length);
@@ -560,6 +592,8 @@ function MobileSummaryCard({ summary }) {
 function buildTableRows(workouts, sortOrder) {
   if (workouts.length === 0) return [];
 
+  const currentWeekKey = getISOWeek(new Date().toISOString().split('T')[0]);
+
   // Group by ISO week
   const weeks = {};
   workouts.forEach(w => {
@@ -568,15 +602,22 @@ function buildTableRows(workouts, sortOrder) {
     weeks[weekKey].push(w);
   });
 
+  // Split into current, future, and past
+  const weekKeys = Object.keys(weeks).sort();
+  const currentWeek = weekKeys.filter(k => k === currentWeekKey);
+  const futureWeeks = weekKeys.filter(k => k > currentWeekKey).sort();
+  const pastWeeks = weekKeys.filter(k => k < currentWeekKey).sort().reverse();
+
+  // Order: current week → future weeks → past weeks
+  const orderedKeys = [...currentWeek, ...futureWeeks, ...pastWeeks];
+
   const rows = [];
-  const weekKeys = Object.keys(weeks).sort((a, b) =>
-    sortOrder === 'desc' ? b.localeCompare(a) : a.localeCompare(b)
-  );
 
-  weekKeys.forEach(weekKey => {
+  orderedKeys.forEach(weekKey => {
     const weekWorkouts = weeks[weekKey];
+    const isCurrent = weekKey === currentWeekKey;
+    const isPast = weekKey < currentWeekKey;
 
-    // Compute weekly summary
     const completed = weekWorkouts.filter(w => w.status === 'completed');
     const runs = completed.filter(w => w.type === 'run');
     const lifts = completed.filter(w => w.type === 'lift');
@@ -592,15 +633,14 @@ function buildTableRows(workouts, sortOrder) {
       ? Math.round(allRpe.reduce((a, b) => a + b, 0) / allRpe.length * 10) / 10
       : null;
 
-    // Week label from date range
     const dates = weekWorkouts.map(w => w.date).sort();
     const startDate = formatDate(dates[0]);
-    const endDate = formatDate(dates[dates.length - 1]);
 
-    // Add summary row first (or last, depending on sort)
-    const summaryRow = {
+    rows.push({
       isSummary: true,
-      label: `Week of ${startDate}`,
+      label: isCurrent ? `This Week (${startDate})` : `Week of ${startDate}`,
+      isCurrent,
+      isPast,
       workoutCount: weekWorkouts.length,
       runCount: runs.length,
       liftCount: lifts.length,
@@ -608,16 +648,9 @@ function buildTableRows(workouts, sortOrder) {
       totalMiles,
       totalVolume,
       avgRpe,
-    };
+    });
 
-    // Add summary before workout rows
-    rows.push(summaryRow);
-
-    // Sort workouts within the week
-    const sorted = [...weekWorkouts].sort((a, b) =>
-      sortOrder === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)
-    );
-
+    const sorted = [...weekWorkouts].sort((a, b) => a.date.localeCompare(b.date));
     sorted.forEach(w => {
       rows.push({ isSummary: false, workout: w });
     });

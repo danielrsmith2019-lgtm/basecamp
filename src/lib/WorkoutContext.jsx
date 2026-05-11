@@ -172,6 +172,15 @@ export function WorkoutProvider({ children }) {
   const clearError = useCallback(() => {
     setError(null);
   }, []);
+
+  // ── Reload workouts from database ──
+  const refreshWorkouts = useCallback(async () => {
+    if (!user) return;
+    setIsLoaded(false);
+    const data = await dbGetWorkouts(user.id);
+    setWorkouts(data || []);
+    setIsLoaded(true);
+  }, [user]);
  
   // ── Reset to sample data (for testing) ──
   const resetToSampleData = useCallback(async () => {
@@ -209,6 +218,7 @@ export function WorkoutProvider({ children }) {
     removeWorkout,
     clearNewPR,
     clearError,
+    refreshWorkouts,
     resetToSampleData,
   }), [workouts, prs, newPR, isLoaded, error, addNewWorkout, saveWorkout, removeWorkout, clearNewPR, clearError, resetToSampleData]);
  

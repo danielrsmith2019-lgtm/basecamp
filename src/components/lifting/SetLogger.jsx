@@ -9,7 +9,8 @@
 import { useState } from 'react';
 
 export default function SetLogger({ exercise, onChange }) {
-  const { name, muscleGroup, sets = [] } = exercise;
+  const { name, muscleGroup, sets: rawSets = [] } = exercise;
+  const sets = Array.isArray(rawSets) ? rawSets : [];
 
   function updateSet(setIndex, field, value) {
     const updated = sets.map((s, i) => {

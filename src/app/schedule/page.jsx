@@ -6,6 +6,7 @@ import CalendarView from '@/components/shared/CalendarView';
 import WorkoutDetailModal from '@/components/shared/WorkoutDetailModal';
 import LogForm from '@/components/shared/LogForm';
 import { useWorkouts } from '@/lib/WorkoutContext';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function SchedulePage() {
   const { workouts, saveWorkout, isLoaded } = useWorkouts();
@@ -13,6 +14,9 @@ export default function SchedulePage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showPast, setShowPast] = useState(false);
+
+  const today = new Date().toISOString().split('T')[0];
 
   const filteredWorkouts = useMemo(() => {
     const sorted = [...workouts].sort((a, b) => a.date.localeCompare(b.date));
@@ -20,11 +24,20 @@ export default function SchedulePage() {
     return sorted.filter(w => w.type === typeFilter);
   }, [workouts, typeFilter]);
 
-  const groupedByDate = useMemo(() => {
+  // Split into past and upcoming (today + future)
+  const { pastDates, upcomingDates } = useMemo(() => {
     const map = {};
-    filteredWorkouts.forEach(w => { if (!map[w.date]) map[w.date] = []; map[w.date].push(w); });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredWorkouts]);
+    filteredWorkouts.forEach(w => {
+      if (!map[w.date]) map[w.date] = [];
+      map[w.date].push(w);
+    });
+
+    const allDates = Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+    const past = allDates.filter(([date]) => date < today);
+    const upcoming = allDates.filter(([date]) => date >= today);
+
+    return { pastDates: past, upcomingDates: upcoming };
+  }, [filteredWorkouts, today]);
 
   const stats = useMemo(() => ({
     total: workouts.length,
@@ -83,15 +96,46 @@ export default function SchedulePage() {
       </div>
 
       {viewMode === 'list' && (
-        <div className="space-y-5">
-          {groupedByDate.length > 0 ? groupedByDate.map(([date, dayWorkouts]) => (
-            <DayTimeline key={date} date={date}  workouts={dayWorkouts || []} onWorkoutClick={setSelectedWorkout} />
-          )) : (
-            <div className="stride-card p-8 text-center">
-              <p className="text-secondary">No workouts match your filter.</p>
-              <button onClick={() => setTypeFilter('all')} className="text-accent text-sm mt-2 hover:underline">Show all</button>
+        <div>
+          {/* ── Past workouts (collapsed by default) ── */}
+          {pastDates.length > 0 && (
+            <div className="mb-4">
+              <button
+                onClick={() => setShowPast(!showPast)}
+                className="flex items-center gap-2 text-xs text-muted hover:text-secondary transition-colors mb-3"
+              >
+                {showPast ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {showPast ? 'Hide' : 'Show'} past workouts
+                <span className="stride-data text-[10px]">({pastDates.length} day{pastDates.length !== 1 ? 's' : ''})</span>
+              </button>
+
+              {showPast && (
+                <div className="space-y-5 mb-6 pb-6 border-b border-gray-800">
+                  {pastDates.map(([date, dayWorkouts]) => (
+                    <DayTimeline key={date} date={date} workouts={dayWorkouts || []} onWorkoutClick={setSelectedWorkout} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          {/* ── Today & Upcoming ── */}
+          <div className="space-y-5">
+            {upcomingDates.length > 0 ? upcomingDates.map(([date, dayWorkouts]) => (
+              <DayTimeline
+                key={date}
+                date={date}
+                workouts={dayWorkouts || []}
+                onWorkoutClick={setSelectedWorkout}
+                isToday={date === today}
+              />
+            )) : (
+              <div className="stride-card p-8 text-center">
+                <p className="text-secondary">No upcoming workouts.</p>
+                <p className="text-muted text-xs mt-1">Generate a plan or log a workout to get started.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
