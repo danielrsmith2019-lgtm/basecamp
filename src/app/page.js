@@ -14,10 +14,11 @@ import Metric, { MetricRow } from '@/components/shared/Metric';
 import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon, StreakIcon } from '@/utils/icons';
 import { Flame } from 'lucide-react';
+import PlanAdaptationList from '@/components/shared/PlanAdaptation';
 
 
 export default function Dashboard() {
-  const { workouts, prs, saveWorkout, isLoaded } = useWorkouts();
+  const { workouts, prs, saveWorkout, isLoaded, adaptations, acceptAdaptation, rejectAdaptation } = useWorkouts();
   const [logTarget, setLogTarget] = useState(null);
   const [dismissedInsights, setDismissedInsights] = useState(new Set());
 
@@ -76,6 +77,12 @@ export default function Dashboard() {
 
   return (
     <div>
+      {/* PLAN ADAPTATIONS */}
+      <PlanAdaptationList
+        adaptations={adaptations}
+        onAccept={acceptAdaptation}
+        onReject={rejectAdaptation}
+      />
       {/* INSIGHTS */}
       {visibleInsights.length > 0 && (
         <div className="mb-6">
