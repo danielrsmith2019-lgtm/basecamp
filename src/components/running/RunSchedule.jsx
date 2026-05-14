@@ -108,7 +108,7 @@ export default function RunSchedule({ workouts, onRunClick }) {
             />
           ))
         ) : (
-          <div className="stride-card p-8 text-center">
+          <div className="bc-card bc-empty">
             <p className="text-secondary">No runs match your filters.</p>
             <button
               onClick={() => { setPhaseFilter('all'); setStatusFilter('all'); }}

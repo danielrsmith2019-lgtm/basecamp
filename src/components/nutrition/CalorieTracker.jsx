@@ -61,7 +61,7 @@ export default function CalorieTracker({ nutritionLog, onChange }) {
       {/* ── Daily Totals ── */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         {/* Calories */}
-        <div className="stride-card p-4">
+        <div className="bc-card">
           <div className="flex items-baseline justify-between mb-2">
             <span className="stride-section-label mb-0">Calories</span>
             <span className="text-xs text-secondary">
@@ -83,7 +83,7 @@ export default function CalorieTracker({ nutritionLog, onChange }) {
         </div>
 
         {/* Protein */}
-        <div className="stride-card p-4">
+        <div className="bc-card">
           <div className="flex items-baseline justify-between mb-2">
             <span className="stride-section-label mb-0">Protein</span>
             <span className="text-xs text-secondary">
@@ -106,7 +106,7 @@ export default function CalorieTracker({ nutritionLog, onChange }) {
       </div>
 
       {/* ── Quick Add Form ── */}
-      <div className="stride-card p-4 mb-6">
+      <div className="bc-card mb-6">
         <p className="stride-section-label">Quick Add</p>
         <div className="flex items-center gap-2 mb-2">
           {meals.map(meal => (
@@ -116,7 +116,7 @@ export default function CalorieTracker({ nutritionLog, onChange }) {
               className={`
                 px-3 py-1 text-xs rounded-lg transition-colors
                 ${activeMeal === meal.name
-                  ? 'bg-accent text-white'
+                  ? 'bg-accent text-primary'
                   : 'bg-surface text-secondary hover:text-primary'
                 }
               `}
@@ -156,7 +156,7 @@ export default function CalorieTracker({ nutritionLog, onChange }) {
           />
           <button
             onClick={handleQuickAdd}
-            className="px-4 py-2 bg-accent text-white text-sm rounded-lg
+            className="px-4 py-2 bg-accent text-primary text-sm rounded-lg
                        hover:brightness-110 transition-all"
           >
             Add
@@ -184,7 +184,7 @@ export default function CalorieTracker({ nutritionLog, onChange }) {
                 {meal.foods.map(food => (
                   <div
                     key={food.id}
-                    className="flex items-center justify-between bg-surface rounded-lg px-3 py-2"
+                    className="flex items-center justify-between bc-skeleton rounded-[10px]-lg px-3 py-2"
                   >
                     <span className="text-sm text-primary">{food.label}</span>
                     <div className="flex items-center gap-3">
@@ -201,7 +201,7 @@ export default function CalorieTracker({ nutritionLog, onChange }) {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted bg-surface rounded-lg px-3 py-3 text-center">
+              <p className="text-xs text-muted bc-skeleton rounded-[10px]-lg px-3 py-3 text-center">
                 No foods logged
               </p>
             )}

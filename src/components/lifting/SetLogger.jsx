@@ -43,7 +43,7 @@ export default function SetLogger({ exercise, onChange }) {
   }
 
   return (
-    <div className="bg-surface rounded-lg p-3">
+    <div className="bc-skeleton rounded-[10px]-lg p-3">
       {/* Exercise header */}
       <div className="flex items-center justify-between mb-3">
         <div>

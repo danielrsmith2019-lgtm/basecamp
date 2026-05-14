@@ -10,7 +10,7 @@ export default function RecentPRs({ prs = [] }) {
   const recent = prs.slice(0, 5);
 
   return (
-    <div className="stride-card p-4">
+    <div className="bc-card">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Trophy size={14} className="text-phase-peak" />

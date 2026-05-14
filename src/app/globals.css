@@ -1,315 +1,641 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
-/* ─── STRIDE DESIGN SYSTEM: THEME TOKENS ──────────── */
+
+/* ══════════════════════════════════════════
+   BASECAMP DESIGN SYSTEM — LIGHT MODE
+   Apple Health + Bevel + Fitbod
+   ══════════════════════════════════════════ */
 
 @theme {
+  /* ── Page backgrounds ── */
+  --color-canvas: #F2F2F7;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #F9F9FB;
 
-  /* Background hierarchy */
-  --color-base:       #0A0F1A;
-  --color-card:       #111827;
-  --color-surface:    #1A2332;
-  --color-border:     #1E293B;
+  /* ── Text ── */
+  --color-primary: #1C1C1E;
+  --color-secondary: #8E8E93;
+  --color-tertiary: #AEAEB2;
 
-  /* Text hierarchy */
-  --color-primary:    #E2E8F0;
-  --color-secondary:  #94A3B8;
-  --color-muted:      #64748B;
+  /* ── Borders ── */
+  --color-border: rgba(60, 60, 67, 0.12);
+  --color-border-strong: rgba(60, 60, 67, 0.25);
 
-  /* Training phase accents (from STRIDE) */
-  --color-phase-base:     #4ADE80;
-  --color-phase-build:    #60A5FA;
-  --color-phase-recovery: #C084FC;
-  --color-phase-peak:     #FB923C;
-  --color-phase-taper:    #22D3EE;
+  /* ── System colors (Apple HIG) ── */
+  --color-bc-blue: #007AFF;
+  --color-bc-blue-light: #E3F2FD;
+  --color-bc-blue-dark: #1565C0;
+  /* ... keep bc-blue as well for existing refs */
+  --color-bc-blue: #007AFF;
 
-  /* Activity type accents (NEW for BASECAMP) */
-  --color-activity-run:       #4ADE80;
-  --color-activity-lift:      #60A5FA;
-  --color-activity-cardio:    #FB923C;
-  --color-activity-rest:      #C084FC;
-  --color-activity-nutrition: #22D3EE;
+  --color-bc-green: #34C759;
+  --color-bc-green-light: #E8F5E9;
+  --color-bc-green-dark: #2E7D32;
 
-  /* Functional / pace comparison colors */
-  --color-faster:   #60A5FA;
-  --color-onpace:   #4ADE80;
-  --color-slower:   #FB923C;
+  --color-bc-orange: #FF9500;
+  --color-bc-orange-light: #FFF3E0;
+  --color-bc-orange-dark: #E65100;
 
-  /* Status colors */
-  --color-status-done:    #4ADE80;
-  --color-status-planned: #94A3B8;
-  --color-status-skipped: #EF4444;
-  --color-status-active:  #2563EB;
+  --color-bc-red: #FF3B30;
+  --color-bc-red-light: #FFEBEE;
+  --color-bc-red-dark: #C62828;
 
-  /* UI accent */
-  --color-accent:   #2563EB;
+  --color-bc-purple: #AF52DE;
+  --color-bc-purple-light: #F3E5F5;
+  --color-bc-purple-dark: #7B1FA2;
 
-  /* Typography — wired to next/font/google variables from layout.js */
-  --font-sans: var(--font-dm-sans),    'Segoe UI', system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains),  'Menlo', monospace;
+  --color-bc-teal: #5AC8FA;
+  --color-bc-teal-light: #E0F7FA;
+  --color-bc-teal-dark: #00838F;
 
-  /* Border radius */
-  --radius-card:  0.5rem;
-  --radius-badge: 9999px;
+  --color-bc-pink: #FF2D55;
+  --color-bc-pink-light: #FCE4EC;
+  --color-bc-pink-dark: #AD1457;
 
-  /* Shadows */
-  --shadow-card:  0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-modal: 0 8px 30px rgba(0, 0, 0, 0.6);
+  --color-bc-indigo: #5856D6;
+  --color-bc-indigo-light: #E8EAF6;
+  --color-bc-indigo-dark: #283593;
 
-  /* Gradient fills for progress bars */
-  --gradient-completion: linear-gradient(90deg, #4ADE80, #22D3EE);
-  --gradient-mileage:    linear-gradient(90deg, #60A5FA, #C084FC);
-  --gradient-nutrition:  linear-gradient(90deg, #22D3EE, #4ADE80);
-  --gradient-volume:     linear-gradient(90deg, #60A5FA, #FB923C);
+  /* ── Activity tints ── */
+  --color-run-bg: #E8F5E9;
+  --color-run-accent: #2E7D32;
+  --color-run-mid: #4CAF50;
 
-  /* Animations */
-  --animate-fade-in: fade-in 0.3s ease-out forwards;
-  --animate-modal-in: modal-in 0.2s ease-out forwards;
-  --animate-progress-fill: progress-fill 0.8s ease-out forwards;
+  --color-lift-bg: #E3F2FD;
+  --color-lift-accent: #1565C0;
+  --color-lift-mid: #42A5F5;
+
+  --color-cardio-bg: #FFF3E0;
+  --color-cardio-accent: #E65100;
+  --color-cardio-mid: #FF9800;
+
+  --color-rest-bg: #F3E5F5;
+  --color-rest-accent: #7B1FA2;
+  --color-rest-mid: #AB47BC;
+
+  /* ── Border radius (Bevel-inspired generous rounding) ── */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+
+  /* ── Fonts ── */
+  --font-sans: -apple-system, 'SF Pro Display', 'DM Sans', system-ui, sans-serif;
+  --font-rounded: 'SF Pro Rounded', 'DM Sans', -apple-system, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* ── Shadows ── */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* ─── KEYFRAMES ──────────────────────────────────── */
+/* ── Base ── */
 
-@keyframes progress-fill {
-  0%   { width: 0%; }
-  100% { width: var(--progress-width); }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-canvas);
+  color: var(--color-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@keyframes fade-in {
-  0%   { opacity: 0; transform: translateY(8px); }
-  100% { opacity: 1; transform: translateY(0); }
+/* ══════════════════════════════════════════
+   COMPONENT CLASSES
+   ══════════════════════════════════════════ */
+
+/* ── Cards ── */
+
+.bc-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--color-border);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-card);
 }
 
-@keyframes modal-in {
-  0%   { opacity: 0; transform: scale(0.95); }
-  100% { opacity: 1; transform: scale(1); }
+.bc-card-flush {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
-/* ─── GLOBAL BASE STYLES ─────────────────────────── */
+/* ── Typography helpers ── */
 
-@layer base {
-  *, *::before, *::after {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
+/* Hero stat numbers — Fitbod-style bold rounded */
+.bc-stat {
+  font-family: var(--font-rounded);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--color-primary);
+}
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #0A0F1A;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #1E293B;
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #334155;
-  }
+/* Monospace data values — pace, time, weight */
+.bc-data {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
 
-  ::selection {
-    background: rgba(37, 99, 235, 0.3);
-    color: #E2E8F0;
+/* Section titles */
+.bc-section-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* Muted labels */
+.bc-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-secondary);
+}
+
+/* Small captions */
+.bc-caption {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-tertiary);
+}
+
+/* ── Pills / Tags ── */
+
+.bc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 100px;
+}
+
+/* ── Activity indicator bar (left edge of workout cards) ── */
+
+.bc-indicator {
+  width: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ── */
+
+.bc-btn-primary {
+  width: 100%;
+  background: var(--color-bc-blue);
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.bc-btn-primary:hover {
+  opacity: 0.9;
+}
+.bc-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.bc-btn-secondary {
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--color-bc-blue);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.bc-btn-secondary:hover {
+  background: rgba(0, 122, 255, 0.15);
+}
+
+/* ── Inputs ── */
+
+.bc-input {
+  width: 100%;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--color-border-strong);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bc-input::placeholder {
+  color: var(--color-tertiary);
+}
+.bc-input:focus {
+  border-color: var(--color-bc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+/* ── Tab bar ── */
+
+.bc-tab-bar {
+  display: flex;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--color-border);
+  padding: 4px;
+  gap: 2px;
+}
+
+.bc-tab {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-secondary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+}
+.bc-tab:hover {
+  color: var(--color-primary);
+  background: var(--color-surface-alt);
+}
+.bc-tab.active,
+.bc-tab-active {
+  background: #007AFF;
+  color: #FFFFFF;
+}
+
+/* ── Insight card ── */
+
+.bc-insight {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 0.5px solid var(--color-border);
+  background: var(--color-surface);
+  align-items: flex-start;
+}
+
+.bc-insight-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* ── Progress ring ── */
+
+.bc-ring {
+  position: relative;
+}
+.bc-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.bc-ring-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-rounded);
+  font-weight: 700;
+}
+
+/* ── Workout cards (activity-tinted rows) ── */
+
+.bc-workout-run {
+  background: var(--color-run-bg);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.bc-workout-lift {
+  background: var(--color-lift-bg);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.bc-workout-cardio {
+  background: var(--color-cardio-bg);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.bc-workout-rest {
+  background: var(--color-rest-bg);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+/* ── Header (frosted glass) ── */
+
+.bc-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+@media (min-width: 768px) {
+  .bc-header {
+    padding: 0 24px;
   }
 }
 
-/* ─── STRIDE COMPONENT PATTERNS ──────────────────── */
+/* ── Bottom nav (frosted glass) ── */
 
-@layer components {
-  .stride-card {
-    @apply bg-card rounded-card border border-border shadow-card
-           transition-all duration-200
-           hover:shadow-hover hover:brightness-110;
-  }
-
-  .stride-badge {
-    @apply inline-flex items-center px-2.5 py-0.5
-           rounded-badge text-xs font-semibold tracking-wide;
-  }
-
-  .stride-stat {
-    @apply flex flex-col items-center;
-  }
-  .stride-stat-value {
-    @apply font-mono text-2xl font-bold text-primary;
-  }
-  .stride-stat-label {
-    @apply text-xs uppercase tracking-wider text-muted mt-0.5;
-  }
-
-  .stride-progress-track {
-    @apply w-full h-2 bg-border rounded-full overflow-hidden;
-  }
-
-  .stride-data {
-    @apply font-mono tabular-nums;
-  }
-
-  .stride-section-label {
-    @apply uppercase tracking-wider font-black text-sm italic text-primary mb-4;
-  }
-
-  .stride-accent-left {
-    @apply border-l-4;
-  }
-  
-.input-glass {
-    @apply w-full rounded-lg px-3 py-2.5 text-sm text-primary
-           focus:outline-none transition-all min-h-[48px]
-           placeholder:text-muted;
-    background: oklch(0.15 0.01 260 / 0.3);
-    border: 1px solid var(--glass-border);
-  }
-
-  .btn-primary {
-    @apply px-4 py-2.5 text-sm font-medium rounded-lg
-           bg-accent text-white min-h-[48px]
-           hover:brightness-110 active:scale-[0.98]
-           transition-all duration-150;
-  }
-
-  .btn-secondary {
-    @apply px-4 py-2.5 text-sm font-medium rounded-lg
-           text-secondary min-h-[48px]
-           hover:text-primary active:scale-[0.98]
-           transition-all duration-150;
-    background: oklch(0.15 0.01 260 / 0.3);
-    border: 1px solid var(--glass-border);
-  }
-
-  .btn-secondary:hover {
-    background: oklch(0.2 0.01 260 / 0.4);
-  }
-
-  .filter-pill {
-    @apply px-3 py-1.5 text-xs font-medium rounded-lg
-           transition-all duration-150 min-h-[48px];
-  }
-
-  .filter-pill-active {
-    @apply px-3 py-1.5 text-xs font-medium rounded-lg
-           transition-all duration-150 min-h-[48px]
-           bg-accent text-white;
-  }
-
-  .filter-pill-inactive {
-    @apply px-3 py-1.5 text-xs font-medium rounded-lg
-           transition-all duration-150 min-h-[48px]
-           text-secondary hover:text-primary;
-    background: oklch(0.15 0.01 260 / 0.3);
-  }
-
+.bc-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 0.5px solid var(--color-border);
 }
 
-/* ─── PERFORMANCE DESIGN SYSTEM (from Style Manifest) ─── */
-
-@theme {
-  /* Intensity spectrum tokens (for future dynamic coloring) */
-  --color-intensity-high: #FF0026;
-  --color-intensity-med:  #FFDE00;
-  --color-intensity-low:  #16EC06;
-
-  /* Glass material values */
-  --glass-bg-dark:   oklch(0.15 0.01 260 / 0.2);
-  --glass-bg-light:  oklch(1 0 0 / 0.1);
-  --glass-border:    oklch(1 0 0 / 0.12);
-  --glass-highlight: oklch(1 0 0 / 0.06);
-  --glass-shadow:    0 8px 32px 0 rgba(0, 0, 0, 0.25);
+.bc-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-tertiary);
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.bc-nav-item.active {
+  color: var(--color-bc-blue);
 }
 
-@layer components {
-  /* ── Glass material card (replaces stride-card over time) ── */
-  .glass-card {
-    @apply relative rounded-card overflow-hidden
-           transition-all duration-200
-           hover:brightness-110;
-    background: var(--glass-bg-dark);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
-  }
+/* ── Wordmark ── */
 
-  /* Interior highlight — the subtle top-edge light reflection */
-  .glass-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow: inset 0 1px 0px rgba(255, 255, 255, 0.08);
-    pointer-events: none;
-  }
+.bc-wordmark {
+  font-family: var(--font-rounded);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-primary);
+}
 
-  /* Glass card WITHOUT the hover effect (for static containers) */
-  .glass-card-static {
-    @apply relative rounded-card overflow-hidden;
-    background: var(--glass-bg-dark);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
-  }
+/* ── Divider ── */
 
-  .glass-card-static::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow: inset 0 1px 0px rgba(255, 255, 255, 0.08);
-    pointer-events: none;
-  }
+.bc-divider {
+  height: 0.5px;
+  background: var(--color-border);
+  border: none;
+  margin: 16px 0;
+}
 
-  /* ── Bento grid foundation ── */
-  .bento-grid {
-    @apply grid grid-cols-4 md:grid-cols-12 gap-4;
-  }
-  .bento-hero {
-    @apply col-span-4 md:col-span-6;
-  }
-  .bento-half {
-    @apply col-span-4 md:col-span-6;
-  }
-  .bento-third {
-    @apply col-span-2 md:col-span-4;
-  }
-  .bento-quarter {
-    @apply col-span-2 md:col-span-3;
-  }
-  .bento-full {
-    @apply col-span-4 md:col-span-12;
-  }
+/* ── Avatar circle ── */
 
-  /* ── Performance header typography ── */
-  .perf-header {
-    @apply uppercase tracking-widest font-black text-xs text-muted;
-  }
-  .perf-header-lg {
-    @apply uppercase tracking-wider font-black text-sm italic;
-  }
+.bc-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-bc-blue-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-bc-blue-dark);
+}
 
-  /* ── Updated stride-card to hybrid glass ── */
-  /* This makes the existing stride-card adopt glass properties */
-  /* while keeping the accent-left border pattern intact */
-  .stride-card {
-    @apply relative rounded-card overflow-hidden
-           transition-all duration-200
-           hover:brightness-110;
-    background: oklch(0.15 0.01 260 / 0.35);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border);
-    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2);
-  }
+/* ── Loading skeleton ── */
 
-  .stride-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow: inset 0 1px 0px rgba(255, 255, 255, 0.06);
-    pointer-events: none;
-  }
-  
+.bc-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-alt) 25%,
+    #ECECF1 50%,
+    var(--color-surface-alt) 75%
+  );
+  background-size: 200% 100%;
+  animation: bc-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes bc-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.bc-btn-log {
+  background: #007AFF;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.bc-btn-log:hover { opacity: 0.9; }
+.bc-btn-log:active { transform: scale(0.97); }
+
+/* ── Empty state ── */
+
+.bc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--color-tertiary);
+}
+.bc-empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+.bc-empty-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-secondary);
+  margin-bottom: 4px;
+}
+.bc-empty-text {
+  font-size: 14px;
+  color: var(--color-tertiary);
+  max-width: 280px;
+}
+
+/* ══════════════════════════════════════════
+   BENTO GRID (dashboard KPI tiles)
+   ══════════════════════════════════════════ */
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.bento-hero     { grid-column: span 2; }
+.bento-half     { grid-column: span 1; }
+.bento-quarter  { grid-column: span 1; }
+.bento-third    { grid-column: span 2; }
+
+@media (min-width: 768px) {
+  .bento-grid   { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .bento-hero   { grid-column: span 2; }
+  .bento-half   { grid-column: span 2; }
+  .bento-quarter { grid-column: span 1; }
+  .bento-third  { grid-column: span 1; }
+}
+
+/* ══════════════════════════════════════════
+   LEGACY ALIASES
+   Keep these until all components are fully
+   migrated off the old dark-theme classes.
+   ══════════════════════════════════════════ */
+
+.stride-data {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.stride-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 100px;
+}
+
+.glass-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.stride-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--color-border);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-card);
+}
+
+.stride-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-secondary);
+  margin-bottom: 12px;
+}
+
+.stride-accent-left {
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+.stride-progress-track {
+  height: 6px;
+  width: 100%;
+  background: var(--color-canvas);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+/* ── Semantic color utilities (bypass hyphen resolution issues) ── */
+.text-run-accent   { color: #2E7D32; }
+.text-run-mid      { color: #4CAF50; }
+.text-lift-accent  { color: #1565C0; }
+.text-lift-mid     { color: #42A5F5; }
+.text-cardio-accent { color: #E65100; }
+.text-rest-accent  { color: #7B1FA2; }
+.text-bc-blue      { color: #007AFF; }
+.text-bc-green     { color: #34C759; }
+.text-bc-green-dark { color: #2E7D32; }
+.text-bc-orange    { color: #FF9500; }
+.text-bc-orange-dark { color: #E65100; }
+.text-bc-red       { color: #FF3B30; }
+.text-bc-red-dark  { color: #C62828; }
+.text-bc-purple    { color: #AF52DE; }
+.text-bc-indigo    { color: #5856D6; }
+.text-bc-indigo-dark { color: #283593; }
+.text-bc-teal      { color: #5AC8FA; }
+.bg-run-bg         { background-color: #E8F5E9; }
+.bg-lift-bg        { background-color: #E3F2FD; }
+.bg-cardio-bg      { background-color: #FFF3E0; }
+.bg-rest-bg        { background-color: #F3E5F5; }
+.bg-run-accent     { background-color: #2E7D32; }
+.bg-lift-accent    { background-color: #1565C0; }
+.bg-bc-blue        { background-color: #007AFF; }
+.bg-bc-blue-light  { background-color: #E3F2FD; }
+.bg-bc-green       { background-color: #34C759; }
+.bg-bc-green-light { background-color: #E8F5E9; }
+.bg-bc-orange      { background-color: #FF9500; }
+.bg-bc-orange-light { background-color: #FFF3E0; }
+.bg-bc-red         { background-color: #FF3B30; }
+.bg-bc-red-light   { background-color: #FFEBEE; }
+.bg-bc-indigo      { background-color: #5856D6; }
+.bg-bc-indigo-light { background-color: #E8EAF6; }
+.bg-bc-purple      { background-color: #AF52DE; }
+.bg-bc-purple-light { background-color: #F3E5F5; }
+.bg-bc-teal-light  { background-color: #E0F7FA; }
+.border-run-accent { border-color: #2E7D32; }
+.border-lift-accent { border-color: #1565C0; }
+.border-rest-accent { border-color: #7B1FA2; }
+.border-bc-blue    { border-color: #007AFF; }
+.border-bc-green   { border-color: #34C759; }
+.border-bc-red     { border-color: #FF3B30; }
+.border-bc-indigo  { border-color: #5856D6; }
+
+/* ── Button text color fixes ── */
+.bc-btn-primary,
+.bc-tab-active,
+.bg-bc-blue {
+  color: #FFFFFF !important;
+}
+
+/* ── Tab active state — full override ── */
+.bc-tab.active,
+.bc-tab-active {
+  background-color: #007AFF;
+  color: #FFFFFF !important;
 }

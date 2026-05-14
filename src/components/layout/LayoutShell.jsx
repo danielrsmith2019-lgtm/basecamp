@@ -1,11 +1,5 @@
 'use client';
 
-/**
- * LayoutShell — Client-side wrapper for the app.
- * Provides WorkoutContext to all pages.
- * Shows PR celebrations when triggered.
- */
-
 import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Navigation from './Navigation';
@@ -26,70 +20,53 @@ function ShellContent({ children }) {
   const pathname = usePathname();
   const { workouts, newPR, clearNewPR } = useWorkouts();
 
-  // Auth pages render without the shell
-  if (AUTH_ROUTES.includes(pathname)) {
-    return <>{children}</>;
-  }
-
-  // Test pages render standalone
-  if (STANDALONE_ROUTES.some(r => pathname.startsWith(r))) {
-    return <>{children}</>;
-  }
+  if (AUTH_ROUTES.includes(pathname)) return <>{children}</>;
+  if (STANDALONE_ROUTES.some(r => pathname.startsWith(r))) return <>{children}</>;
 
   return (
     <>
       <Header workouts={workouts} />
       <Navigation />
 
-      <main className="pt-14 md:pl-56 pb-20 md:pb-0 min-h-screen">
+      <main className="pt-14 md:pl-56 pb-20 md:pb-0 min-h-screen bg-canvas">
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
           {children}
         </div>
       </main>
 
-      {/* ── PR Celebration ── */}
       {newPR && <PRCelebration pr={newPR} onClose={clearNewPR} />}
     </>
   );
 }
 
-/**
- * Inline PR celebration to avoid importing the full component
- * (keeps Celebration.jsx optional for code splitting).
- */
 function PRCelebration({ pr, onClose }) {
   return (
     <>
-      {/* Confetti particles */}
       <ConfettiOverlay />
-
-      {/* Announcement banner */}
       <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[99] animate-fade-in">
-        <div className="bg-card border-2 border-phase-base rounded-card shadow-modal
-                        px-6 py-4 flex items-center gap-4 min-w-[300px]">
+        <div className="bc-card border-2 border-bc-green px-6 py-4
+                        flex items-center gap-4 min-w-[300px] shadow-xl">
           <span className="text-3xl">🏆</span>
           <div>
-            <p className="text-xs text-phase-base uppercase tracking-wider font-semibold">
+            <p className="bc-caption uppercase text-bc-green-dark font-semibold">
               New Personal Record!
             </p>
             <p className="text-sm font-bold text-primary mt-0.5">{pr.label}</p>
-            <p className="stride-data text-lg text-primary">{pr.value}</p>
+            <p className="bc-data text-lg text-primary">{pr.value}</p>
             {pr.previousValue && (
               <p className="text-xs text-secondary mt-0.5">
-                Previous: <span className="stride-data">{pr.previousValue}</span>
+                Previous: <span className="bc-data">{pr.previousValue}</span>
               </p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="text-muted hover:text-primary ml-auto text-xl"
-          >
+            className="w-7 h-7 rounded-full bg-canvas flex items-center justify-center
+                       text-secondary hover:text-primary text-lg ml-auto transition-colors">
             ×
           </button>
         </div>
       </div>
-
-      {/* Auto-dismiss after 5 seconds */}
       <AutoDismiss onDismiss={onClose} delay={5000} />
     </>
   );
@@ -105,14 +82,13 @@ function AutoDismiss({ onDismiss, delay }) {
 }
 
 function ConfettiOverlay() {
-  const COLORS = ['#4ADE80', '#60A5FA', '#C084FC', '#FB923C', '#22D3EE', '#F472B6', '#FACC15'];
+  const COLORS = ['#34C759', '#007AFF', '#AF52DE', '#FF9500', '#5AC8FA', '#FF2D55', '#FFCC00'];
 
   const particles = Array.from({ length: 30 }, (_, i) => {
     const x = Math.random() * 100;
     const delay = Math.random() * 0.5;
     const color = COLORS[i % COLORS.length];
     const size = 4 + Math.random() * 6;
-    const drift = (Math.random() - 0.5) * 40;
 
     return (
       <div
@@ -137,7 +113,7 @@ function ConfettiOverlay() {
       {particles}
       <style jsx>{`
         @keyframes confetti-drop {
-          0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+          0%   { opacity: 1; transform: translateY(0) rotate(0deg); }
           100% { opacity: 0; transform: translateY(100vh) rotate(720deg); }
         }
       `}</style>

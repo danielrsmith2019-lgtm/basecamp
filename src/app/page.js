@@ -70,7 +70,7 @@ export default function Dashboard() {
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-muted text-sm">Loading...</p>
+        <p className="text-tertiary text-sm">Loading...</p>
       </div>
     );
   }
@@ -83,12 +83,13 @@ export default function Dashboard() {
         onAccept={acceptAdaptation}
         onReject={rejectAdaptation}
       />
+
       {/* INSIGHTS */}
       {visibleInsights.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <p className="stride-section-label mb-0">Cross-Training Insights</p>
-            <span className="stride-badge bg-phase-peak/20 text-phase-peak text-[10px]">
+            <p className="bc-caption uppercase tracking-wider mb-0">Cross-Training Insights</p>
+            <span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px]">
               {visibleInsights.length} alert{visibleInsights.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -106,17 +107,17 @@ export default function Dashboard() {
       )}
 
       {/* TODAY'S PLAN */}
-      <div className="stride-card p-5 mb-6">
+      <div className="bc-card mb-6">
         <div className="flex items-center justify-between mb-3">
-          <p className="stride-section-label mb-0">Today&apos;s Plan</p>
+          <p className="bc-caption uppercase tracking-wider mb-0">Today&apos;s Plan</p>
           <span className="text-xs text-secondary">{formatDate(today)}</span>
         </div>
         {todayWorkouts.length > 0 ? (
           <div className="space-y-3">
             {todayWorkouts.map(w => (
-              <div key={w.id} className={`flex items-center justify-between p-3 rounded-lg border-l-4
-                ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}
-                ${w.status === 'completed' ? 'bg-status-done/5' : 'bg-surface'}`}>
+              <div key={w.id} className={`flex items-center justify-between p-3 rounded-[14px] border-l-4
+                ${w.type === 'run' ? 'border-run-accent bg-run-bg' : 'border-lift-accent bg-lift-bg'}
+                ${w.status === 'completed' ? 'opacity-70' : ''}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
                     {w.type === 'run'
@@ -129,18 +130,26 @@ export default function Dashboard() {
                       {w.type === 'run' ? w.details.runDescription || w.details.runType : w.details.sessionName}
                     </p>
                     <p className="text-xs text-secondary">
-                      {w.type === 'run' && (<><span className="stride-data">{w.details.plannedDistance} mi</span> @ <span className="stride-data">{w.details.targetPace}</span></>)}
+                      {w.type === 'run' && (
+                        <>
+                          <span className="bc-data">{w.details.plannedDistance} mi</span>
+                          {' @ '}
+                          <span className="bc-data">{w.details.targetPace}</span>
+                        </>
+                      )}
                       {w.type === 'lift' && (w.details.muscleGroups || []).join(', ')}
                     </p>
                   </div>
                 </div>
                 {w.status === 'planned' ? (
-                  <button onClick={() => setLogTarget(w)}
-                    className="px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:brightness-110 transition-all">
+                  <button
+                    onClick={() => setLogTarget(w)}
+                    className="bc-btn-log"
+                  >
                     Log It
                   </button>
                 ) : (
-                  <span className="stride-badge bg-status-done/20 text-status-done text-xs flex items-center gap-1">
+                  <span className="bc-pill bg-bc-green-light text-bc-green-dark text-xs flex items-center gap-1">
                     <StatusIcon status="completed" size={10} /> Done
                   </span>
                 )}
@@ -148,63 +157,63 @@ export default function Dashboard() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-4">
-            <p className="text-secondary text-sm">No workouts scheduled for today.</p>
-            <p className="text-muted text-xs mt-1">Rest day or add a session from the schedule.</p>
+          <div className="bc-empty py-6">
+            <p className="bc-empty-title">No workouts scheduled for today.</p>
+            <p className="bc-empty-text">Rest day or add a session from the schedule.</p>
           </div>
         )}
       </div>
 
       {/* KPI CARDS */}
-      <p className="stride-section-label">Performance</p>
+      <p className="bc-caption uppercase tracking-wider mb-3">Performance</p>
       <div className="bento-grid mb-6">
 
         {/* Run Completion — hero tile */}
-        <div className="glass-card p-5 bento-hero">
+        <div className="bc-card p-5 bento-hero">
           <div className="relative z-10">
-            <Metric label="Run Completion" value={`${stats.runCompletionRate}%`} size="hero" color="text-phase-base" />
-            <div className="stride-progress-track mt-3 mb-2">
-              <div className="h-full rounded-full bg-[image:var(--gradient-completion)]"
-                style={{ width: `${stats.runCompletionRate}%`, transition: 'width 0.8s ease' }} />
+            <Metric label="Run Completion" value={`${stats.runCompletionRate}%`} size="hero" color="text-run-accent" />
+            <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-3 mb-2">
+              <div className="h-full rounded-full bg-run-accent transition-[width] duration-700 ease-out"
+                style={{ width: `${stats.runCompletionRate}%` }} />
             </div>
-            <p className="text-xs text-muted">
-              <span className="stride-data">{stats.completedRuns}</span> of <span className="stride-data">{stats.totalRuns}</span> runs
+            <p className="text-xs text-tertiary">
+              <span className="bc-data">{stats.completedRuns}</span> of <span className="bc-data">{stats.totalRuns}</span> runs
             </p>
           </div>
         </div>
 
         {/* Lift Completion — hero tile */}
-        <div className="glass-card p-5 bento-half">
+        <div className="bc-card p-5 bento-half">
           <div className="relative z-10">
-            <Metric label="Lift Completion" value={`${stats.liftCompletionRate}%`} size="hero" color="text-activity-lift" />
-            <div className="stride-progress-track mt-3 mb-2">
-              <div className="h-full rounded-full bg-[image:var(--gradient-mileage)]"
-                style={{ width: `${stats.liftCompletionRate}%`, transition: 'width 0.8s ease' }} />
+            <Metric label="Lift Completion" value={`${stats.liftCompletionRate}%`} size="hero" color="text-lift-accent" />
+            <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-3 mb-2">
+              <div className="h-full rounded-full bg-lift-accent transition-[width] duration-700 ease-out"
+                style={{ width: `${stats.liftCompletionRate}%` }} />
             </div>
-            <p className="text-xs text-muted">
-              <span className="stride-data">{stats.completedLifts}</span> of <span className="stride-data">{stats.totalLifts}</span> lifts
+            <p className="text-xs text-tertiary">
+              <span className="bc-data">{stats.completedLifts}</span> of <span className="bc-data">{stats.totalLifts}</span> lifts
             </p>
           </div>
         </div>
 
-        {/* Training Load — quarter tile */}
+        {/* Training Load — third tile */}
         <div className="bento-third">
           <TrainingLoadCard load={trainingLoad} />
         </div>
 
         {/* Weekly Miles — quarter tile */}
-        <div className="glass-card p-4 bento-quarter">
+        <div className="bc-card p-4 bento-quarter">
           <div className="relative z-10">
             <div className="flex items-end justify-between mb-1">
               <Metric label="Weekly Miles" value={stats.currentWeekMileage} size="lg" />
-              <Sparkline data={stats.weeklyMileageData} color="#4ADE80" width={60} height={20} />
+              <Sparkline data={stats.weeklyMileageData} color="#34C759" width={60} height={20} />
             </div>
-            <p className="text-[10px] text-muted">Last 4 weeks trend</p>
+            <p className="text-[10px] text-tertiary">Last 4 weeks trend</p>
           </div>
         </div>
 
         {/* Weekly Volume — quarter tile */}
-        <div className="glass-card p-4 bento-quarter">
+        <div className="bc-card p-4 bento-quarter">
           <div className="relative z-10">
             <div className="flex items-end justify-between mb-1">
               <Metric
@@ -213,81 +222,107 @@ export default function Dashboard() {
                 unit="lbs"
                 size="lg"
               />
-              <Sparkline data={stats.weeklyVolumeData} color="#60A5FA" width={60} height={20} />
+              <Sparkline data={stats.weeklyVolumeData} color="#007AFF" width={60} height={20} />
             </div>
-            <p className="text-[10px] text-muted">Last 4 weeks</p>
+            <p className="text-[10px] text-tertiary">Last 4 weeks</p>
           </div>
         </div>
 
         {/* Streak — quarter tile */}
-        <div className="glass-card p-4 bento-quarter">
+        <div className="bc-card p-4 bento-quarter">
           <div className="relative z-10">
-            <p className="perf-header text-[10px] mb-2">Streak</p>
+            <p className="bc-caption uppercase tracking-wider mb-2">Streak</p>
             <div className="flex items-end justify-between mb-1">
               <div className="flex items-baseline gap-1">
-                <span className="stride-data text-2xl font-bold text-primary">{stats.streak}</span>
-                <span className="stride-data text-sm text-muted">{stats.streak === 1 ? 'day' : 'days'}</span>
+                <span className="bc-data text-2xl font-bold text-primary">{stats.streak}</span>
+                <span className="bc-data text-sm text-tertiary">{stats.streak === 1 ? 'day' : 'days'}</span>
               </div>
-              <Flame size={22} className="text-phase-peak" />
+              <Flame size={22} style={{ color: '#FF9500' }} />
             </div>
-            <p className="text-[10px] text-muted">in a row</p>
+            <p className="text-[10px] text-tertiary">in a row</p>
           </div>
         </div>
 
-        {/* Streak filler for grid alignment */}
         <div className="bento-quarter hidden md:block" />
       </div>
 
       {/* WEEKLY CHART */}
-      <p className="stride-section-label">Weekly Training Load</p>
-      <div className="stride-card p-5 mb-6">
+      <p className="bc-caption uppercase tracking-wider mb-3">Weekly Training Load</p>
+      <div className="bc-card p-5 mb-6">
         <div className="h-48 w-full">
           <ResponsiveContainer width="100%" height={192} minWidth={200}>
             <BarChart data={weeklyChartData} barGap={2}>
-              <XAxis dataKey="day" axisLine={false} tickLine={false}
-                tick={{ fill: '#64748B', fontSize: 11, fontFamily: 'var(--font-dm-sans)' }} />
+              <XAxis
+                dataKey="day"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#8E8E93', fontSize: 11, fontFamily: 'var(--font-dm-sans)' }}
+              />
               <YAxis hide />
               <Tooltip
-                contentStyle={{ backgroundColor: '#111827', border: '1px solid #1E293B', borderRadius: '8px', fontSize: '12px', fontFamily: 'var(--font-jetbrains)' }}
-                labelStyle={{ color: '#E2E8F0', marginBottom: '4px' }}
-                itemStyle={{ color: '#94A3B8', padding: '1px 0' }}
-                cursor={{ fill: 'rgba(37, 99, 235, 0.1)' }} />
+                contentStyle={{
+                  backgroundColor: '#FFFFFF',
+                  border: '0.5px solid rgba(60,60,67,0.12)',
+                  borderRadius: '14px',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-jetbrains)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                }}
+                labelStyle={{ color: '#1C1C1E', marginBottom: '4px' }}
+                itemStyle={{ color: '#8E8E93', padding: '1px 0' }}
+                cursor={{ fill: 'rgba(0,122,255,0.06)' }}
+              />
               <Bar dataKey="runMiles" name="Run (mi)" stackId="stack" radius={[0, 0, 0, 0]}>
-                {weeklyChartData.map((_, i) => <Cell key={i} fill="#4ADE80" fillOpacity={0.8} />)}
+                {weeklyChartData.map((_, i) => <Cell key={i} fill="#34C759" fillOpacity={0.85} />)}
               </Bar>
               <Bar dataKey="liftScore" name="Lift (score)" stackId="stack" radius={[4, 4, 0, 0]}>
-                {weeklyChartData.map((_, i) => <Cell key={i} fill="#60A5FA" fillOpacity={0.8} />)}
+                {weeklyChartData.map((_, i) => <Cell key={i} fill="#007AFF" fillOpacity={0.85} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="flex items-center justify-center gap-6 mt-3">
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-activity-run opacity-80" /><span className="text-xs text-muted">Run Miles</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-activity-lift opacity-80" /><span className="text-xs text-muted">Lift Score</span></div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-run-accent opacity-85" />
+            <span className="text-xs text-tertiary">Run Miles</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-lift-accent opacity-85" />
+            <span className="text-xs text-tertiary">Lift Score</span>
+          </div>
         </div>
       </div>
 
       {logTarget && <LogForm workout={logTarget} onSave={handleSave} onClose={() => setLogTarget(null)} />}
+
       {/* RECENT ACTIVITY */}
-      <p className="stride-section-label">Recent Activity</p>
+      <p className="bc-caption uppercase tracking-wider mb-3">Recent Activity</p>
       <div className="space-y-2 mb-6">
         {recentActivity.map(w => (
-          <div key={w.id} className={`stride-card stride-accent-left p-3 flex items-center justify-between
-            ${w.type === 'run' ? 'border-activity-run' : 'border-activity-lift'}`}>
+          <div key={w.id} className={`bc-card p-3 flex items-center justify-between border-l-4
+            ${w.type === 'run' ? 'border-run-accent' : 'border-lift-accent'}`}>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
+                ${w.type === 'run' ? 'bg-run-bg' : 'bg-lift-bg'}`}>
                 <ActivityIcon type={w.type} size={16} />
               </div>
               <div>
-                <p className="text-sm font-medium text-primary">{w.type === 'run' ? w.details.runType : w.details.sessionName}</p>
+                <p className="text-sm font-medium text-primary">
+                  {w.type === 'run' ? w.details.runType : w.details.sessionName}
+                </p>
                 <p className="text-xs text-secondary">{formatDate(w.date)}</p>
               </div>
-              
             </div>
             <div className="flex items-center gap-3">
-              {w.type === 'run' && w.details.actualDistance && <span className="stride-data text-sm text-secondary">{w.details.actualDistance} mi</span>}
-              {w.type === 'run' && w.details.actualPace && <span className="stride-data text-sm text-primary">{w.details.actualPace}</span>}
-              {w.type === 'lift' && w.details.totalVolume && <span className="stride-data text-sm text-activity-lift">{formatVolume(w.details.totalVolume)}</span>}
+              {w.type === 'run' && w.details.actualDistance && (
+                <span className="bc-data text-sm text-secondary">{w.details.actualDistance} mi</span>
+              )}
+              {w.type === 'run' && w.details.actualPace && (
+                <span className="bc-data text-sm text-run-accent">{w.details.actualPace}</span>
+              )}
+              {w.type === 'lift' && w.details.totalVolume && (
+                <span className="bc-data text-sm text-lift-accent">{formatVolume(w.details.totalVolume)}</span>
+              )}
             </div>
           </div>
         ))}
@@ -302,7 +337,6 @@ export default function Dashboard() {
     </div>
   );
 }
-
 
 
 // ── Helpers (unchanged) ──

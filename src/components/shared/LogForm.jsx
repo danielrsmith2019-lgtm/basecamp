@@ -3,12 +3,12 @@
 /**
  * LogForm — Unified workout logging modal.
  * Adapts fields based on workout type (run / lift / cardio).
- * 
+ *
  * Two modes:
  *   1. LOGGING a planned workout: receives a workout with status 'planned',
  *      fills in actual data, updates status to 'completed'.
  *   2. CREATING a new workout: receives no workout, user picks type and date.
- * 
+ *
  * Also supports EDITING a completed workout (same as logging, but pre-filled).
  */
 
@@ -18,20 +18,17 @@ import SetLogger from '@/components/lifting/SetLogger';
 import { formatPace, calculatePace, comparePaces } from '@/utils/runUtils';
 import { calculateLiftVolume } from '@/data/types';
 
-// ─── Run type options ──────────────────────────────────
 const RUN_TYPES = [
   'Easy Run', 'Tempo', 'Intervals', 'Long Run', 'Race',
   'Shakeout', 'Recovery', 'REST',
 ];
 
-// ─── Cardio activity options ───────────────────────────
 const CARDIO_TYPES = [
   'Cycling', 'Swimming', 'Rowing', 'Elliptical',
   'Stair Climber', 'Walking', 'Hiking', 'Jump Rope', 'Other',
 ];
 
 export default function LogForm({ workout, onSave, onClose }) {
-  // ── Determine initial mode from context ──
   const initialType = workout?.type || 'run';
   const isEditing = workout?.status === 'completed';
   const isLogging = workout?.status === 'planned';
@@ -88,7 +85,6 @@ export default function LogForm({ workout, onSave, onClose }) {
     return `${paceMin}:${paceSec.toString().padStart(2, '0')}`;
   }, [distance, timeMin, timeSec]);
 
-  // ── Build the time string ──
   function buildTimeString() {
     const m = parseInt(timeMin) || 0;
     const s = parseInt(timeSec) || 0;
@@ -96,7 +92,6 @@ export default function LogForm({ workout, onSave, onClose }) {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
-  // ── Add exercise from search ──
   function handleAddExercise(exercise) {
     const newExercise = {
       name: exercise.name,
@@ -109,25 +104,20 @@ export default function LogForm({ workout, onSave, onClose }) {
       ],
     };
     setExercises(prev => [...prev, newExercise]);
-
-    // Auto-generate session name from muscle groups if empty
     if (!sessionName) {
       const groups = [...new Set([...exercises.map(e => e.muscleGroup), exercise.muscleGroup])];
       setSessionName(groups.join(' / '));
     }
   }
 
-  // ── Update an exercise (from SetLogger) ──
   function handleUpdateExercise(index, updatedExercise) {
     setExercises(prev => prev.map((e, i) => i === index ? updatedExercise : e));
   }
 
-  // ── Remove an exercise ──
   function handleRemoveExercise(index) {
     setExercises(prev => prev.filter((_, i) => i !== index));
   }
 
-  // ── Save handler ──
   function handleSave() {
     let details = {};
 
@@ -185,111 +175,106 @@ export default function LogForm({ workout, onSave, onClose }) {
     });
   }
 
-  // ── Type selector tabs ──
   const TYPE_TABS = [
     { key: 'run',    label: '🏃 Run' },
     { key: 'lift',   label: '🏋️ Lift' },
     { key: 'cardio', label: '🚴 Cardio' },
   ];
 
+  // ── RPE color helper ──
+  function rpeActiveClass(n) {
+    if (n <= 4) return 'bg-bc-green-light text-bc-green-dark';
+    if (n <= 7) return 'bg-bc-orange-light text-bc-orange-dark';
+    return 'bg-bc-red-light text-bc-red-dark';
+  }
+
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="bg-card border border-border rounded-card shadow-modal
+        className="bg-surface border border-border rounded-t-[24px] sm:rounded-[20px] shadow-xl
                    max-w-lg w-full animate-modal-in max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
         <div className="flex items-center justify-between p-5 pb-3 border-b border-border">
-          <h3 className="text-lg font-bold text-primary">
+          <h3 className="text-[17px] font-semibold text-primary">
             {isEditing ? 'Edit Workout' : isLogging ? 'Log Workout' : 'New Workout'}
           </h3>
           <button
             onClick={onClose}
-            className="text-muted hover:text-primary text-xl leading-none"
-          >
+            className="w-7 h-7 rounded-full bg-canvas flex items-center justify-center
+                       text-secondary hover:text-primary text-lg leading-none transition-colors">
             ×
           </button>
         </div>
 
         {/* ── Scrollable Content ── */}
-        <div className="overflow-auto flex-1 p-5">
+        <div className="overflow-auto flex-1 p-5 space-y-4">
 
-          {/* ── Planned info banner (if logging a planned workout) ── */}
+          {/* ── Planned info banner ── */}
           {isLogging && workout && (
-            <div className="bg-surface rounded-lg p-3 mb-4">
-              <p className="text-xs text-muted uppercase tracking-wider mb-1">Planned</p>
+            <div className="bg-canvas rounded-[14px] p-3">
+              <p className="bc-caption uppercase tracking-wider mb-1">Planned</p>
               {workout.type === 'run' && (
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-primary font-medium">
+                  <span className="text-sm font-medium text-primary">
                     {workout.details.runDescription || workout.details.runType}
                   </span>
-                  <span className="stride-data text-sm text-secondary">
+                  <span className="bc-data text-sm text-secondary">
                     {workout.details.plannedDistance} mi @ {workout.details.targetPace}
                   </span>
                 </div>
               )}
               {workout.type === 'lift' && (
-                <span className="text-sm text-primary font-medium">
+                <span className="text-sm font-medium text-primary">
                   {workout.details.sessionName}
                 </span>
               )}
             </div>
           )}
 
-          {/* ── Type Selector (disabled when logging a planned workout) ── */}
-          <div className="flex gap-1.5 mb-4">
+          {/* ── Type selector tabs ── */}
+          <div className="bc-tab-bar">
             {TYPE_TABS.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => !isLogging && setWorkoutType(tab.key)}
                 disabled={isLogging}
-                className={`
-                  flex-1 py-2 text-sm font-medium rounded-lg transition-colors
-                  ${workoutType === tab.key
-                    ? 'bg-accent text-white'
-                    : 'bg-surface text-secondary hover:text-primary'
-                  }
-                  ${isLogging ? 'cursor-not-allowed' : 'cursor-pointer'}
-                `}
-              >
+                className={`bc-tab ${workoutType === tab.key ? 'bc-tab-active' : ''}
+                            ${isLogging ? 'cursor-not-allowed opacity-60' : ''}`}>
                 {tab.label}
               </button>
             ))}
           </div>
 
-          {/* ── Date picker (only for new workouts) ── */}
+          {/* ── Date picker (new workouts only) ── */}
           {isNew && (
-            <div className="mb-4">
-              <label className="text-xs text-muted uppercase tracking-wider block mb-1">Date</label>
+            <div>
+              <label className="bc-caption uppercase tracking-wider block mb-1.5">Date</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-surface border border-border text-primary text-sm
-                           rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent"
+                className="bc-input"
               />
             </div>
           )}
 
-          {/* ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════ */}
           {/* ── RUN FIELDS ── */}
-          {/* ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════ */}
           {workoutType === 'run' && (
             <div className="space-y-4">
-              {/* Run type dropdown */}
               {isNew && (
                 <div>
-                  <label className="text-xs text-muted uppercase tracking-wider block mb-1">Run Type</label>
+                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Run Type</label>
                   <select
                     value={runType}
                     onChange={(e) => setRunType(e.target.value)}
-                    className="w-full bg-surface border border-border text-primary text-sm
-                               rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer"
-                  >
+                    className="bc-input cursor-pointer">
                     {RUN_TYPES.map(type => (
                       <option key={type} value={type}>{type}</option>
                     ))}
@@ -299,7 +284,7 @@ export default function LogForm({ workout, onSave, onClose }) {
 
               {/* Distance */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">
                   Distance (miles)
                 </label>
                 <input
@@ -308,15 +293,13 @@ export default function LogForm({ workout, onSave, onClose }) {
                   value={distance}
                   onChange={(e) => setDistance(e.target.value)}
                   placeholder={workout?.details?.plannedDistance ? String(workout.details.plannedDistance) : '0.0'}
-                  className="w-full bg-surface border border-border text-primary text-sm
-                             rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                             stride-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  className="bc-input bc-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
 
-              {/* Time (min:sec split) */}
+              {/* Time */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">Time</label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Time</label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 relative">
                     <input
@@ -324,13 +307,12 @@ export default function LogForm({ workout, onSave, onClose }) {
                       value={timeMin}
                       onChange={(e) => setTimeMin(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-surface border border-border text-primary text-sm
-                                 rounded-lg px-3 py-2.5 pr-10 focus:outline-none focus:border-accent
-                                 stride-data text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      className="bc-input bc-data text-center pr-10
+                                 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">min</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 bc-caption">min</span>
                   </div>
-                  <span className="text-xl text-muted font-bold">:</span>
+                  <span className="text-xl text-tertiary font-bold">:</span>
                   <div className="flex-1 relative">
                     <input
                       type="number"
@@ -339,28 +321,27 @@ export default function LogForm({ workout, onSave, onClose }) {
                       value={timeSec}
                       onChange={(e) => setTimeSec(e.target.value)}
                       placeholder="00"
-                      className="w-full bg-surface border border-border text-primary text-sm
-                                 rounded-lg px-3 py-2.5 pr-10 focus:outline-none focus:border-accent
-                                 stride-data text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      className="bc-input bc-data text-center pr-10
+                                 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">sec</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 bc-caption">sec</span>
                   </div>
                 </div>
               </div>
 
-              {/* ── Live Pace Preview ── */}
-              <div className="bg-surface rounded-lg p-4 text-center">
-                <p className="text-xs text-muted uppercase tracking-wider mb-1">Pace</p>
-                <p className={`stride-data text-3xl font-bold ${livePace ? 'text-primary' : 'text-muted'}`}>
+              {/* Live pace preview */}
+              <div className="bg-run-bg rounded-[14px] p-4 text-center">
+                <p className="bc-caption uppercase tracking-wider mb-1">Pace</p>
+                <p className={`bc-data text-3xl font-bold ${livePace ? 'text-run-accent' : 'text-tertiary'}`}>
                   {livePace || '--:--'}
                 </p>
-                <p className="text-xs text-muted mt-1">/mile</p>
+                <p className="bc-caption mt-1">/mile</p>
                 {livePace && workout?.details?.targetPace && (() => {
                   const comparison = comparePaces(livePace, workout.details.targetPace);
                   if (!comparison) return null;
                   return (
                     <div className="mt-2">
-                      <span className={`stride-badge ${comparison.color} bg-transparent text-sm`}>
+                      <span className={`bc-pill text-sm ${comparison.color} bg-transparent`}>
                         {comparison.label} vs {workout.details.targetPace}
                       </span>
                     </div>
@@ -370,24 +351,16 @@ export default function LogForm({ workout, onSave, onClose }) {
 
               {/* RPE */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">
-                  RPE (1–10)
-                </label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">RPE (1–10)</label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                     <button
                       key={n}
                       onClick={() => setRunRpe(n === runRpe ? '' : n)}
-                      className={`
-                        flex-1 py-2 text-sm rounded-lg transition-colors stride-data
+                      className={`flex-1 py-2 text-sm rounded-[10px] transition-colors bc-data
                         ${Number(runRpe) === n
-                          ? n <= 4 ? 'bg-phase-base/30 text-phase-base'
-                            : n <= 7 ? 'bg-phase-peak/30 text-phase-peak'
-                            : 'bg-status-skipped/30 text-status-skipped'
-                          : 'bg-surface text-secondary hover:text-primary'
-                        }
-                      `}
-                    >
+                          ? rpeActiveClass(n)
+                          : 'bg-canvas text-secondary hover:text-primary'}`}>
                       {n}
                     </button>
                   ))}
@@ -396,61 +369,48 @@ export default function LogForm({ workout, onSave, onClose }) {
 
               {/* Notes */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">Notes</label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Notes</label>
                 <textarea
                   value={runNotes}
                   onChange={(e) => setRunNotes(e.target.value)}
                   placeholder="How did it feel?"
                   rows={2}
-                  className="w-full bg-surface border border-border text-primary text-sm
-                             rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                             resize-none placeholder:text-muted"
+                  className="bc-input resize-none placeholder:text-tertiary"
                 />
               </div>
             </div>
           )}
 
-          {/* ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════ */}
           {/* ── LIFT FIELDS ── */}
-          {/* ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════ */}
           {workoutType === 'lift' && (
             <div className="space-y-4">
-              {/* Session name */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">
-                  Session Name
-                </label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Session Name</label>
                 <input
                   type="text"
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
                   placeholder="Push Day, Pull Day, Legs..."
-                  className="w-full bg-surface border border-border text-primary text-sm
-                             rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                             placeholder:text-muted"
+                  className="bc-input placeholder:text-tertiary"
                 />
               </div>
 
-              {/* Exercise search */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">
-                  Add Exercise
-                </label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Add Exercise</label>
                 <ExerciseSearch onSelect={handleAddExercise} placeholder="Search exercises..." />
               </div>
 
-              {/* Exercise list with SetLoggers */}
               {exercises.length > 0 && (
                 <div className="space-y-3">
                   {exercises.map((exercise, i) => (
                     <div key={i} className="relative">
-                      {/* Remove exercise button */}
                       <button
                         onClick={() => handleRemoveExercise(i)}
                         className="absolute -top-1 -right-1 w-5 h-5 bg-surface border border-border
-                                   rounded-full text-muted hover:text-status-skipped hover:border-status-skipped
-                                   flex items-center justify-center text-xs transition-colors z-10"
-                      >
+                                   rounded-full text-tertiary hover:text-bc-red hover:border-bc-red
+                                   flex items-center justify-center text-xs transition-colors z-10">
                         ×
                       </button>
                       <SetLogger
@@ -463,19 +423,18 @@ export default function LogForm({ workout, onSave, onClose }) {
               )}
 
               {exercises.length === 0 && (
-                <div className="bg-surface rounded-lg p-6 text-center">
-                  <p className="text-secondary text-sm">Search and add exercises above.</p>
-                  <p className="text-muted text-xs mt-1">
-                    Each exercise gets its own set logger with weight, reps, and RPE.
+                <div className="bc-empty py-6">
+                  <p className="bc-empty-title">No exercises added yet.</p>
+                  <p className="bc-empty-text">
+                    Search and add exercises above. Each gets its own set logger.
                   </p>
                 </div>
               )}
 
-              {/* Volume preview */}
               {exercises.length > 0 && (
-                <div className="bg-surface rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-xs text-muted uppercase tracking-wider">Session Volume</span>
-                  <span className="stride-data text-sm font-bold text-activity-lift">
+                <div className="bg-lift-bg rounded-[14px] p-3 flex items-center justify-between">
+                  <span className="bc-caption uppercase tracking-wider">Session Volume</span>
+                  <span className="bc-data text-sm font-bold text-lift-accent">
                     {(() => {
                       const { totalVolume, totalSets } = calculateLiftVolume(exercises);
                       return `${totalSets} sets · ${totalVolume.toLocaleString()} lbs`;
@@ -484,45 +443,38 @@ export default function LogForm({ workout, onSave, onClose }) {
                 </div>
               )}
 
-              {/* Notes */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">Notes</label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Notes</label>
                 <textarea
                   value={liftNotes}
                   onChange={(e) => setLiftNotes(e.target.value)}
                   placeholder="Session notes..."
                   rows={2}
-                  className="w-full bg-surface border border-border text-primary text-sm
-                             rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                             resize-none placeholder:text-muted"
+                  className="bc-input resize-none placeholder:text-tertiary"
                 />
               </div>
             </div>
           )}
 
-          {/* ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════ */}
           {/* ── CARDIO FIELDS ── */}
-          {/* ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════ */}
           {workoutType === 'cardio' && (
             <div className="space-y-4">
-              {/* Activity type */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">Activity</label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Activity</label>
                 <select
                   value={cardioType}
                   onChange={(e) => setCardioType(e.target.value)}
-                  className="w-full bg-surface border border-border text-primary text-sm
-                             rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer"
-                >
+                  className="bc-input cursor-pointer">
                   {CARDIO_TYPES.map(type => (
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Duration */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">
                   Duration (minutes)
                 </label>
                 <input
@@ -530,97 +482,75 @@ export default function LogForm({ workout, onSave, onClose }) {
                   value={cardioDuration}
                   onChange={(e) => setCardioDuration(e.target.value)}
                   placeholder="30"
-                  className="w-full bg-surface border border-border text-primary text-sm
-                             rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                             stride-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  className="bc-input bc-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
 
-              {/* Heart rate + Calories (side by side) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted uppercase tracking-wider block mb-1">
-                    Avg Heart Rate
-                  </label>
+                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Avg Heart Rate</label>
                   <input
                     type="number"
                     value={heartRate}
                     onChange={(e) => setHeartRate(e.target.value)}
                     placeholder="—"
-                    className="w-full bg-surface border border-border text-primary text-sm
-                               rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                               stride-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                    className="bc-input bc-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted uppercase tracking-wider block mb-1">
-                    Calories
-                  </label>
+                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Calories</label>
                   <input
                     type="number"
                     value={cardioCalories}
                     onChange={(e) => setCardioCalories(e.target.value)}
                     placeholder="—"
-                    className="w-full bg-surface border border-border text-primary text-sm
-                               rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                               stride-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                    className="bc-input bc-data [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
               </div>
 
-              {/* RPE */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">RPE (1–10)</label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">RPE (1–10)</label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                     <button
                       key={n}
                       onClick={() => setCardioRpe(n === cardioRpe ? '' : n)}
-                      className={`
-                        flex-1 py-2 text-sm rounded-lg transition-colors stride-data
+                      className={`flex-1 py-2 text-sm rounded-[10px] transition-colors bc-data
                         ${Number(cardioRpe) === n
-                          ? 'bg-accent/30 text-accent'
-                          : 'bg-surface text-secondary hover:text-primary'
-                        }
-                      `}
-                    >
+                          ? rpeActiveClass(n)
+                          : 'bg-canvas text-secondary hover:text-primary'}`}>
                       {n}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Notes */}
               <div>
-                <label className="text-xs text-muted uppercase tracking-wider block mb-1">Notes</label>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Notes</label>
                 <textarea
                   value={cardioNotes}
                   onChange={(e) => setCardioNotes(e.target.value)}
                   placeholder="Session notes..."
                   rows={2}
-                  className="w-full bg-surface border border-border text-primary text-sm
-                             rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent
-                             resize-none placeholder:text-muted"
+                  className="bc-input resize-none placeholder:text-tertiary"
                 />
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Footer with Save/Cancel ── */}
+        {/* ── Footer ── */}
         <div className="p-5 pt-3 border-t border-border flex gap-3">
           <button
             onClick={handleSave}
-            className="flex-1 py-2.5 bg-accent text-white text-sm font-medium
-                       rounded-lg hover:brightness-110 transition-all"
-          >
+            className="bc-btn-primary flex-1 py-3 text-sm">
             {isEditing ? 'Save Changes' : 'Log Workout'}
           </button>
           <button
             onClick={onClose}
-            className="px-6 py-2.5 bg-surface text-secondary text-sm
-                       rounded-lg hover:text-primary transition-all"
-          >
+            className="px-6 py-3 bg-canvas text-secondary text-sm font-medium
+                       rounded-[10px] hover:text-primary transition-colors">
             Cancel
           </button>
         </div>

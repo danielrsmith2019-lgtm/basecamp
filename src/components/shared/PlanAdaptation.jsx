@@ -93,7 +93,7 @@ function PlanAdaptationCard({ adaptation, onAccept, onReject }) {
   }
 
   return (
-    <div className={`stride-card overflow-hidden border ${config.border} ${config.bg}`}>
+    <div className={`bc-card-flush border ${config.border} ${config.bg}`}>
       {/* Header */}
       <div className="p-4">
         <div className="flex items-start gap-3">
@@ -166,7 +166,7 @@ function PlanAdaptationCard({ adaptation, onAccept, onReject }) {
            adaptation.type === 'cross_domain_balance' ? 'Understood' :
            'Accept'}
         </button>
-        <div className="w-px bg-gray-800" />
+        <div className="w-px bg-surface" />
         <button
           onClick={handleReject}
           disabled={acting}

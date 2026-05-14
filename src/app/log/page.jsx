@@ -11,33 +11,31 @@ import { getSessionEmoji, formatVolume, summarizeExercises } from '@/utils/liftU
 import WorkoutDetailModal from '@/components/shared/WorkoutDetailModal';
 import LogForm from '@/components/shared/LogForm';
 import { createWorkout } from '@/data/types';
-
 import { Footprints, Dumbbell, Bike, Moon, Activity } from 'lucide-react';
 
 const TYPE_CONFIG = {
-  run:    { Icon: Footprints, label: 'Run',    color: 'text-activity-run',    bg: 'bg-activity-run/15' },
-  lift:   { Icon: Dumbbell,   label: 'Lift',   color: 'text-activity-lift',   bg: 'bg-activity-lift/15' },
-  cardio: { Icon: Bike,       label: 'Cardio', color: 'text-activity-cardio', bg: 'bg-activity-cardio/15' },
-  rest:   { Icon: Moon,       label: 'Rest',   color: 'text-activity-rest',   bg: 'bg-activity-rest/15' },
-  other:  { Icon: Activity,   label: 'Other',  color: 'text-secondary',       bg: 'bg-secondary/15' },
+  run:    { Icon: Footprints, label: 'Run',    color: 'text-run-accent',    bg: 'bg-run-bg' },
+  lift:   { Icon: Dumbbell,   label: 'Lift',   color: 'text-lift-accent',   bg: 'bg-lift-bg' },
+  cardio: { Icon: Bike,       label: 'Cardio', color: 'text-cardio-accent', bg: 'bg-cardio-bg' },
+  rest:   { Icon: Moon,       label: 'Rest',   color: 'text-rest-accent',   bg: 'bg-rest-bg' },
+  other:  { Icon: Activity,   label: 'Other',  color: 'text-secondary',     bg: 'bg-surface-alt' },
 };
 
 const STATUS_DOT = {
-  completed: 'bg-status-done',
-  planned:   'bg-status-planned',
-  skipped:   'bg-status-skipped',
+  completed: 'bg-bc-green',
+  planned:   'bg-tertiary',
+  skipped:   'bg-bc-red',
 };
 
 const FILTERS = [
-  { key: 'all',    label: 'All' },
-  { key: 'run',    label: 'Runs' },
-  { key: 'lift',   label: 'Lifts' },
-  { key: 'rest',   label: 'Rest' },
+  { key: 'all',  label: 'All' },
+  { key: 'run',  label: 'Runs' },
+  { key: 'lift', label: 'Lifts' },
+  { key: 'rest', label: 'Rest' },
 ];
 
 import { useWorkouts } from '@/lib/WorkoutContext';
 
-// Inside the component, replace the useState with:
 export default function TrainingLog() {
   const { workouts, saveWorkout, isLoaded } = useWorkouts();
   const [typeFilter, setTypeFilter] = useState('all');
@@ -48,7 +46,6 @@ export default function TrainingLog() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [showPast, setShowPast] = useState(false);
 
-  // ── Filter + sort workouts ──
   const filtered = useMemo(() => {
     return workouts
       .filter(w => {
@@ -63,7 +60,6 @@ export default function TrainingLog() {
       );
   }, [workouts, typeFilter, dateFrom, dateTo, sortOrder]);
 
-  // ── Build rows with weekly summary inserts ──
   const allRows = useMemo(() => buildTableRows(filtered, sortOrder), [filtered, sortOrder]);
 
   const { currentAndFutureRows, pastRows } = useMemo(() => {
@@ -74,11 +70,7 @@ export default function TrainingLog() {
 
     allRows.forEach(row => {
       if (row.isSummary && row.isPast) hitPast = true;
-      if (hitPast) {
-        past.push(row);
-      } else {
-        current.push(row);
-      }
+      if (hitPast) { past.push(row); } else { current.push(row); }
     });
 
     return { currentAndFutureRows: current, pastRows: past };
@@ -86,14 +78,12 @@ export default function TrainingLog() {
 
   const tableRows = showPast ? [...currentAndFutureRows, ...pastRows] : currentAndFutureRows;
 
-  // ── Aggregate stats for the filter bar ──
   const stats = useMemo(() => {
     const f = filtered.filter(w => w.status === 'completed');
     const runs = f.filter(w => w.type === 'run');
     const lifts = f.filter(w => w.type === 'lift');
     const totalMiles = runs.reduce((s, w) => s + (w.details.actualDistance || 0), 0);
     const totalVolume = lifts.reduce((s, w) => s + (w.details.totalVolume || 0), 0);
-
     return {
       total: filtered.length,
       completed: f.length,
@@ -117,41 +107,37 @@ export default function TrainingLog() {
   const hasActiveFilters = typeFilter !== 'all' || dateFrom || dateTo;
 
   if (!isLoaded) {
-    return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted text-sm">Loading...</p></div>;
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <p className="text-tertiary text-sm">Loading...</p>
+      </div>
+    );
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="stride-section-label mb-0">Training Log</h2>
+      {/* ── Header row ── */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="bc-caption uppercase tracking-wider mb-0">Training Log</h2>
         <button
           onClick={() => setShowNewForm(true)}
-          className="px-3 py-1.5 bg-accent text-white text-xs font-medium
-                     rounded-lg hover:brightness-110 transition-all"
-        >
+          className="px-3 py-1.5 bg-bc-blue text-primary text-xs font-semibold
+                     rounded-[10px] hover:opacity-90 active:scale-95 transition-all">
           + Log Workout
         </button>
       </div>
 
-      {/* ═══════════════════════════════════════════════ */}
-      {/* FILTER BAR */}
-      {/* ═══════════════════════════════════════════════ */}
-      <div className="stride-card p-4 mb-4">
+      {/* ── Filter bar ── */}
+      <div className="bc-card p-4 mb-4">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Type filters */}
-          <div className="flex gap-1.5">
+
+          {/* Type filter tabs */}
+          <div className="bc-tab-bar w-auto">
             {FILTERS.map(f => (
               <button
                 key={f.key}
                 onClick={() => setTypeFilter(f.key)}
-                className={`
-                  px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
-                  ${typeFilter === f.key
-                    ? 'bg-accent text-white'
-                    : 'bg-surface text-secondary hover:text-primary'
-                  }
-                `}
-              >
+                className={`bc-tab ${typeFilter === f.key ? 'bc-tab-active' : ''}`}>
                 {f.label}
               </button>
             ))}
@@ -163,141 +149,116 @@ export default function TrainingLog() {
               type="date"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
-              className="bg-surface border border-border text-primary text-xs rounded-lg
-                         px-2 py-1.5 focus:outline-none focus:border-accent w-32"
+              className="bc-input !py-1.5 !text-xs w-32"
               placeholder="From"
             />
-            <span className="text-muted text-xs">to</span>
+            <span className="text-tertiary text-xs">to</span>
             <input
               type="date"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
-              className="bg-surface border border-border text-primary text-xs rounded-lg
-                         px-2 py-1.5 focus:outline-none focus:border-accent w-32"
+              className="bc-input !py-1.5 !text-xs w-32"
             />
           </div>
 
           {/* Sort toggle */}
           <button
             onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-            className="px-2 py-1.5 text-xs text-secondary hover:text-primary bg-surface rounded-lg transition-colors"
-            title={sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}
-          >
+            className="px-2 py-1.5 text-xs text-secondary hover:text-primary
+                       bg-surface-alt rounded-[10px] border border-border transition-colors"
+            title={sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}>
             {sortOrder === 'desc' ? '↓ Newest' : '↑ Oldest'}
           </button>
         </div>
 
         {/* Active filter summary */}
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-          <div className="flex items-center gap-4 text-xs text-muted">
-            <span><span className="stride-data text-primary">{stats.total}</span> entries</span>
-            <span><span className="stride-data text-primary">{stats.completed}</span> completed</span>
+          <div className="flex items-center gap-4 text-xs text-tertiary">
+            <span><span className="bc-data text-primary">{stats.total}</span> entries</span>
+            <span><span className="bc-data text-primary">{stats.completed}</span> completed</span>
             {stats.totalMiles !== '0.0' && (
-              <span><span className="stride-data text-activity-run">{stats.totalMiles}</span> mi</span>
+              <span><span className="bc-data text-run-accent">{stats.totalMiles}</span> mi</span>
             )}
             {stats.totalVolume > 0 && (
-              <span><span className="stride-data text-activity-lift">{formatVolume(stats.totalVolume)}</span></span>
+              <span><span className="bc-data text-lift-accent">{formatVolume(stats.totalVolume)}</span></span>
             )}
           </div>
-
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="text-xs text-accent hover:underline">
+            <button onClick={clearFilters} className="text-xs text-bc-blue hover:underline">
               Clear filters
             </button>
           )}
         </div>
       </div>
 
-       {/* Past weeks toggle */}
+      {/* Past weeks toggle */}
       {pastRows.length > 0 && (
         <button
           onClick={() => setShowPast(!showPast)}
-          className="flex items-center gap-2 text-xs text-muted hover:text-secondary transition-colors mb-3"
-        >
+          className="flex items-center gap-2 text-xs text-tertiary
+                     hover:text-secondary transition-colors mb-3">
           {showPast ? '▲ Hide' : '▼ Show'} past weeks
-          <span className="stride-data text-[10px]">
+          <span className="bc-data text-[10px]">
             ({pastRows.filter(r => r.isSummary).length} week{pastRows.filter(r => r.isSummary).length !== 1 ? 's' : ''})
           </span>
         </button>
       )}
 
-      {/* ═══════════════════════════════════════════════ */}
-      {/* TABLE */}
-      {/* ═══════════════════════════════════════════════ */}
-      <div className="stride-card overflow-hidden">
-        {/* Desktop table (hidden on small screens) */}
+      {/* ── Table ── */}
+      <div className="bc-card-flush">
+
+        {/* Desktop table */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left text-[10px] uppercase tracking-wider text-muted font-semibold px-4 py-3">Date</th>
-                <th className="text-center text-[10px] uppercase tracking-wider text-muted font-semibold px-3 py-3 w-16">Type</th>
-                <th className="text-center text-[10px] uppercase tracking-wider text-muted font-semibold px-3 py-3 w-12"></th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-muted font-semibold px-4 py-3">Details</th>
-                <th className="text-right text-[10px] uppercase tracking-wider text-muted font-semibold px-4 py-3">Key Metric</th>
-                <th className="text-center text-[10px] uppercase tracking-wider text-muted font-semibold px-3 py-3 w-14">RPE</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-muted font-semibold px-4 py-3">Notes</th>
+                {['Date', 'Type', '', 'Details', 'Key Metric', 'RPE', 'Notes'].map((h, i) => (
+                  <th key={i}
+                    className="text-left text-[10px] uppercase tracking-wider
+                               text-tertiary font-semibold px-4 py-3 first:pl-4">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {tableRows.map((row, i) => {
-                if (row.isSummary) {
-                  return <WeeklySummaryRow key={`summary-${i}`} summary={row} />;
-                }
-                return (
-                  <WorkoutRow
-                    key={row.workout.id}
-                    workout={row.workout}
-                    onClick={() => setSelectedWorkout(row.workout)}
-                  />
-                );
-              })}
+              {tableRows.map((row, i) =>
+                row.isSummary
+                  ? <WeeklySummaryRow key={`summary-${i}`} summary={row} />
+                  : <WorkoutRow key={row.workout.id} workout={row.workout} onClick={() => setSelectedWorkout(row.workout)} />
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* Mobile card list (shown on small screens) */}
+        {/* Mobile card list */}
         <div className="md:hidden">
-          {tableRows.map((row, i) => {
-            if (row.isSummary) {
-              return <MobileSummaryCard key={`summary-${i}`} summary={row} />;
-            }
-            return (
-              <MobileWorkoutCard
-                key={row.workout.id}
-                workout={row.workout}
-                onClick={() => setSelectedWorkout(row.workout)}
-              />
-            );
-          })}
+          {tableRows.map((row, i) =>
+            row.isSummary
+              ? <MobileSummaryCard key={`summary-${i}`} summary={row} />
+              : <MobileWorkoutCard key={row.workout.id} workout={row.workout} onClick={() => setSelectedWorkout(row.workout)} />
+          )}
         </div>
 
         {/* Empty state */}
         {allRows.length === 0 && (
-          <div className="p-8 text-center">
-            <p className="text-secondary">No workouts match your filters.</p>
-            <button onClick={clearFilters} className="text-accent text-sm mt-2 hover:underline">
+          <div className="bc-empty">
+            <p className="bc-empty-title">No workouts match your filters.</p>
+            <button onClick={clearFilters} className="text-bc-blue text-sm mt-2 hover:underline">
               Clear filters
             </button>
           </div>
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════════ */}
-      {/* MODALS */}
-      {/* ═══════════════════════════════════════════════ */}
+      {/* ── Modals ── */}
       <WorkoutDetailModal
         workout={selectedWorkout}
         onClose={() => setSelectedWorkout(null)}
         onSave={handleSave}
       />
-
       {showNewForm && (
-        <LogForm
-          workout={null}
-          onSave={handleSave}
-          onClose={() => setShowNewForm(false)}
-        />
+        <LogForm workout={null} onSave={handleSave} onClose={() => setShowNewForm(false)} />
       )}
     </div>
   );
@@ -312,7 +273,6 @@ function WorkoutRow({ workout, onClick }) {
   const { date, type, status, details } = workout;
   const typeInfo = TYPE_CONFIG[type] || TYPE_CONFIG.other;
 
-  // Build detail text
   let detailText = '';
   let keyMetric = '';
   let keyMetricColor = 'text-primary';
@@ -323,7 +283,6 @@ function WorkoutRow({ workout, onClick }) {
     if (details.runDescription && details.runDescription !== details.runType) {
       detailText = details.runDescription;
     }
-
     if (status === 'completed' && details.actualPace) {
       keyMetric = `${details.actualDistance || ''} mi @ ${details.actualPace}`;
       const comparison = comparePaces(details.actualPace, details.targetPace);
@@ -337,8 +296,7 @@ function WorkoutRow({ workout, onClick }) {
   if (type === 'lift') {
     detailText = details.sessionName || summarizeExercises(details.exercises || [], 2);
     keyMetric = details.totalVolume ? formatVolume(details.totalVolume) : '—';
-    keyMetricColor = 'text-activity-lift';
-    // Average RPE across all sets
+    keyMetricColor = 'text-lift-accent';
     if (!rpe && details.exercises) {
       const allRpe = details.exercises.flatMap(e =>
         (Array.isArray(e.sets) ? e.sets : []).filter(s => s.rpe != null).map(s => s.rpe)
@@ -363,32 +321,30 @@ function WorkoutRow({ workout, onClick }) {
   return (
     <tr
       onClick={onClick}
-      className={`
-        border-b border-border/50 transition-colors cursor-pointer
-        hover:bg-surface/50
-        ${status === 'skipped' ? 'opacity-50' : ''}
-      `}
-    >
+      className={`border-b border-border/50 transition-colors cursor-pointer
+                  hover:bg-surface-alt
+                  ${status === 'skipped' ? 'opacity-50' : ''}`}>
+
       {/* Date */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status] || STATUS_DOT.planned}`} />
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[status] || STATUS_DOT.planned}`} />
           <span className="text-sm text-primary">{formatDate(date)}</span>
         </div>
       </td>
 
-      {/* Type emoji */}
+      {/* Type badge */}
       <td className="px-3 py-3 text-center">
-        <div className={`stride-badge ${typeInfo.bg} ${typeInfo.color} inline-flex`}>
+        <div className={`bc-pill ${typeInfo.bg} ${typeInfo.color} inline-flex`}>
           <typeInfo.Icon size={14} strokeWidth={2} />
         </div>
       </td>
 
       {/* Status */}
       <td className="px-3 py-3 text-center">
-        {status === 'completed' && <span className="text-status-done text-xs">✓</span>}
-        {status === 'skipped' && <span className="text-status-skipped text-xs">✗</span>}
-        {status === 'planned' && <span className="text-muted text-xs">—</span>}
+        {status === 'completed' && <span className="text-bc-green-dark text-xs">✓</span>}
+        {status === 'skipped'   && <span className="text-bc-red text-xs">✗</span>}
+        {status === 'planned'   && <span className="text-tertiary text-xs">—</span>}
       </td>
 
       {/* Details */}
@@ -397,33 +353,31 @@ function WorkoutRow({ workout, onClick }) {
         {type === 'lift' && details.muscleGroups && (
           <div className="flex gap-1 mt-1">
             {details.muscleGroups.slice(0, 3).map(mg => (
-              <span key={mg} className="text-[10px] text-muted">{mg}</span>
+              <span key={mg} className="text-[10px] text-tertiary">{mg}</span>
             ))}
           </div>
         )}
         {type === 'run' && details.phase && (
-          <span className="text-[10px] text-muted ml-2">
+          <span className="text-[10px] text-tertiary ml-2">
             {details.phase.replace(/Phase \d+: /, '')}
           </span>
         )}
       </td>
 
       {/* Key Metric */}
-      <td className={`px-4 py-3 text-right stride-data text-sm ${keyMetricColor}`}>
+      <td className={`px-4 py-3 text-right bc-data text-sm ${keyMetricColor}`}>
         {keyMetric}
       </td>
 
       {/* RPE */}
       <td className="px-3 py-3 text-center">
         {rpe != null ? (
-          <span className={`
-            stride-data text-xs
-            ${rpe <= 4 ? 'text-phase-base' : rpe <= 7 ? 'text-phase-peak' : 'text-status-skipped'}
-          `}>
+          <span className={`bc-data text-xs
+            ${rpe <= 4 ? 'text-run-accent' : rpe <= 7 ? 'text-bc-orange' : 'text-bc-red'}`}>
             {rpe}
           </span>
         ) : (
-          <span className="text-muted text-xs">—</span>
+          <span className="text-tertiary text-xs">—</span>
         )}
       </td>
 
@@ -444,29 +398,29 @@ function WorkoutRow({ workout, onClick }) {
 
 function WeeklySummaryRow({ summary }) {
   return (
-    <tr className="bg-surface/30 border-b border-border">
+    <tr className="bg-surface-alt border-b border-border">
       <td colSpan={2} className="px-4 py-2.5">
-        <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+        <span className="bc-caption uppercase tracking-wider text-tertiary">
           {summary.label}
         </span>
       </td>
       <td className="px-3 py-2.5 text-center">
-        <span className="stride-data text-xs text-primary">{summary.workoutCount}</span>
+        <span className="bc-data text-xs text-primary">{summary.workoutCount}</span>
       </td>
       <td className="px-4 py-2.5">
         <div className="flex gap-3 text-xs">
           {summary.runCount > 0 && (
-            <span className="text-activity-run">
+            <span className="text-run-accent">
               {summary.runCount} run{summary.runCount !== 1 ? 's' : ''}
             </span>
           )}
           {summary.liftCount > 0 && (
-            <span className="text-activity-lift">
+            <span className="text-lift-accent">
               {summary.liftCount} lift{summary.liftCount !== 1 ? 's' : ''}
             </span>
           )}
           {summary.skippedCount > 0 && (
-            <span className="text-status-skipped">
+            <span className="text-bc-red">
               {summary.skippedCount} skipped
             </span>
           )}
@@ -475,19 +429,19 @@ function WeeklySummaryRow({ summary }) {
       <td className="px-4 py-2.5 text-right">
         <div className="flex flex-col items-end gap-0.5">
           {summary.totalMiles > 0 && (
-            <span className="stride-data text-xs text-activity-run">{summary.totalMiles.toFixed(1)} mi</span>
+            <span className="bc-data text-xs text-run-accent">{summary.totalMiles.toFixed(1)} mi</span>
           )}
           {summary.totalVolume > 0 && (
-            <span className="stride-data text-xs text-activity-lift">{formatVolume(summary.totalVolume)}</span>
+            <span className="bc-data text-xs text-lift-accent">{formatVolume(summary.totalVolume)}</span>
           )}
         </div>
       </td>
       <td className="px-3 py-2.5 text-center">
         {summary.avgRpe != null && (
-          <span className="stride-data text-xs text-secondary">{summary.avgRpe}</span>
+          <span className="bc-data text-xs text-secondary">{summary.avgRpe}</span>
         )}
       </td>
-      <td className="px-4 py-2.5"></td>
+      <td className="px-4 py-2.5" />
     </tr>
   );
 }
@@ -518,7 +472,7 @@ function MobileWorkoutCard({ workout, onClick }) {
   } else if (type === 'lift') {
     title = details.sessionName || 'Lift';
     metric = details.totalVolume ? formatVolume(details.totalVolume) : `${(details.exercises || []).length} exercises`;
-    metricColor = 'text-activity-lift';
+    metricColor = 'text-lift-accent';
   } else if (type === 'rest') {
     title = details.restType || 'Rest Day';
     metric = '';
@@ -530,33 +484,28 @@ function MobileWorkoutCard({ workout, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`
-        w-full text-left flex items-center justify-between p-4
-        border-b border-border/50 transition-colors
-        hover:bg-surface/50
-        ${status === 'skipped' ? 'opacity-50' : ''}
-      `}
-    >
+      className={`w-full text-left flex items-center justify-between p-4
+                  border-b border-border/50 transition-colors hover:bg-surface-alt
+                  ${status === 'skipped' ? 'opacity-50' : ''}`}>
       <div className="flex items-center gap-3">
         <div className="flex flex-col items-center w-8">
           <span className={`w-1.5 h-1.5 rounded-full mb-1 ${STATUS_DOT[status] || STATUS_DOT.planned}`} />
-          <span className="text-lg">{typeInfo.emoji}</span>
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${typeInfo.bg}`}>
+            <typeInfo.Icon size={14} className={typeInfo.color} strokeWidth={2} />
+          </div>
         </div>
         <div>
           <p className="text-sm font-medium text-primary">{title}</p>
           <p className="text-xs text-secondary">{formatDate(date)}</p>
           {details.notes && (
-            <p className="text-[11px] text-muted mt-0.5 truncate max-w-[180px]">{details.notes}</p>
+            <p className="text-[11px] text-tertiary mt-0.5 truncate max-w-[180px]">{details.notes}</p>
           )}
         </div>
       </div>
-
       <div className="text-right flex-shrink-0 ml-3">
-        {metric && (
-          <p className={`stride-data text-sm ${metricColor}`}>{metric}</p>
-        )}
+        {metric && <p className={`bc-data text-sm ${metricColor}`}>{metric}</p>}
         {details.rpe != null && (
-          <p className="text-[10px] text-muted mt-0.5">RPE {details.rpe}</p>
+          <p className="text-[10px] text-tertiary mt-0.5">RPE {details.rpe}</p>
         )}
       </div>
     </button>
@@ -565,19 +514,19 @@ function MobileWorkoutCard({ workout, onClick }) {
 
 function MobileSummaryCard({ summary }) {
   return (
-    <div className="bg-surface/30 px-4 py-3 border-b border-border">
+    <div className="bg-surface-alt px-4 py-3 border-b border-border">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+        <span className="bc-caption uppercase tracking-wider text-tertiary">
           {summary.label}
         </span>
         <div className="flex gap-3 text-xs">
           {summary.totalMiles > 0 && (
-            <span className="stride-data text-activity-run">{summary.totalMiles.toFixed(1)} mi</span>
+            <span className="bc-data text-run-accent">{summary.totalMiles.toFixed(1)} mi</span>
           )}
           {summary.totalVolume > 0 && (
-            <span className="stride-data text-activity-lift">{formatVolume(summary.totalVolume)}</span>
+            <span className="bc-data text-lift-accent">{formatVolume(summary.totalVolume)}</span>
           )}
-          <span className="text-muted">{summary.workoutCount} sessions</span>
+          <span className="text-tertiary">{summary.workoutCount} sessions</span>
         </div>
       </div>
     </div>
@@ -586,7 +535,7 @@ function MobileSummaryCard({ summary }) {
 
 
 // ═══════════════════════════════════════════════════════
-// BUILD TABLE ROWS WITH WEEKLY SUMMARIES
+// HELPERS (unchanged)
 // ═══════════════════════════════════════════════════════
 
 function buildTableRows(workouts, sortOrder) {
@@ -594,7 +543,6 @@ function buildTableRows(workouts, sortOrder) {
 
   const currentWeekKey = getISOWeek(new Date().toISOString().split('T')[0]);
 
-  // Group by ISO week
   const weeks = {};
   workouts.forEach(w => {
     const weekKey = getISOWeek(w.date);
@@ -602,13 +550,10 @@ function buildTableRows(workouts, sortOrder) {
     weeks[weekKey].push(w);
   });
 
-  // Split into current, future, and past
   const weekKeys = Object.keys(weeks).sort();
   const currentWeek = weekKeys.filter(k => k === currentWeekKey);
   const futureWeeks = weekKeys.filter(k => k > currentWeekKey).sort();
   const pastWeeks = weekKeys.filter(k => k < currentWeekKey).sort().reverse();
-
-  // Order: current week → future weeks → past weeks
   const orderedKeys = [...currentWeek, ...futureWeeks, ...pastWeeks];
 
   const rows = [];
@@ -626,9 +571,7 @@ function buildTableRows(workouts, sortOrder) {
     const totalMiles = runs.reduce((s, w) => s + (w.details.actualDistance || 0), 0);
     const totalVolume = lifts.reduce((s, w) => s + (w.details.totalVolume || 0), 0);
 
-    const allRpe = completed
-      .map(w => w.details.rpe)
-      .filter(r => r != null);
+    const allRpe = completed.map(w => w.details.rpe).filter(r => r != null);
     const avgRpe = allRpe.length > 0
       ? Math.round(allRpe.reduce((a, b) => a + b, 0) / allRpe.length * 10) / 10
       : null;
@@ -651,17 +594,12 @@ function buildTableRows(workouts, sortOrder) {
     });
 
     const sorted = [...weekWorkouts].sort((a, b) => a.date.localeCompare(b.date));
-    sorted.forEach(w => {
-      rows.push({ isSummary: false, workout: w });
-    });
+    sorted.forEach(w => rows.push({ isSummary: false, workout: w }));
   });
 
   return rows;
 }
 
-/**
- * Returns an ISO week string for grouping: "2026-W19"
- */
 function getISOWeek(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   d.setHours(0, 0, 0, 0);

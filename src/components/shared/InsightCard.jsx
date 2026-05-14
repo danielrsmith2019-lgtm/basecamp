@@ -11,7 +11,7 @@ export default function InsightCard({ insight, onDismiss, onAction }) {
   const style = styles[insight.type] || styles.info;
 
   return (
-    <div className={`stride-card stride-accent-left p-4 ${style.border} ${style.bg}`}>
+    <div className={`bc-card stride-accent-left p-4 ${style.border} ${style.bg}`}>
       <div className="flex gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${style.iconBg}`}>
           <InsightIcon type={insight.type} insightId={insight.id} size={20} />

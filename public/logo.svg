@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="1000"
+   height="1000"
+   viewBox="0 0 264.58333 264.58372"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
+   sodipodi:docname="logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#0f1b2d"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.03529412"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     showgrid="false"
+     showguides="true"
+     inkscape:zoom="0.76078844"
+     inkscape:cx="750.53717"
+     inkscape:cy="502.11068"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="1072"
+     inkscape:window-y="372"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     showborder="false">
+    <inkscape:grid
+       type="xygrid"
+       id="grid5574"
+       empspacing="5"
+       snapvisiblegridlinesonly="true"
+       originx="0"
+       originy="0" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       style="fill:#3a8fd6;stroke-width:0.223604"
+       d="m 59.669285,120.18826 19.139988,12.1036 -19.139988,12.10361 5.741998,-12.10361 z"
+       id="path8990" />
+    <path
+       style="fill:#3a8fd6;stroke-width:0.223604"
+       d="m 6.0770159,105.05875 19.1400951,3.0259 18.183092,6.0518 16.269082,6.0518 -3.828019,1.51297 -15.312077,-4.53887 -19.140097,-4.53884 -15.3120761,-1.51296 z"
+       id="path8992" />
+    <path
+       style="fill:#3a8fd6;stroke-width:0.223604"
+       d="m 2.2489959,129.26597 22.9681151,0.75646 21.054105,0.75647 19.140067,1.51295 -19.140067,1.51296 -21.054105,0.75648 -22.9681151,0.75647 z"
+       id="path8994" />
+    <path
+       style="fill:#3a8fd6;stroke-width:0.223604"
+       d="m 6.0770159,159.52497 19.1400951,-3.02589 19.140096,-6.0518 15.312078,-6.05181 -3.828019,-1.51294 -15.312077,4.53885 -19.140097,4.53886 -15.3120761,1.51295 z"
+       id="path8996" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.175px;font-family:'Bebas Neue';-inkscape-font-specification:'Bebas Neue, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;white-space:pre;inline-size:97.8958;display:inline;fill:#3a8fd6;stroke-width:0.347663"
+       x="134.9375"
+       y="148.16667"
+       id="text10600"
+       transform="matrix(11.311205,0,0,25.146968,-1444.7743,-3565.7061)"><tspan
+         x="134.9375"
+         y="148.16667"
+         id="tspan981">CONFLUX</tspan></text>
+  </g>
+</svg>

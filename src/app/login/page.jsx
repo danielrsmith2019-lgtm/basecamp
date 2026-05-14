@@ -52,14 +52,14 @@ export default function LoginPage() {
 
         {/* Logo / Wordmark */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-white">
+          <h1 className="text-3xl font-bold tracking-tight text-primary">
             BASE<span className="text-blue-500">CAMP</span>
           </h1>
           <p className="text-gray-500 text-sm mt-2">Your entire training life, one app.</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-[#111827] rounded-2xl p-6 border border-gray-800">
+        <div className="bg-[bg-surface] rounded-2xl p-6 border border-gray-800">
 
           {/* Google Sign In */}
           <button
@@ -77,9 +77,9 @@ export default function LoginPage() {
 
           {/* Divider */}
           <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-gray-700" />
+            <div className="flex-1 h-px border-border" />
             <span className="text-xs text-gray-500">or</span>
-            <div className="flex-1 h-px bg-gray-700" />
+            <div className="flex-1 h-px border-border" />
           </div>
 
           {/* Email / Password Form */}
@@ -92,7 +92,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full px-4 py-3 bg-[#0A0F1A] border border-gray-700 rounded-xl text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full px-4 py-3 bg-[#0A0F1A] border border-gray-700 rounded-xl text-primary text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
               />
             </div>
             <div>
@@ -103,7 +103,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-3 bg-[#0A0F1A] border border-gray-700 rounded-xl text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full px-4 py-3 bg-[#0A0F1A] border border-gray-700 rounded-xl text-primary text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
               />
             </div>
 
@@ -117,7 +117,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors text-sm"
+              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-primary font-medium rounded-xl transition-colors text-sm"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>

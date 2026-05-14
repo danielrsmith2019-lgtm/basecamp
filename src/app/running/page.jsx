@@ -19,89 +19,78 @@ export default function RunningTestPage() {
     { key: 'paces',    label: 'Pace Guide' },
   ];
 
-  function handleRunClick(workout) {
-    setSelectedRun(workout);
-  }
-
   return (
-    <div className="min-h-screen bg-base text-primary">
-      {/* ── Header ── */}
-      <header className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">
-              <span className="text-accent">BASE</span>CAMP
-              <span className="text-muted text-sm font-normal ml-3">Running Components Test</span>
-            </h1>
-          </div>
-        </div>
+    <div className="min-h-screen bg-canvas text-primary">
 
-        {/* ── Tab Navigation ── */}
-        <nav className="flex gap-1 mt-4">
+      {/* ── Header ── */}
+      <header className="bc-header">
+        <div className="flex items-center gap-3">
+          <span className="bc-wordmark">BaseCamp</span>
+          <span className="bc-caption hidden sm:inline">Running Components</span>
+        </div>
+      </header>
+
+      {/* ── Content ── */}
+      <main className="max-w-3xl mx-auto px-6 pt-20 pb-10">
+
+        {/* ── Tab toggle ── */}
+        <div className="bc-tab-bar mb-6">
           {tabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`
-                px-4 py-2 text-sm font-medium rounded-lg transition-colors
-                ${activeTab === tab.key
-                  ? 'bg-accent text-white'
-                  : 'text-secondary hover:text-primary hover:bg-surface'
-                }
-              `}
-            >
+              className={`bc-tab ${activeTab === tab.key ? 'bc-tab-active' : ''}`}>
               {tab.label}
             </button>
           ))}
-        </nav>
-      </header>
+        </div>
 
-      {/* ── Content ── */}
-      <main className="max-w-3xl mx-auto px-6 py-6">
         {activeTab === 'schedule' && (
           <div>
-            <h2 className="stride-section-label">Run Schedule</h2>
+            <p className="bc-caption uppercase tracking-wider mb-3">Run Schedule</p>
             <RunSchedule
               workouts={sampleRunData}
-              onRunClick={handleRunClick}
+              onRunClick={(w) => setSelectedRun(w)}
             />
           </div>
         )}
 
         {activeTab === 'paces' && (
           <div>
-            <h2 className="stride-section-label">Pace Reference</h2>
+            <p className="bc-caption uppercase tracking-wider mb-3">Pace Reference</p>
             <PaceGuide />
           </div>
         )}
       </main>
 
-      {/* ── Click Detail Modal (temporary — shows raw data) ── */}
+      {/* ── Detail modal ── */}
       {selectedRun && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center
+                     justify-center z-50 p-0 sm:p-4"
           onClick={() => setSelectedRun(null)}
         >
           <div
-            className="bg-card border border-border rounded-card shadow-modal max-w-lg w-full
-                       p-6 animate-modal-in max-h-[80vh] overflow-auto"
+            className="bg-surface border border-border rounded-t-[24px] sm:rounded-[20px]
+                       shadow-xl max-w-lg w-full p-6 max-h-[80vh] overflow-auto"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">
-                {selectedRun.details.runType} — {selectedRun.date}
+              <h3 className="text-[17px] font-semibold text-primary">
+                {selectedRun.details.runType}
+                <span className="bc-label font-normal ml-2">{selectedRun.date}</span>
               </h3>
               <button
                 onClick={() => setSelectedRun(null)}
-                className="text-muted hover:text-primary text-xl leading-none"
-              >
+                className="w-7 h-7 rounded-full bg-canvas flex items-center justify-center
+                           text-secondary hover:text-primary text-lg transition-colors">
                 ×
               </button>
             </div>
-            <pre className="text-xs font-mono text-secondary bg-base rounded-lg p-4 overflow-auto">
+            <pre className="text-xs font-mono text-secondary bg-canvas rounded-[14px] p-4 overflow-auto">
               {JSON.stringify(selectedRun, null, 2)}
             </pre>
-            <p className="text-xs text-muted mt-4">
+            <p className="bc-caption mt-4">
               This will become the LogForm modal. For now it shows raw data to verify the model is correct.
             </p>
           </div>

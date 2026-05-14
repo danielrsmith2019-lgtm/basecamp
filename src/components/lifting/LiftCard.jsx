@@ -56,7 +56,7 @@ export default function LiftCard({ workout, onClick }) {
   return (
     <div
       onClick={() => onClick?.(workout)}
-      className="stride-card stride-accent-left border-activity-lift p-4 cursor-pointer"
+      className="bc-card stride-accent-left border-activity-lift p-4 cursor-pointer"
     >
       {/* ── Row 1: Emoji + Session Name + Date ── */}
       <div className="flex items-center justify-between mb-2">

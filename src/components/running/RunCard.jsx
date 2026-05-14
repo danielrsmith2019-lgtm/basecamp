@@ -48,7 +48,7 @@ export default function RunCard({ workout, onClick }) {
     <div
       onClick={() => onClick?.(workout)}
       className={`
-        stride-card stride-accent-left p-4 cursor-pointer
+        bc-card stride-accent-left p-4 cursor-pointer
         ${phaseColors.border}
         ${isRest ? 'opacity-60' : ''}
       `}

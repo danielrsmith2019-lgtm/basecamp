@@ -6,6 +6,8 @@
  */
 import LogoutButton from '@/components/shared/LogoutButton';
 import { useMemo } from 'react';
+import Image from 'next/image';
+
 
 export default function Header({ workouts = [] }) {
   const stats = useMemo(() => {
@@ -55,56 +57,60 @@ export default function Header({ workouts = [] }) {
                         flex items-center justify-between
                         fixed top-0 left-0 right-0 z-40"
             style={{
-              background: 'oklch(0.12 0.01 260 / 0.65)',
+              background: 'bc-header',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: 'var(--color-border)',
             }}>
       {/* ── Wordmark ── */}
-      <h1 className="text-lg font-bold tracking-tight">
-        <span className="text-accent">BASE</span>
-        <span className="text-primary">CAMP</span>
-      </h1>
+      <Image
+  src="/logo.svg"
+  alt="BaseCamp"
+  width={120}
+  height={32}
+  priority
+  className="object-contain h-32 w-32 flex-shrink-0"
+/>
 
       {/* ── Stats Bar ── */}
       <div className="hidden sm:flex items-center gap-4">
         {/* Miles */}
-        <div className="flex items-center gap-1.5">
-          <span className="stride-data text-sm font-bold text-primary">
-            {stats.totalMiles}
-          </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted">mi</span>
-        </div>
+<div className="flex items-center gap-1.5">
+  <span className="bc-data text-sm font-bold text-run-accent">
+    {stats.totalMiles}
+  </span>
+  <span className="text-[10px] uppercase tracking-wider text-tertiary">mi</span>
+</div>
 
-        <div className="w-px h-4 bg-border" />
+<div className="w-px h-4 bg-border" />
 
-        {/* Avg Pace */}
-        <div className="flex items-center gap-1.5">
-          <span className="stride-data text-sm font-bold text-primary">
-            {stats.avgPace}
-          </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted">avg</span>
-        </div>
+{/* Avg Pace */}
+<div className="flex items-center gap-1.5">
+  <span className="bc-data text-sm font-bold text-primary">
+    {stats.avgPace}
+  </span>
+  <span className="text-[10px] uppercase tracking-wider text-tertiary">avg</span>
+</div>
 
-        <div className="w-px h-4 bg-border" />
+<div className="w-px h-4 bg-border" />
 
-        {/* Lifts This Week */}
-        <div className="flex items-center gap-1.5">
-          <span className="stride-data text-sm font-bold text-primary">
-            {stats.liftsThisWeek}
-          </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted">lifts/wk</span>
-        </div>
+{/* Lifts */}
+<div className="flex items-center gap-1.5">
+  <span className="bc-data text-sm font-bold text-lift-accent">
+    {stats.liftsThisWeek}
+  </span>
+  <span className="text-[10px] uppercase tracking-wider text-tertiary">lifts/wk</span>
+</div>
 
-        <div className="w-px h-4 bg-border" />
+<div className="w-px h-4 bg-border" />
 
-        {/* Volume */}
-        <div className="flex items-center gap-1.5">
-          <span className="stride-data text-sm font-bold text-primary">
-            {stats.totalVolume}
-          </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted">lbs</span>
-        </div>
+{/* Volume */}
+<div className="flex items-center gap-1.5">
+  <span className="bc-data text-sm font-bold text-lift-accent">
+    {stats.totalVolume}
+  </span>
+  <span className="text-[10px] uppercase tracking-wider text-tertiary">lbs</span>
+</div>
       </div>
 
       <LogoutButton />

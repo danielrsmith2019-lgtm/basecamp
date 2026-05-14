@@ -88,7 +88,7 @@ export default function PaceGuide() {
           <div
             key={zone.name}
             className={`
-              stride-card stride-accent-left p-4
+              bc-card stride-accent-left p-4
               border-t-2 ${zone.color}
             `}
           >
