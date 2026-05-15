@@ -23,19 +23,21 @@ export default function RecordsPage() {
 
       {/* ── Tab Toggle ── */}
       <div className="bc-tab-bar mb-6">
-        {tabs.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`bc-tab flex items-center gap-2 ${activeTab === tab.key ? 'bc-tab-active' : ''}`}>
-            <tab.Icon size={16} strokeWidth={activeTab === tab.key ? 2.5 : 2} />
-            {tab.label}
-            <span className={`bc-data text-xs ${activeTab === tab.key ? 'text-primary/70' : 'text-tertiary'}`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
-      </div>
+  {tabs.map(tab => (
+    <button
+      key={tab.key}
+      onClick={() => setActiveTab(tab.key)}
+      className={`bc-tab flex items-center gap-2 ${activeTab === tab.key ? 'bc-tab-active' : ''}`}>
+      <tab.Icon size={16} strokeWidth={activeTab === tab.key ? 2.5 : 2} />
+      {tab.label}
+      <span
+        className="bc-data text-xs"
+        style={{ color: activeTab === tab.key ? 'rgba(255,255,255,0.75)' : '#AEAEB2' }}>
+        {tab.count}
+      </span>
+    </button>
+  ))}
+</div>
 
       {/* ── Running Records ── */}
       {activeTab === 'running' && (

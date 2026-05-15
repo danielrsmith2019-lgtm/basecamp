@@ -1,21 +1,11 @@
 'use client';
 
-/**
- * CalendarView — Monthly grid showing workout tags per day.
- * Extended from STRIDE's calendar to include lift sessions.
- */
-
 import { useState, useMemo } from 'react';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function CalendarView({ workouts, onWorkoutClick }) {
   const [currentMonth, setCurrentMonth] = useState(() => {
-    const dates = workouts.map(w => w.date).sort();
-    if (dates.length > 0) {
-      const d = new Date(dates[0] + 'T00:00:00');
-      return { year: d.getFullYear(), month: d.getMonth() };
-    }
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
@@ -85,7 +75,8 @@ export default function CalendarView({ workouts, onWorkoutClick }) {
       {/* ── Day name headers ── */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {DAY_NAMES.map(day => (
-          <div key={day} className="text-center text-[10px] uppercase tracking-wider text-tertiary py-1">
+          <div key={day}
+            className="text-center text-[10px] uppercase tracking-wider text-tertiary py-1">
             {day}
           </div>
         ))}
@@ -108,18 +99,21 @@ export default function CalendarView({ workouts, onWorkoutClick }) {
               key={day.date}
               className={`min-h-[5rem] rounded-[14px] p-1.5 border transition-colors
                 ${isToday
-                  ? 'border-bc-blue/50 bg-bc-blue-light/30'
+                  ? 'border-bc-blue bg-bc-blue-light/30'
                   : 'border-border bg-surface'}
                 ${dayWorkouts.length > 0 ? 'hover:border-border-strong cursor-pointer' : ''}`}>
 
-              {/* Date number */}
+              {/* Date number + done dot */}
               <div className="flex items-center justify-between mb-1">
                 <span className={`text-xs font-semibold
                   ${isToday ? 'text-bc-blue' : 'text-secondary'}`}>
                   {dayNum}
                 </span>
                 {hasCompleted && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-bc-green" />
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: '#34C759' }}
+                  />
                 )}
               </div>
 
@@ -141,19 +135,19 @@ export default function CalendarView({ workouts, onWorkoutClick }) {
       {/* ── Legend ── */}
       <div className="flex items-center gap-4 mt-4 justify-center">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-run-accent" />
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#34C759' }} />
           <span className="text-xs text-tertiary">Run</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-lift-accent" />
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#007AFF' }} />
           <span className="text-xs text-tertiary">Lift</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-rest-accent" />
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#AF52DE' }} />
           <span className="text-xs text-tertiary">Rest</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-bc-green" />
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#34C759' }} />
           <span className="text-xs text-tertiary">Done</span>
         </div>
       </div>
@@ -162,7 +156,7 @@ export default function CalendarView({ workouts, onWorkoutClick }) {
 }
 
 
-// ── Workout tag (compact label inside calendar cell) ──
+// ── Workout tag ──────────────────────────────────────────
 
 function WorkoutTag({ workout, onClick }) {
   const { type, status, details } = workout;
@@ -176,20 +170,21 @@ function WorkoutTag({ workout, onClick }) {
     const rt = details.runType === 'REST' ? 'Rest' : (details.runType || '').slice(0, 4);
     label = `${dist}mi ${rt}`.trim();
 
-    if (status === 'completed') { bg = '#E8F5E9'; color = '#2E7D32'; }
+    if (status === 'completed')    { bg = '#E8F5E9'; color = '#2E7D32'; }
     else if (status === 'skipped') { bg = '#FFEBEE'; color = '#C62828'; }
-    else { bg = '#F2F2F7'; color = '#8E8E93'; }
+    else                           { bg = '#F0FAF1'; color = '#4CAF50'; }
 
   } else if (type === 'lift') {
     label = details.sessionName || 'Lift';
 
-    if (status === 'completed') { bg = '#E3F2FD'; color = '#1565C0'; }
+    if (status === 'completed')    { bg = '#E3F2FD'; color = '#1565C0'; }
     else if (status === 'skipped') { bg = '#FFEBEE'; color = '#C62828'; }
-    else { bg = '#F2F2F7'; color = '#8E8E93'; }
+    else                           { bg = '#F0F7FF'; color = '#42A5F5'; }
 
   } else if (type === 'rest') {
     label = 'Rest';
-    bg = '#F3E5F5'; color = '#7B1FA2';
+    bg = '#F3E5F5';
+    color = '#7B1FA2';
   }
 
   return (

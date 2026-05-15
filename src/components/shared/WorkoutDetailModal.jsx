@@ -97,13 +97,24 @@ function RunDetail({ workout }) {
     ? comparePaces(details.actualPace, details.targetPace)
     : null;
 
+  // Add this display label map:
+  const RUN_LABELS = {
+    easy:     'Easy Run',
+    tempo:    'Tempo Run',
+    interval: 'Intervals',
+    long_run: 'Long Run',
+    recovery: 'Recovery Run',
+    fartlek:  'Fartlek',
+    REST:     'Rest',
+  };
+  const displayType = RUN_LABELS[details.runType] || details.runType;
+
   return (
     <div>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-2xl">{getRunTypeEmoji(details.runType)}</span>
-        <h3 className="text-[17px] font-semibold text-primary">{details.runType}</h3>
-      </div>
-      <p className="text-sm text-secondary mb-4">{formatDate(date)}</p>
+<div className="mb-1">
+  <h3 className="text-[17px] font-semibold text-primary">{displayType}</h3>
+</div>
+<p className="text-sm text-secondary mb-4">{formatDate(date)}</p>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         {details.phase && (
@@ -186,11 +197,12 @@ function LiftDetail({ workout }) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-2xl">{getSessionEmoji(details.sessionName)}</span>
-        <h3 className="text-[17px] font-semibold text-primary">{details.sessionName || 'Workout'}</h3>
-      </div>
-      <p className="text-sm text-secondary mb-3">{formatDate(date)}</p>
+<div className="mb-1">
+  <h3 className="text-[17px] font-semibold text-primary">
+    {details.sessionName || 'Workout'}
+  </h3>
+</div>
+<p className="text-sm text-secondary mb-3">{formatDate(date)}</p>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         <span className={`bc-pill text-[10px] ${statusInfo.bg} ${statusInfo.text}`}>
@@ -217,22 +229,39 @@ function LiftDetail({ workout }) {
         </div>
       )}
 
-      <div className="space-y-0.5">
-  {Array.isArray(exercise.sets) ? (
-    exercise.sets.map((set, j) => (
-      <div key={j} className="grid grid-cols-4 gap-2 text-xs py-0.5">
-        <span className="bc-data text-tertiary text-center">{set.setNumber}</span>
-        <span className="bc-data text-primary text-center">{set.weight ?? set.targetWeight ?? '—'}</span>
-        <span className="bc-data text-primary text-center">{set.reps ?? set.targetReps ?? '—'}</span>
-        <span className="bc-data text-secondary text-center">{set.rpe ?? '—'}</span>
+      <div className="space-y-3">
+        {(details.exercises || []).map((exercise, i) => (
+          <div key={i} className="bg-canvas rounded-[14px] p-3 border border-border">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-primary">{exercise.name}</span>
+              <span className="bc-pill bg-lift-bg text-lift-accent text-[10px]">
+                {exercise.muscleGroup}
+              </span>
+            </div>
+            {Array.isArray(exercise.sets) ? (
+              <>
+                <div className="grid grid-cols-4 gap-2 text-xs mb-1">
+                  {['Set', 'lbs', 'Reps', 'RPE'].map(h => (
+                    <span key={h} className="bc-caption text-center uppercase">{h}</span>
+                  ))}
+                </div>
+                {exercise.sets.map((set, j) => (
+                  <div key={j} className="grid grid-cols-4 gap-2 text-xs py-0.5">
+                    <span className="bc-data text-tertiary text-center">{set.setNumber}</span>
+                    <span className="bc-data text-primary text-center">{set.weight ?? set.targetWeight ?? '—'}</span>
+                    <span className="bc-data text-primary text-center">{set.reps ?? set.targetReps ?? '—'}</span>
+                    <span className="bc-data text-secondary text-center">{set.rpe ?? '—'}</span>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <p className="text-xs text-tertiary">
+                {exercise.sets} sets × {exercise.reps} reps
+              </p>
+            )}
+          </div>
+        ))}
       </div>
-    ))
-  ) : (
-    <div className="text-xs text-tertiary py-1">
-      {exercise.sets} sets × {exercise.reps} reps
-    </div>
-  )}
-</div>
 
       {details.notes && (
         <p className="text-sm text-secondary mt-4 italic">&ldquo;{details.notes}&rdquo;</p>

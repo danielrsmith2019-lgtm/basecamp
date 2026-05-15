@@ -220,7 +220,8 @@ function detectLiftingPRs(lifts) {
 
   lifts.forEach(session => {
     (session.details.exercises || []).forEach(exercise => {
-      (exercise.sets || []).forEach(set => {
+      if (!Array.isArray(exercise.sets)) return;
+      exercise.sets.forEach(set => {
         if (!set.completed || !set.weight || !set.reps) return;
 
         const e1rm = calculateE1RM(set.weight, set.reps);
@@ -258,7 +259,8 @@ function detectLiftingPRs(lifts) {
 
   lifts.forEach(session => {
     (session.details.exercises || []).forEach(exercise => {
-      (exercise.sets || []).forEach(set => {
+      if (!Array.isArray(exercise.sets)) return;
+      exercise.sets.forEach(set => {
         if (!set.completed || !set.weight) return;
 
         const key = exercise.name;

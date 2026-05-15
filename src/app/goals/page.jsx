@@ -117,14 +117,14 @@ export default function GoalsPage() {
 
       {/* ── Goal Sections ── */}
       {(activeTab === 'all' || activeTab === 'running') && goals.running.length > 0 && (
-        <GoalSection title="Running Goals" goals={goals.running} accentColor="#34C759" />
-      )}
-      {(activeTab === 'all' || activeTab === 'lifting') && goals.lifting.length > 0 && (
-        <GoalSection title="Lifting Goals" goals={goals.lifting} accentColor="#007AFF" />
-      )}
-      {(activeTab === 'all' || activeTab === 'combined') && goals.combined.length > 0 && (
-        <GoalSection title="Combined Goals" goals={goals.combined} accentColor="#AF52DE" />
-      )}
+  <GoalSection title="Running Goals" goals={goals.running} accentColor="#34C759" />
+)}
+{(activeTab === 'all' || activeTab === 'lifting') && goals.lifting.length > 0 && (
+  <GoalSection title="Lifting Goals" goals={goals.lifting} accentColor="#007AFF" />
+)}
+{(activeTab === 'all' || activeTab === 'combined') && goals.combined.length > 0 && (
+  <GoalSection title="Combined Goals" goals={goals.combined} accentColor="#AF52DE" />
+)}
 
       {/* ── Achievements ── */}
       {completedGoals.length > 0 && (
@@ -153,13 +153,14 @@ export default function GoalsPage() {
 // ═══════════════════════════════════════════════════════
 
 function GoalSection({ title, goals, accentColor }) {
+  if (!goals || goals.length === 0) return null;
   return (
     <div className="mb-8">
       <p className="bc-caption uppercase tracking-wider mb-3">{title}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {goals.map(goal => (
-          <GoalCard key={goal.id} goal={goal} accentColor={accentColor} />
-        ))}
+        {goals.map((goal, i) => (
+  <GoalCard key={goal.id ?? i} goal={goal} accentColor={accentColor} />
+))}
       </div>
     </div>
   );
@@ -188,7 +189,10 @@ function GoalCard({ goal, accentColor }) {
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{goal.icon}</span>
+            {typeof goal.icon === 'string'
+  ? <span className="text-lg">{goal.icon}</span>
+  : goal.icon ? <goal.icon size={20} className="text-secondary" /> : null
+}
             <h4 className="text-sm font-semibold text-primary truncate">{goal.title}</h4>
           </div>
 
@@ -311,7 +315,8 @@ function computeLiftE1RM(workouts, goal) {
   lifts.forEach(session => {
     (session.details.exercises || []).forEach(exercise => {
       if (exercise.name !== goal.exercise) return;
-      (exercise.sets || []).forEach(set => {
+      if (!Array.isArray(exercise.sets)) return;
+      exercise.sets.forEach(set => {
         if (!set.completed || !set.weight || !set.reps) return;
         const e1rm = calculateE1RM(set.weight, set.reps);
         if (e1rm > bestE1RM) bestE1RM = e1rm;

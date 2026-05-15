@@ -64,26 +64,35 @@ export default function DayTimeline({ date, workouts: rawWorkouts = [], onWorkou
   const lifts = workouts.filter(w => w.type === 'lift');
   const rests = workouts.filter(w => w.type === 'rest');
   const isEmpty = workouts.length === 0;
-
+  
   return (
     <div className={`rounded-[14px] transition-all ${isToday ? 'ring-1 ring-bc-blue/40 bg-bc-blue-light/20' : ''}`}>
       {/* ── Day header ── */}
-      <div className="flex items-center gap-3 mb-2 px-1">
-        <div className="flex items-baseline gap-2">
-          <span className={`text-sm font-semibold ${isToday ? 'text-bc-blue' : 'text-primary'}`}>
-            {dayName.slice(0, 3)}
-          </span>
-          <span className="text-xs text-secondary">{formatDate(date)}</span>
-        </div>
-        {isToday && (
-          <span className="bc-pill bg-bc-blue-light text-bc-blue-dark text-[10px]">Today</span>
-        )}
-        {workouts[0]?.details?.phase && (
-          <span className="bc-pill bg-canvas text-tertiary text-[10px] border border-border">
-            {workouts[0].details.phase}
-          </span>
-        )}
-      </div>
+<div className="flex items-center gap-3 mb-2 px-1">
+  <div className="flex items-baseline gap-2">
+    <span className={`text-sm font-semibold ${isToday ? 'text-bc-blue' : 'text-primary'}`}>
+      {dayName.slice(0, 3)}
+    </span>
+    <span className="text-xs text-secondary">{formatDate(date)}</span>
+  </div>
+  {isToday && (
+    <span className="bc-pill bg-bc-blue-light text-bc-blue-dark text-[10px]">Today</span>
+  )}
+  {workouts[0]?.details?.phase && (
+    <span className="bc-pill bg-canvas text-tertiary text-[10px] border border-border">
+      {workouts[0].details.phase}
+    </span>
+  )}
+  {/* ── Done indicator ── */}
+{workouts.some(w => w.status === 'completed') && (
+  <span className="ml-auto flex items-center gap-1 text-[10px] font-medium"
+        style={{ color: '#34C759' }}>
+    <span className="w-1.5 h-1.5 rounded-full inline-block"
+          style={{ backgroundColor: '#34C759' }} />
+    Done
+  </span>
+)}
+</div>
 
       {/* ── Workout cards ── */}
       <div className="flex flex-col gap-2">
