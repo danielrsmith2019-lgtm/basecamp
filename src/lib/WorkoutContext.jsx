@@ -18,8 +18,6 @@ import {
 import { useAuth } from '@/lib/auth';
 import { detectAllPRs, findNewPRs } from '@/utils/prDetection';
 import { checkAdaptations, applyAdaptation } from '@/utils/adaptation';
-import sampleRunData from '@/data/sampleRunData';
-import sampleLiftData from '@/data/sampleLiftData';
 
 const WorkoutContext = createContext(null);
 
@@ -43,23 +41,8 @@ export function WorkoutProvider({ children }) {
     async function loadFromDatabase() {
       try {
         const data = await dbGetWorkouts(user.id);
-
-        if (data.length > 0) {
-          setWorkouts(data);
-        } else {
-          const seed = [...sampleRunData, ...sampleLiftData]
-            .filter(w => w != null)
-            .map(w => ({
-              date: w.date,
-              type: w.type,
-              status: w.status || 'planned',
-              details: w.details || {},
-              notes: w.notes || null,
-            }));
-
-          const created = await dbAddWorkoutsBatch(user.id, seed);
-          setWorkouts(created.length > 0 ? created : []);
-        }
+        // CHANGED: removed sample data seed — empty DB stays empty
+        setWorkouts(data || []);
       } catch (err) {
         console.error('Failed to load workouts:', err);
         setError('Failed to load workouts. Please refresh.');
@@ -132,9 +115,7 @@ export function WorkoutProvider({ children }) {
       setNewPR(newPRs[0]);
     }
 
-    // Run adaptation engine after logging
     runAdaptations();
-
     return created;
   }, [user, workouts, runAdaptations]);
 
@@ -171,7 +152,6 @@ export function WorkoutProvider({ children }) {
       setNewPR(newPRs[0]);
     }
 
-    // Run adaptation engine after logging
     runAdaptations();
   }, [user, workouts, addNewWorkout, runAdaptations]);
 
@@ -186,14 +166,10 @@ export function WorkoutProvider({ children }) {
   }, []);
 
   // ── Clear the PR celebration ──
-  const clearNewPR = useCallback(() => {
-    setNewPR(null);
-  }, []);
+  const clearNewPR = useCallback(() => setNewPR(null), []);
 
   // ── Clear error ──
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
+  const clearError = useCallback(() => setError(null), []);
 
   // ── Accept an adaptation ──
   const acceptAdaptation = useCallback(async (adaptation) => {
@@ -214,26 +190,13 @@ export function WorkoutProvider({ children }) {
     );
   }, []);
 
-  // ── Reset to sample data (for testing) ──
+  // ── Reset to sample data (dev only — keep for convenience) ──
   const resetToSampleData = useCallback(async () => {
     if (!user) return;
-
     for (const w of workouts) {
       await dbDeleteWorkout(w.id);
     }
-
-    const seed = [...sampleRunData, ...sampleLiftData]
-      .filter(w => w != null)
-      .map(w => ({
-        date: w.date,
-        type: w.type,
-        status: w.status || 'planned',
-        details: w.details || {},
-        notes: w.notes || null,
-      }));
-
-    const created = await dbAddWorkoutsBatch(user.id, seed);
-    setWorkouts(created.length > 0 ? created : []);
+    setWorkouts([]);
   }, [user, workouts]);
 
   // ── Context value ──
@@ -253,6 +216,7 @@ export function WorkoutProvider({ children }) {
     acceptAdaptation,
     rejectAdaptation,
     resetToSampleData,
+    refresh: refreshWorkouts, // alias used by plans page
   }), [workouts, prs, newPR, isLoaded, error, adaptations, addNewWorkout, saveWorkout, removeWorkout, clearNewPR, clearError, refreshWorkouts, acceptAdaptation, rejectAdaptation, resetToSampleData]);
 
   return (
@@ -262,12 +226,6 @@ export function WorkoutProvider({ children }) {
   );
 }
 
-/**
- * Hook to access workout state from any component.
- * 
- * Usage:
- *   const { workouts, saveWorkout, prs, adaptations } = useWorkouts();
- */
 export function useWorkouts() {
   const context = useContext(WorkoutContext);
   if (!context) {

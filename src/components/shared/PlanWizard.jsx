@@ -1,59 +1,106 @@
 'use client';
 
 /**
- * PlanWizard — Multi-step form for collecting plan generation inputs.
- *
- * Step 1: Goal (race type, target time, race date)
- * Step 2: Current Fitness (weekly mileage, lifting experience, lifting goal)
- * Step 3: Schedule (available days, time per session, equipment)
- *
- * On submit, calls the /api/generate-plan endpoint and returns the plan.
+ * PlanWizard — Smart multi-step plan builder.
+ * Step 0: Plan Type | Step 1: Goal | Step 2: Fitness | Step 3: Schedule
  */
 
 import { useState } from 'react';
-import { Target, Activity, Calendar, ChevronRight, ChevronLeft, Loader2, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Loader2, Sparkles, Footprints, Dumbbell, Zap } from 'lucide-react';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const LIFTING_SPLITS = [
+  { value: 'interference_safe', label: 'Interference-Safe Split',  desc: 'Upper Push / Upper Pull / Lower. Separates leg-heavy sessions from hard runs.', bestFor: 'Hybrid athletes — recommended', days: 3 },
+  { value: 'ppl',               label: 'Push / Pull / Legs',        desc: 'Chest+shoulders+triceps / Back+biceps / Legs. Classic 3-day.', bestFor: 'Hypertrophy, intermediate+', days: 3 },
+  { value: 'upper_lower',       label: 'Upper / Lower',             desc: 'Alternates upper and lower body. High frequency per muscle group.', bestFor: 'Strength, any level', days: 4 },
+  { value: 'full_body',         label: 'Full Body',                 desc: 'Every session hits all major muscle groups. Best for 2-3 days/week.', bestFor: 'Beginners, maintenance', days: 3 },
+  { value: 'bro_split',         label: 'Body Part Split',           desc: 'One muscle group per day: Chest / Back / Legs / Shoulders / Arms.', bestFor: 'Hypertrophy, 5 days/week', days: 5 },
+  { value: 'strength_focused',  label: 'Strength / Powerlifting',   desc: 'Built around squat, bench, deadlift with accessory work. Heavy, low-rep.', bestFor: 'Strength & powerlifting goals', days: 4 },
+];
+
 const INITIAL_STATE = {
-  raceType: 'none', targetTime: '', raceDate: '', planStyle: 'mileage',
-  weeklyMileage: '', liftingExperience: 'intermediate', liftingGoal: 'maintenance',
+  planType: null,
+  runningGoal: 'general_fitness',
+  raceDistance: '',
+  targetTime: '',
+  raceDate: '',
+  targetWeeklyMileage: '',
+  planStyle: 'mileage',
+  liftingGoal: 'hypertrophy',
+  liftingSplit: 'interference_safe',
+  liftingFocus: [],
+  weeklyMileage: '',
+  longestRecentRun: '',
+  recentRaceTime: '',
+  liftingExperience: 'intermediate',
+  currentBenchMax: '',
+  currentSquatMax: '',
+  currentDeadliftMax: '',
+  targetBench: '',
+  targetSquat: '',
+  targetDeadlift: '',
   availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
-  runsPerWeek: 3, liftsPerWeek: 3, longRunDay: 'saturday', fullRestDays: ['sunday'],
-  maxMinutesPerSession: 60, equipment: 'full_gym',
+  runsPerWeek: 3,
+  liftsPerWeek: 3,
+  longRunDay: 'saturday',
+  fullRestDays: ['sunday'],
+  maxMinutesPerSession: 60,
+  equipment: 'full_gym',
+  planDuration: 12,
 };
 
 export default function PlanWizard({ onComplete, onCancel }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
   const [form, setForm] = useState(INITIAL_STATE);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
 
   function update(field, value) { setForm(prev => ({ ...prev, [field]: value })); }
 
+  function toggleArrayItem(field, value) {
+    setForm(prev => {
+      const arr = prev[field] || [];
+      return { ...prev, [field]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] };
+    });
+  }
+
   function toggleDay(day) {
     setForm(prev => {
       const isSelected = prev.availableDays.includes(day);
-      const newAvailable = isSelected ? prev.availableDays.filter(d => d !== day) : [...prev.availableDays, day];
-      const newRest = isSelected ? prev.fullRestDays : prev.fullRestDays.filter(d => d !== day);
-      return { ...prev, availableDays: newAvailable, fullRestDays: newRest };
+      return {
+        ...prev,
+        availableDays: isSelected ? prev.availableDays.filter(d => d !== day) : [...prev.availableDays, day],
+        fullRestDays: isSelected ? prev.fullRestDays : prev.fullRestDays.filter(d => d !== day),
+      };
     });
   }
 
   function toggleFullRestDay(day) {
     setForm(prev => {
       const isRest = prev.fullRestDays.includes(day);
-      const newRest = isRest ? prev.fullRestDays.filter(d => d !== day) : [...prev.fullRestDays, day];
-      const newAvailable = isRest ? prev.availableDays : prev.availableDays.filter(d => d !== day);
-      const newLongRun = !isRest && prev.longRunDay === day ? '' : prev.longRunDay;
-      return { ...prev, fullRestDays: newRest, availableDays: newAvailable, longRunDay: newLongRun };
+      return {
+        ...prev,
+        fullRestDays: isRest ? prev.fullRestDays.filter(d => d !== day) : [...prev.fullRestDays, day],
+        availableDays: isRest ? prev.availableDays : prev.availableDays.filter(d => d !== day),
+        longRunDay: !isRest && prev.longRunDay === day ? '' : prev.longRunDay,
+      };
     });
   }
 
   function canAdvance() {
-    if (step === 1) { if (form.raceType !== 'none' && !form.raceDate) return false; return true; }
-    if (step === 2) return form.weeklyMileage !== '';
+    if (step === 0) return form.planType !== null;
+    if (step === 1) {
+      if ((form.planType === 'running' || form.planType === 'hybrid') && form.runningGoal === 'race') {
+        if (!form.raceDate || !form.raceDistance) return false;
+      }
+      return true;
+    }
+    if (step === 2) {
+      if (form.planType === 'running' || form.planType === 'hybrid') return form.weeklyMileage !== '';
+      return true;
+    }
     if (step === 3) return form.availableDays.length >= 2 && form.fullRestDays.length >= 1;
     return true;
   }
@@ -68,434 +115,508 @@ export default function PlanWizard({ onComplete, onCancel }) {
         body: JSON.stringify(form),
       });
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Plan generation failed');
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Plan generation failed');
       }
-      const plan = await res.json();
-      onComplete(plan);
+      onComplete(await res.json());
     } catch (err) {
-      console.error('Plan generation error:', err);
       setError(err.message || 'Something went wrong. Please try again.');
       setGenerating(false);
     }
   }
 
-  // ── Generating overlay ──
   if (generating) {
     return (
       <div className="bc-card p-8 text-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-[20px] bg-bc-blue-light flex items-center justify-center">
-            <Loader2 size={28} className="text-bc-blue animate-spin" />
+          <div className="w-16 h-16 rounded-[20px] bg-bc-indigo-light flex items-center justify-center">
+            <Loader2 size={28} className="text-bc-indigo animate-spin" />
           </div>
           <div>
-            <p className="text-primary font-semibold">Building Your Plan</p>
-            <p className="text-secondary text-sm mt-1">
-              Applying exercise science rules, scheduling around conflicts, building progressive overload…
+            <p className="text-primary font-semibold text-[17px]">Building Your Plan</p>
+            <p className="text-secondary text-sm mt-1 max-w-xs">
+              Applying exercise science, scheduling around interference effects, building progressive overload…
             </p>
           </div>
-          <div className="flex gap-1 mt-2">
-            {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                className="w-2 h-2 rounded-full bg-bc-blue"
-                style={{ animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`, opacity: 0.3 }}
-              />
+          <div className="flex gap-1.5 mt-2">
+            {[0,1,2].map(i => (
+              <div key={i} className="w-2 h-2 rounded-full bg-bc-indigo"
+                style={{ animation: `pulse 1.4s ease-in-out ${i*0.2}s infinite`, opacity: 0.3 }} />
             ))}
           </div>
-          <style jsx>{`
-            @keyframes pulse {
-              0%, 100% { opacity: 0.3; transform: scale(1); }
-              50% { opacity: 1; transform: scale(1.3); }
-            }
-          `}</style>
+          <style jsx>{`@keyframes pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}`}</style>
         </div>
       </div>
     );
   }
 
+  const stepLabels =
+    form.planType === 'running' ? ['Type','Running Goal','Fitness','Schedule'] :
+    form.planType === 'lifting' ? ['Type','Lifting Goal','Fitness','Schedule'] :
+    ['Type','Goals','Fitness','Schedule'];
+
   return (
     <div className="bc-card-flush">
-
-      {/* ── Step progress bar ── */}
-      <div className="flex border-b border-border">
-        {[
-          { num: 1, label: 'Your Goal',     icon: Target   },
-          { num: 2, label: 'Your Fitness',  icon: Activity },
-          { num: 3, label: 'Your Schedule', icon: Calendar },
-        ].map(({ num, label, icon: Icon }) => (
-          <button
-            key={num}
-            onClick={() => num < step && setStep(num)}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors
-              ${step === num ? 'text-bc-blue border-b-2 border-bc-blue bg-bc-blue-light/40' :
-                step > num  ? 'text-bc-green-dark cursor-pointer hover:bg-canvas' :
-                              'text-tertiary cursor-default'}`}>
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold
-              ${step > num  ? 'bg-bc-green-light text-bc-green-dark' :
-                step === num ? 'bg-bc-blue-light text-bc-blue' :
-                               'bg-canvas text-tertiary'}`}>
-              {step > num ? '✓' : num}
+      {/* Progress bar */}
+      <div className="flex border-b border-border overflow-x-auto">
+        {stepLabels.map((label, i) => (
+          <button key={i} onClick={() => i < step && setStep(i)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium transition-colors whitespace-nowrap px-2
+              ${step===i?'text-bc-blue border-b-2 border-bc-blue bg-bc-blue-light/40':step>i?'text-bc-green-dark cursor-pointer hover:bg-canvas':'text-tertiary cursor-default'}`}>
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0
+              ${step>i?'bg-bc-green-light text-bc-green-dark':step===i?'bg-bc-blue-light text-bc-blue':'bg-canvas text-tertiary'}`}>
+              {step>i?'✓':i+1}
             </div>
             <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
       </div>
 
-      {/* ── Step content ── */}
-      <div className="p-6">
+      <div className="p-5 sm:p-6">
 
-        {/* ══════════════════════════════
-            STEP 1 — GOAL
-        ══════════════════════════════ */}
+        {/* ── STEP 0: PLAN TYPE ── */}
+        {step === 0 && (
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-[17px] font-semibold text-primary mb-1">What kind of plan do you want?</h3>
+              <p className="text-sm text-secondary">This determines how your training week is structured.</p>
+            </div>
+            <div className="space-y-3">
+              {[
+                { value:'hybrid',  label:'Hybrid Training', desc:'Run AND lift. Scientifically scheduled to minimize the interference effect.', Icon:Zap,        color:'text-bc-indigo',  bg:'bg-bc-indigo-light', border:'border-bc-indigo',  activeBg:'bg-bc-indigo-light/40' },
+                { value:'running', label:'Running Only',    desc:'Pure running plan. Race prep, base building, speed work, or general endurance.', Icon:Footprints, color:'text-run-accent', bg:'bg-run-bg',          border:'border-run-accent', activeBg:'bg-run-bg' },
+                { value:'lifting', label:'Lifting Only',    desc:'Pure strength plan. Powerlifting, hypertrophy, athletic performance.',           Icon:Dumbbell,   color:'text-lift-accent', bg:'bg-lift-bg',         border:'border-lift-accent', activeBg:'bg-lift-bg' },
+              ].map(opt => {
+                const selected = form.planType === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => update('planType', opt.value)}
+                    className={`w-full flex items-center gap-4 p-4 rounded-[16px] border-2 text-left transition-all
+                      ${selected?`${opt.activeBg} ${opt.border}`:'border-border bg-canvas hover:border-border-strong'}`}>
+                    <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center flex-shrink-0 ${opt.bg}`}>
+                      <opt.Icon size={24} className={opt.color} strokeWidth={2} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-primary">{opt.label}</p>
+                      <p className="text-xs text-secondary mt-0.5 leading-relaxed">{opt.desc}</p>
+                    </div>
+                    {selected && <span className={`text-xs font-bold flex-shrink-0 ${opt.color}`}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 1: GOAL ── */}
         {step === 1 && (
           <div className="space-y-5">
             <div>
-              <h3 className="text-[17px] font-semibold text-primary mb-1">What are you training for?</h3>
-              <p className="text-sm text-secondary">We'll build your plan around this goal.</p>
+              <h3 className="text-[17px] font-semibold text-primary mb-1">
+                {form.planType === 'lifting' ? "What's your lifting goal?" : 'What are you training for?'}
+              </h3>
+              <p className="text-sm text-secondary">Be specific — this drives every decision in your plan.</p>
             </div>
 
-            {/* Race Type */}
-            <div>
-              <label className="bc-caption uppercase tracking-wider block mb-2">Race / Goal Type</label>
-              <div className="grid grid-cols-1 gap-2">
-                {[
-                  { value: 'marathon',      label: 'Marathon (26.2 mi)',         desc: 'Full marathon training with strength' },
-                  { value: 'half_marathon', label: 'Half Marathon (13.1 mi)',     desc: 'Half marathon with strength maintenance' },
-                  { value: 'none',          label: 'No Race — General Fitness',  desc: 'Balanced hybrid training' },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => update('raceType', opt.value)}
-                    className={`p-4 rounded-[14px] border text-left transition-all
-                      ${form.raceType === opt.value
-                        ? 'border-bc-blue bg-bc-blue-light/40'
-                        : 'border-border bg-canvas hover:border-border-strong'}`}>
-                    <p className="text-sm font-semibold text-primary">{opt.label}</p>
-                    <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Running goals */}
+            {(form.planType === 'running' || form.planType === 'hybrid') && (
+              <div className="space-y-4">
+                <div>
+                  <label className="bc-caption uppercase tracking-wider block mb-2">Primary Running Goal</label>
+                  <div className="space-y-2">
+                    {[
+                      { value:'race',            label:'Race Prep',           desc:'Train for a specific race with a target time.' },
+                      { value:'base_building',   label:'Base Building',       desc:'Safely increase weekly mileage over time.' },
+                      { value:'speed',           label:'Speed & Performance', desc:'Get faster. Tempo runs, intervals, VO2 max work.' },
+                      { value:'general_fitness', label:'General Fitness',     desc:'Stay consistent and healthy. No specific target.' },
+                      { value:'weight_loss',     label:'Weight Loss',         desc:'Maximize calorie burn while building endurance.' },
+                    ].map(opt => (
+                      <button key={opt.value} onClick={() => update('runningGoal', opt.value)}
+                        className={`w-full p-3.5 rounded-[14px] border text-left transition-all
+                          ${form.runningGoal===opt.value?'border-run-accent bg-run-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                        <p className="text-sm font-semibold text-primary">{opt.label}</p>
+                        <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Target Time */}
-            {form.raceType !== 'none' && (
-              <div>
-                <label className="bc-caption uppercase tracking-wider block mb-1.5">
-                  Target {form.raceType === 'marathon' ? 'Marathon' : 'Half Marathon'} Time
-                </label>
-                <input
-                  type="text"
-                  value={form.targetTime}
-                  onChange={(e) => update('targetTime', e.target.value)}
-                  placeholder={form.raceType === 'marathon' ? '3:59:00' : '1:45:00'}
-                  className="bc-input bc-data"
-                />
-                <p className="bc-caption mt-1">Format: H:MM:SS (leave blank if no specific target)</p>
+                {/* Race inputs */}
+                {form.runningGoal === 'race' && (
+                  <div className="space-y-4 p-4 bg-run-bg rounded-[14px] border border-run-accent/20">
+                    <div>
+                      <label className="bc-caption uppercase tracking-wider block mb-2">Race Distance *</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value:'5k',           label:'5K' },
+                          { value:'10k',          label:'10K' },
+                          { value:'half_marathon', label:'Half' },
+                          { value:'marathon',     label:'Marathon' },
+                          { value:'ultra',        label:'Ultra' },
+                          { value:'custom',       label:'Custom' },
+                        ].map(opt => (
+                          <button key={opt.value} onClick={() => update('raceDistance', opt.value)}
+                            className={`py-2.5 rounded-[10px] border text-sm font-medium transition-all
+                              ${form.raceDistance===opt.value?'border-run-accent bg-run-accent text-white':'border-border bg-surface text-primary hover:border-run-accent/50'}`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                      {/* RACE DAY — prominently labelled */}
+                      <div className="p-3 bg-white/60 rounded-[12px] border border-run-accent/30">
+                        <label className="bc-caption uppercase tracking-wider block mb-1.5 text-run-accent">
+                          Race Day * — appears in your plan calendar
+                        </label>
+                        <input type="date" value={form.raceDate}
+                          onChange={e => update('raceDate', e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="bc-input" />
+                        <p className="bc-caption mt-1">Plan length auto-calculates from today to race day</p>
+                      </div>
+                      <div>
+                        <label className="bc-caption uppercase tracking-wider block mb-1.5">Target Finish Time (optional)</label>
+                        <input type="text" value={form.targetTime}
+                          onChange={e => update('targetTime', e.target.value)}
+                          placeholder={form.raceDistance==='marathon'?'3:59:00':'1:45:00'}
+                          className="bc-input bc-data" />
+                        <p className="bc-caption mt-1">H:MM:SS — used to set pace zones</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {form.runningGoal === 'base_building' && (
+                  <div>
+                    <label className="bc-caption uppercase tracking-wider block mb-1.5">Target Weekly Mileage</label>
+                    <input type="number" value={form.targetWeeklyMileage} onChange={e => update('targetWeeklyMileage', e.target.value)}
+                      placeholder="40" className="bc-input bc-data" />
+                    <p className="bc-caption mt-1">Miles per week to reach by end of plan</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="bc-caption uppercase tracking-wider block mb-2">Plan Style</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value:'mileage', label:'Mileage-Based', desc:'"Run 6 miles at 8:30 pace"' },
+                      { value:'time',    label:'Time-Based',    desc:'"Run 45 min easy"' },
+                    ].map(opt => (
+                      <button key={opt.value} onClick={() => update('planStyle', opt.value)}
+                        className={`p-3 rounded-[14px] border text-left transition-all
+                          ${form.planStyle===opt.value?'border-bc-teal bg-bc-teal-light/40':'border-border bg-canvas hover:border-border-strong'}`}>
+                        <p className="text-xs font-semibold text-primary">{opt.label}</p>
+                        <p className="bc-caption mt-0.5">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Race Date */}
-            {form.raceType !== 'none' && (
-              <div>
-                <label className="bc-caption uppercase tracking-wider block mb-1.5">Race Date</label>
-                <input
-                  type="date"
-                  value={form.raceDate}
-                  onChange={(e) => update('raceDate', e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="bc-input"
-                />
+            {/* Lifting goals */}
+            {(form.planType === 'lifting' || form.planType === 'hybrid') && (
+              <div className={form.planType==='hybrid'?'pt-4 border-t border-border space-y-4':'space-y-4'}>
+                {form.planType==='hybrid' && (
+                  <label className="bc-caption uppercase tracking-wider block">Lifting Goal</label>
+                )}
+
+                <div className="space-y-2">
+                  {[
+                    { value:'strength',     label:'Strength',             desc:'Heavy lifts, low reps (3-5). Maximize force production.' },
+                    { value:'hypertrophy',  label:'Hypertrophy',          desc:'Moderate weight, 8-12 reps. Build muscle mass.' },
+                    { value:'powerlifting', label:'Powerlifting',         desc:'Maximize squat, bench, deadlift. Competition-focused.' },
+                    { value:'athletic',     label:'Athletic Performance', desc:'Functional strength, power, agility. Complements running.' },
+                    { value:'maintenance',  label:'Maintenance',           desc:'Keep current strength while prioritizing another goal.' },
+                  ].map(opt => (
+                    <button key={opt.value} onClick={() => update('liftingGoal', opt.value)}
+                      className={`w-full p-3.5 rounded-[14px] border text-left transition-all
+                        ${form.liftingGoal===opt.value?'border-lift-accent bg-lift-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                      <p className="text-sm font-semibold text-primary">{opt.label}</p>
+                      <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── LIFTING SPLIT SELECTOR ── */}
+                <div>
+                  <label className="bc-caption uppercase tracking-wider block mb-2">
+                    Lifting Split
+                    {form.planType==='hybrid' && (
+                      <span className="ml-1 normal-case font-normal text-bc-indigo"> — interference-safe recommended</span>
+                    )}
+                  </label>
+                  <div className="space-y-2">
+                    {LIFTING_SPLITS.map(split => {
+                      const selected = form.liftingSplit === split.value;
+                      return (
+                        <button key={split.value} onClick={() => update('liftingSplit', split.value)}
+                          className={`w-full p-3.5 rounded-[14px] border text-left transition-all
+                            ${selected?'border-lift-accent bg-lift-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-primary">{split.label}</p>
+                              <p className="text-xs text-secondary mt-0.5 leading-relaxed">{split.desc}</p>
+                              <p className="bc-caption mt-1">
+                                <span className="text-bc-blue">Best for:</span> {split.bestFor}
+                              </p>
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              <span className="bc-caption">{split.days}d/wk</span>
+                              {selected && <span className="block text-lift-accent font-bold text-xs mt-0.5">✓</span>}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Strength targets */}
+                {(form.liftingGoal==='strength'||form.liftingGoal==='powerlifting') && (
+                  <div className="p-4 bg-lift-bg rounded-[14px] border border-lift-accent/20">
+                    <p className="text-xs font-semibold text-lift-accent mb-3">Strength Targets (optional)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { field:'targetBench',    label:'Bench (lbs)',    placeholder:'225' },
+                        { field:'targetSquat',    label:'Squat (lbs)',    placeholder:'315' },
+                        { field:'targetDeadlift', label:'Deadlift (lbs)', placeholder:'405' },
+                      ].map(t => (
+                        <div key={t.field}>
+                          <label className="bc-caption block mb-1">{t.label}</label>
+                          <input type="number" value={form[t.field]||''} onChange={e => update(t.field, e.target.value)}
+                            placeholder={t.placeholder} className="bc-input bc-data !py-2" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {form.liftingGoal==='hypertrophy' && (
+                  <div>
+                    <label className="bc-caption uppercase tracking-wider block mb-2">Muscle Focus (optional)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Chest','Back','Legs','Shoulders','Arms','Core'].map(m => (
+                        <button key={m} onClick={() => toggleArrayItem('liftingFocus', m)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+                            ${form.liftingFocus?.includes(m)?'bg-lift-accent text-white border-lift-accent':'border-border text-secondary hover:border-lift-accent/50'}`}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Plan Style */}
             <div>
-              <label className="bc-caption uppercase tracking-wider block mb-2">Plan Style</label>
-              <div className="grid grid-cols-1 gap-2">
-                {[
-                  { value: 'mileage', label: 'Mileage-Based', desc: 'Specific distances for every run. "Run 6 miles at 8:30 pace." Best for runners training by the numbers.' },
-                  { value: 'time',    label: 'Time-Based',    desc: "Run by duration and effort. '45 min easy run.' Better for beginners or when pace doesn't matter." },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => update('planStyle', opt.value)}
-                    className={`p-4 rounded-[14px] border text-left transition-all
-                      ${form.planStyle === opt.value
-                        ? 'border-bc-teal bg-bc-teal-light/40'
-                        : 'border-border bg-canvas hover:border-border-strong'}`}>
-                    <p className="text-sm font-semibold text-primary">{opt.label}</p>
-                    <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
-              </div>
+              <label className="bc-caption uppercase tracking-wider block mb-1.5">Plan Duration</label>
+              <select value={form.planDuration} onChange={e => update('planDuration', Number(e.target.value))}
+                className="bc-input cursor-pointer">
+                {[4,6,8,10,12,16,20,24].map(w => <option key={w} value={w}>{w} weeks</option>)}
+              </select>
+              {form.runningGoal==='race' && form.raceDate && (
+                <p className="bc-caption mt-1 text-run-accent">← Auto-calculated from race day</p>
+              )}
             </div>
           </div>
         )}
 
-        {/* ══════════════════════════════
-            STEP 2 — CURRENT FITNESS
-        ══════════════════════════════ */}
+        {/* ── STEP 2: FITNESS ── */}
         {step === 2 && (
           <div className="space-y-5">
             <div>
-              <h3 className="text-[17px] font-semibold text-primary mb-1">Where are you now?</h3>
-              <p className="text-sm text-secondary">This helps us set the right starting volume and intensity.</p>
+              <h3 className="text-[17px] font-semibold text-primary mb-1">Where are you right now?</h3>
+              <p className="text-sm text-secondary">Honest answers = better plan.</p>
             </div>
 
-            {/* Weekly Mileage */}
-            <div>
-              <label className="bc-caption uppercase tracking-wider block mb-1.5">Current Weekly Running Mileage</label>
-              <input
-                type="number"
-                value={form.weeklyMileage}
-                onChange={(e) => update('weeklyMileage', e.target.value)}
-                placeholder="15"
-                className="bc-input bc-data"
-              />
-              <p className="bc-caption mt-1">Miles per week. Enter 0 if you're not running yet.</p>
-            </div>
-
-            {/* Lifting Experience */}
-            <div>
-              <label className="bc-caption uppercase tracking-wider block mb-2">Lifting Experience</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: 'beginner',     label: 'Beginner',     desc: '< 6 months'   },
-                  { value: 'intermediate', label: 'Intermediate', desc: '6 mo – 2 yrs' },
-                  { value: 'advanced',     label: 'Advanced',     desc: '2+ years'      },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => update('liftingExperience', opt.value)}
-                    className={`p-3 rounded-[14px] border text-center transition-all
-                      ${form.liftingExperience === opt.value
-                        ? 'border-bc-blue bg-bc-blue-light/40'
-                        : 'border-border bg-canvas hover:border-border-strong'}`}>
-                    <p className="text-sm font-semibold text-primary">{opt.label}</p>
-                    <p className="bc-caption mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
+            {(form.planType==='running'||form.planType==='hybrid') && (
+              <div className="space-y-4">
+                <p className="text-xs font-semibold text-run-accent uppercase tracking-wider">Running</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="bc-caption uppercase tracking-wider block mb-1.5">Weekly Mileage *</label>
+                    <input type="number" value={form.weeklyMileage} onChange={e => update('weeklyMileage', e.target.value)}
+                      placeholder="20" className="bc-input bc-data" />
+                    <p className="bc-caption mt-1">Current miles/week</p>
+                  </div>
+                  <div>
+                    <label className="bc-caption uppercase tracking-wider block mb-1.5">Longest Recent Run</label>
+                    <input type="number" value={form.longestRecentRun} onChange={e => update('longestRecentRun', e.target.value)}
+                      placeholder="10" className="bc-input bc-data" />
+                    <p className="bc-caption mt-1">Miles</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Recent Race Time (optional)</label>
+                  <input type="text" value={form.recentRaceTime} onChange={e => update('recentRaceTime', e.target.value)}
+                    placeholder="e.g. 2:05 half, 22:00 5K" className="bc-input" />
+                  <p className="bc-caption mt-1">Helps calibrate pace zones</p>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Lifting Goal */}
-            <div>
-              <label className="bc-caption uppercase tracking-wider block mb-2">Lifting Goal</label>
-              <div className="grid grid-cols-1 gap-2">
-                {[
-                  { value: 'strength',     label: 'Strength',     desc: 'Heavy weight, low reps (3-5). Focus on getting stronger.' },
-                  { value: 'hypertrophy',  label: 'Hypertrophy',  desc: 'Moderate weight, moderate reps (8-12). Focus on muscle growth.' },
-                  { value: 'maintenance',  label: 'Maintenance',  desc: 'Keep current strength while prioritizing running.' },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => update('liftingGoal', opt.value)}
-                    className={`p-4 rounded-[14px] border text-left transition-all
-                      ${form.liftingGoal === opt.value
-                        ? 'border-lift-accent bg-lift-bg'
-                        : 'border-border bg-canvas hover:border-border-strong'}`}>
-                    <p className="text-sm font-semibold text-primary">{opt.label}</p>
-                    <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
+            {(form.planType==='lifting'||form.planType==='hybrid') && (
+              <div className={`space-y-4 ${form.planType==='hybrid'?'pt-4 border-t border-border':''}`}>
+                <p className="text-xs font-semibold text-lift-accent uppercase tracking-wider">Lifting</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value:'beginner',     label:'Beginner',     desc:'< 6 months' },
+                    { value:'intermediate', label:'Intermediate', desc:'6mo – 2yrs' },
+                    { value:'advanced',     label:'Advanced',     desc:'2+ years' },
+                  ].map(opt => (
+                    <button key={opt.value} onClick={() => update('liftingExperience', opt.value)}
+                      className={`p-3 rounded-[14px] border text-center transition-all
+                        ${form.liftingExperience===opt.value?'border-lift-accent bg-lift-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                      <p className="text-xs font-semibold text-primary">{opt.label}</p>
+                      <p className="bc-caption mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { field:'currentBenchMax',    label:'Bench 1RM',    placeholder:'185' },
+                    { field:'currentSquatMax',    label:'Squat 1RM',    placeholder:'225' },
+                    { field:'currentDeadliftMax', label:'Deadlift 1RM', placeholder:'315' },
+                  ].map(t => (
+                    <div key={t.field}>
+                      <label className="bc-caption block mb-1.5">{t.label}</label>
+                      <input type="number" value={form[t.field]||''} onChange={e => update(t.field, e.target.value)}
+                        placeholder={t.placeholder} className="bc-input bc-data !py-2" />
+                      <p className="bc-caption mt-0.5">lbs</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {/* ══════════════════════════════
-            STEP 3 — SCHEDULE
-        ══════════════════════════════ */}
+        {/* ── STEP 3: SCHEDULE ── */}
         {step === 3 && (
           <div className="space-y-5">
             <div>
               <h3 className="text-[17px] font-semibold text-primary mb-1">Design your week</h3>
-              <p className="text-sm text-secondary">Pick your training days, rest days, and preferences.</p>
+              <p className="text-sm text-secondary">Pick training days, rest days, and session limits.</p>
             </div>
 
-            {/* Day grid */}
             <div>
               <label className="bc-caption uppercase tracking-wider block mb-1.5">Weekly Layout</label>
-              <p className="bc-caption mb-2">Tap once for training day, tap again for full rest day.</p>
-              <div className="grid grid-cols-7 gap-1.5">
+              <p className="bc-caption mb-2">Tap: training → rest → off.</p>
+              <div className="grid grid-cols-7 gap-1">
                 {DAYS.map((day, i) => {
                   const isTraining = form.availableDays.includes(day);
                   const isFullRest = form.fullRestDays.includes(day);
                   return (
-                    <button
-                      key={day}
+                    <button key={day}
                       onClick={() => {
                         if (isTraining) { toggleDay(day); toggleFullRestDay(day); }
                         else if (isFullRest) { toggleFullRestDay(day); }
                         else { toggleDay(day); }
                       }}
-                      className={`py-3 rounded-[14px] text-xs font-medium transition-all flex flex-col items-center gap-0.5
-                        ${isTraining  ? 'bg-bc-blue text-primary' :
-                          isFullRest  ? 'bg-rest-bg text-rest-accent border border-rest-accent/30' :
-                                        'bg-canvas border border-border text-tertiary hover:border-border-strong'}`}>
+                      className={`py-3 rounded-[12px] text-[10px] font-medium transition-all flex flex-col items-center gap-1
+                        ${isTraining?'bg-bc-blue text-white':isFullRest?'bg-rest-bg text-rest-accent border border-rest-accent/30':'bg-canvas border border-border text-tertiary'}`}>
                       {DAY_LABELS[i]}
-                      <span className="text-[8px] opacity-70">
-                        {isTraining ? 'train' : isFullRest ? 'rest' : '—'}
-                      </span>
+                      <span className="text-[8px]">{isTraining?'Train':isFullRest?'Rest':'—'}</span>
                     </button>
                   );
                 })}
               </div>
-              <div className="flex items-center gap-4 mt-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded bg-bc-blue" />
-                  <span className="bc-caption">Training ({form.availableDays.length})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded bg-rest-bg border border-rest-accent/30" />
-                  <span className="bc-caption">Full Rest ({form.fullRestDays.length})</span>
-                </div>
-                {form.fullRestDays.length < 1 && (
-                  <span className="bc-caption text-bc-orange-dark">← At least 1 full rest day required</span>
-                )}
-              </div>
-            </div>
-
-            {/* Runs & Lifts per week */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="bc-caption uppercase tracking-wider block mb-1.5">Runs Per Week</label>
-                <select
-                  value={form.runsPerWeek}
-                  onChange={(e) => update('runsPerWeek', Number(e.target.value))}
-                  className="bc-input cursor-pointer appearance-none">
-                  {[1, 2, 3, 4, 5, 6].map(n => (
-                    <option key={n} value={n}>{n} run{n !== 1 ? 's' : ''}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="bc-caption uppercase tracking-wider block mb-1.5">Lifts Per Week</label>
-                <select
-                  value={form.liftsPerWeek}
-                  onChange={(e) => update('liftsPerWeek', Number(e.target.value))}
-                  className="bc-input cursor-pointer appearance-none">
-                  {[1, 2, 3, 4, 5, 6].map(n => (
-                    <option key={n} value={n}>{n} session{n !== 1 ? 's' : ''}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <p className="bc-caption -mt-3">
-              Total: {form.runsPerWeek + form.liftsPerWeek} sessions/week
-              {form.runsPerWeek + form.liftsPerWeek > form.availableDays.length && (
-                <span className="text-bc-orange-dark"> — some days will have both a run and a lift</span>
+              {form.fullRestDays.length < 1 && (
+                <p className="bc-caption text-bc-orange-dark mt-2">At least 1 full rest day required</p>
               )}
-            </p>
-
-            {/* Long Run Day */}
-            <div>
-              <label className="bc-caption uppercase tracking-wider block mb-1.5">Long Run Day</label>
-              <select
-                value={form.longRunDay}
-                onChange={(e) => update('longRunDay', e.target.value)}
-                className="bc-input cursor-pointer appearance-none">
-                {form.availableDays.map(day => (
-                  <option key={day} value={day}>
-                    {DAY_LABELS[DAYS.indexOf(day)]}
-                    {(day === 'saturday' || day === 'sunday') ? ' (recommended)' : ''}
-                  </option>
-                ))}
-              </select>
-              <p className="bc-caption mt-1">
-                The day before your long run will be rest or easy to ensure fresh legs.
-              </p>
             </div>
 
-            {/* Max time per session */}
-            <div>
-              <label className="bc-caption uppercase tracking-wider block mb-1.5">Max Time Per Session (minutes)</label>
-              <select
-                value={form.maxMinutesPerSession}
-                onChange={(e) => update('maxMinutesPerSession', Number(e.target.value))}
-                className="bc-input cursor-pointer appearance-none">
-                <option value={30}>30 minutes</option>
-                <option value={45}>45 minutes</option>
-                <option value={60}>60 minutes</option>
-                <option value={75}>75 minutes</option>
-                <option value={90}>90 minutes</option>
-                <option value={120}>120 minutes</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              {(form.planType==='running'||form.planType==='hybrid') && (
+                <div>
+                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Runs / Week</label>
+                  <select value={form.runsPerWeek} onChange={e => update('runsPerWeek', Number(e.target.value))} className="bc-input cursor-pointer">
+                    {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              )}
+              {(form.planType==='lifting'||form.planType==='hybrid') && (
+                <div>
+                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Lifts / Week</label>
+                  <select value={form.liftsPerWeek} onChange={e => update('liftsPerWeek', Number(e.target.value))} className="bc-input cursor-pointer">
+                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
 
-            {/* Equipment */}
-            <div>
-              <label className="bc-caption uppercase tracking-wider block mb-2">Equipment Access</label>
-              <div className="grid grid-cols-1 gap-2">
-                {[
-                  { value: 'full_gym',    label: 'Full Gym',        desc: 'Barbells, dumbbells, cables, machines' },
-                  { value: 'home_basic',  label: 'Home — Basic',    desc: 'Dumbbells + pull-up bar' },
-                  { value: 'bodyweight',  label: 'Bodyweight Only', desc: 'No equipment needed' },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => update('equipment', opt.value)}
-                    className={`p-4 rounded-[14px] border text-left transition-all
-                      ${form.equipment === opt.value
-                        ? 'border-rest-accent bg-rest-bg'
-                        : 'border-border bg-canvas hover:border-border-strong'}`}>
-                    <p className="text-sm font-semibold text-primary">{opt.label}</p>
-                    <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
+            {(form.planType==='running'||form.planType==='hybrid') && (
+              <div>
+                <label className="bc-caption uppercase tracking-wider block mb-1.5">Long Run Day</label>
+                <select value={form.longRunDay} onChange={e => update('longRunDay', e.target.value)} className="bc-input cursor-pointer">
+                  {form.availableDays.map(day => (
+                    <option key={day} value={day}>
+                      {DAY_LABELS[DAYS.indexOf(day)]}{(day==='saturday'||day==='sunday')?' (recommended)':''}
+                    </option>
+                  ))}
+                </select>
               </div>
+            )}
+
+            <div>
+              <label className="bc-caption uppercase tracking-wider block mb-1.5">Max Session Length</label>
+              <select value={form.maxMinutesPerSession} onChange={e => update('maxMinutesPerSession', Number(e.target.value))} className="bc-input cursor-pointer">
+                {[30,45,60,75,90,120].map(n => <option key={n} value={n}>{n} minutes</option>)}
+              </select>
             </div>
+
+            {(form.planType==='lifting'||form.planType==='hybrid') && (
+              <div>
+                <label className="bc-caption uppercase tracking-wider block mb-2">Equipment</label>
+                <div className="space-y-2">
+                  {[
+                    { value:'full_gym',   label:'Full Gym',        desc:'Barbells, cables, machines, dumbbells' },
+                    { value:'home_basic', label:'Home — Basic',    desc:'Dumbbells + pull-up bar' },
+                    { value:'bodyweight', label:'Bodyweight Only', desc:'No equipment' },
+                  ].map(opt => (
+                    <button key={opt.value} onClick={() => update('equipment', opt.value)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-[12px] border text-left transition-all
+                        ${form.equipment===opt.value?'border-rest-accent bg-rest-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-primary">{opt.label}</p>
+                        <p className="bc-caption">{opt.desc}</p>
+                      </div>
+                      {form.equipment===opt.value && <span className="text-rest-accent text-xs font-bold">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── Error ── */}
         {error && (
           <div className="mt-4 p-3 bg-bc-red-light border border-bc-red/20 rounded-[14px]">
             <p className="text-bc-red-dark text-xs">{error}</p>
           </div>
         )}
 
-        {/* ── Navigation ── */}
+        {/* Navigation */}
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
           <div>
-            {step > 1 ? (
-              <button
-                onClick={() => setStep(step - 1)}
-                className="flex items-center gap-1.5 px-4 py-2 text-secondary text-sm hover:text-primary transition-colors">
-                <ChevronLeft size={14} />
-                Back
-              </button>
-            ) : (
-              <button
-                onClick={onCancel}
-                className="px-4 py-2 text-secondary text-sm hover:text-primary transition-colors">
-                Cancel
-              </button>
-            )}
+            {step > 0
+              ? <button onClick={() => setStep(step-1)} className="flex items-center gap-1.5 px-4 py-2.5 text-secondary text-sm hover:text-primary transition-colors min-h-[44px]">
+                  <ChevronLeft size={14} /> Back
+                </button>
+              : <button onClick={onCancel} className="px-4 py-2.5 text-secondary text-sm hover:text-primary transition-colors min-h-[44px]">Cancel</button>
+            }
           </div>
-
-          {step < 3 ? (
-            <button
-              onClick={() => setStep(step + 1)}
-              disabled={!canAdvance()}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-bc-blue hover:opacity-90
-                         disabled:opacity-30 disabled:cursor-not-allowed text-primary text-sm
-                         font-semibold rounded-[10px] transition-all active:scale-95">
-              Next
-              <ChevronRight size={14} />
-            </button>
-          ) : (
-            <button
-              onClick={handleGenerate}
-              disabled={!canAdvance()}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-bc-indigo hover:opacity-90
-                         disabled:opacity-30 disabled:cursor-not-allowed text-primary text-sm
-                         font-semibold rounded-[10px] transition-all active:scale-95">
-              <Sparkles size={14} />
-              Generate Plan
-            </button>
-          )}
+          {step < 3
+            ? <button onClick={() => setStep(step+1)} disabled={!canAdvance()}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-bc-blue hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
+                Next <ChevronRight size={14} />
+              </button>
+            : <button onClick={handleGenerate} disabled={!canAdvance()}
+                className="flex items-center gap-2 px-5 py-2.5 bg-bc-indigo hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
+                <Sparkles size={14} /> Generate Plan
+              </button>
+          }
         </div>
       </div>
     </div>

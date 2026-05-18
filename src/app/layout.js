@@ -1,8 +1,11 @@
 import { DM_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import '../styles/mobile-responsive.css';
 import LayoutShell from '@/components/layout/LayoutShell';
-import { AuthProvider } from '@/lib/auth'
-import Image from 'next/image';
+import { AuthProvider } from '@/lib/auth';
+import BottomNav from '@/components/layout/BottomNav';
+import { ogMetadata } from '@/components/shared/ogMetadata';
+
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -19,8 +22,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata = {
+  ...ogMetadata,
   title: 'BASECAMP — Unified Fitness Ecosystem',
-  description: 'Track runs, lifts, and nutrition in one place. AI-powered plans that adapt to your body.',
+  description:
+    'Track runs, lifts, and nutrition in one place. AI-powered plans that adapt to your body.',
 };
 
 export default function RootLayout({ children }) {
@@ -29,7 +34,10 @@ export default function RootLayout({ children }) {
       <body className="bg-canvas text-primary font-sans antialiased min-h-screen">
         <AuthProvider>
           <LayoutShell>
-            {children}
+            <main style={{ paddingBottom: '80px' }}>
+              {children}
+            </main>
+            <BottomNav />
           </LayoutShell>
         </AuthProvider>
       </body>

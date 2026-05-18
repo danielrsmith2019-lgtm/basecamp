@@ -5,8 +5,9 @@
  */
 
 import { useState } from 'react';
-import { formatDate, getRunTypeEmoji, comparePaces } from '@/utils/runUtils';
-import { getSessionEmoji, getMuscleGroupColors, formatVolume } from '@/utils/liftUtils';
+import { formatDate, comparePaces } from '@/utils/runUtils';
+import { formatVolume } from '@/utils/liftUtils';
+import { Moon } from 'lucide-react';
 import LogForm from './LogForm';
 
 const STATUS_BADGE = {
@@ -41,11 +42,12 @@ export default function WorkoutDetailModal({ workout, onClose, onSave }) {
       onClick={onClose}>
       <div
         className="bg-surface border border-border rounded-t-[24px] sm:rounded-[20px]
-                   shadow-xl max-w-lg w-full p-5 max-h-[85vh] overflow-auto"
+                   shadow-xl max-w-lg w-full flex flex-col"
+        style={{ maxHeight: 'calc(100dvh - 96px)', marginBottom: '80px' }}
         onClick={e => e.stopPropagation()}>
 
-        {/* ── Close button ── */}
-        <div className="flex justify-end mb-2">
+        {/* Close button */}
+        <div className="flex justify-end p-4 pb-0 flex-shrink-0">
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-full bg-canvas flex items-center justify-center
@@ -54,12 +56,15 @@ export default function WorkoutDetailModal({ workout, onClose, onSave }) {
           </button>
         </div>
 
-        {workout.type === 'run'  && <RunDetail  workout={workout} />}
-        {workout.type === 'lift' && <LiftDetail workout={workout} />}
-        {workout.type === 'rest' && <RestDetail workout={workout} />}
+        {/* Scrollable content */}
+        <div className="overflow-auto flex-1 px-5 pb-2">
+          {workout.type === 'run'  && <RunDetail  workout={workout} />}
+          {workout.type === 'lift' && <LiftDetail workout={workout} />}
+          {workout.type === 'rest' && <RestDetail workout={workout} />}
+        </div>
 
-        {/* ── Action buttons ── */}
-        <div className="flex gap-3 mt-6 pt-4 border-t border-border">
+        {/* Action buttons — pinned to bottom, always visible */}
+        <div className="flex gap-3 p-5 pt-3 border-t border-border flex-shrink-0">
           {workout.status === 'planned' && (
             <button
               onClick={() => setShowLogForm(true)}
@@ -97,24 +102,23 @@ function RunDetail({ workout }) {
     ? comparePaces(details.actualPace, details.targetPace)
     : null;
 
-  // Add this display label map:
   const RUN_LABELS = {
-    easy:     'Easy Run',
-    tempo:    'Tempo Run',
-    interval: 'Intervals',
-    long_run: 'Long Run',
-    recovery: 'Recovery Run',
-    fartlek:  'Fartlek',
-    REST:     'Rest',
+    easy: 'Easy Run', tempo: 'Tempo Run', interval: 'Intervals',
+    long_run: 'Long Run', recovery: 'Recovery Run', fartlek: 'Fartlek', REST: 'Rest',
   };
-  const displayType = RUN_LABELS[details.runType] || details.runType;
+  function getRunLabel(t) {
+    if (!t) return 'Run';
+    const key = t.toLowerCase().replace(/_/g, ' ');
+    const found = Object.entries(RUN_LABELS).find(([k]) => k.toLowerCase().replace(/_/g, ' ') === key);
+    return found ? found[1] : t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
 
   return (
     <div>
-<div className="mb-1">
-  <h3 className="text-[17px] font-semibold text-primary">{displayType}</h3>
-</div>
-<p className="text-sm text-secondary mb-4">{formatDate(date)}</p>
+      <div className="mb-1">
+        <h3 className="text-[17px] font-semibold text-primary">{getRunLabel(details.runType)}</h3>
+      </div>
+      <p className="text-sm text-secondary mb-4">{formatDate(date)}</p>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         {details.phase && (
@@ -132,7 +136,6 @@ function RunDetail({ workout }) {
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Planned */}
         <div className="bg-run-bg rounded-[14px] p-3">
           <p className="bc-caption uppercase tracking-wider mb-2">Planned</p>
           <div className="space-y-1.5">
@@ -149,7 +152,6 @@ function RunDetail({ workout }) {
           </div>
         </div>
 
-        {/* Actual */}
         <div className={`rounded-[14px] p-3 ${status === 'completed' ? 'bg-bc-green-light' : 'bg-canvas'}`}>
           <p className="bc-caption uppercase tracking-wider mb-2">Actual</p>
           {status === 'completed' ? (
@@ -172,6 +174,12 @@ function RunDetail({ workout }) {
                 <div className="flex justify-between">
                   <span className="text-xs text-secondary">RPE</span>
                   <span className="bc-data text-sm text-primary">{details.rpe}/10</span>
+                </div>
+              )}
+              {details.caloriesBurned != null && (
+                <div className="flex justify-between">
+                  <span className="text-xs text-secondary">Calories</span>
+                  <span className="bc-data text-sm text-bc-green-dark">{details.caloriesBurned}</span>
                 </div>
               )}
             </div>
@@ -197,12 +205,12 @@ function LiftDetail({ workout }) {
 
   return (
     <div>
-<div className="mb-1">
-  <h3 className="text-[17px] font-semibold text-primary">
-    {details.sessionName || 'Workout'}
-  </h3>
-</div>
-<p className="text-sm text-secondary mb-3">{formatDate(date)}</p>
+      <div className="mb-1">
+        <h3 className="text-[17px] font-semibold text-primary">
+          {details.sessionName || 'Workout'}
+        </h3>
+      </div>
+      <p className="text-sm text-secondary mb-3">{formatDate(date)}</p>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         <span className={`bc-pill text-[10px] ${statusInfo.bg} ${statusInfo.text}`}>
@@ -213,19 +221,37 @@ function LiftDetail({ workout }) {
         ))}
       </div>
 
-      {details.totalVolume != null && (
+      {(details.totalVolume != null || details.duration != null) && (
         <div className="flex gap-6 mb-4 p-3 bg-lift-bg rounded-[14px]">
           <div className="flex flex-col">
-            <span className="bc-data text-lg font-bold text-lift-accent">{details.totalSets}</span>
+            <span className="bc-data text-lg font-bold text-lift-accent">{details.totalSets ?? '—'}</span>
             <span className="bc-caption">Sets</span>
           </div>
           <div className="w-px bg-border" />
           <div className="flex flex-col">
             <span className="bc-data text-lg font-bold text-lift-accent">
-              {formatVolume(details.totalVolume)}
+              {details.totalVolume ? formatVolume(details.totalVolume) : '—'}
             </span>
             <span className="bc-caption">Volume</span>
           </div>
+          {details.duration && (
+            <>
+              <div className="w-px bg-border" />
+              <div className="flex flex-col">
+                <span className="bc-data text-lg font-bold text-lift-accent">{details.duration}m</span>
+                <span className="bc-caption">Duration</span>
+              </div>
+            </>
+          )}
+          {details.caloriesBurned && (
+            <>
+              <div className="w-px bg-border" />
+              <div className="flex flex-col">
+                <span className="bc-data text-lg font-bold text-lift-accent">{details.caloriesBurned}</span>
+                <span className="bc-caption">Cal burned</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -274,14 +300,25 @@ function LiftDetail({ workout }) {
 // ── Rest Detail ──────────────────────────────────────────
 
 function RestDetail({ workout }) {
+  const REST_LABELS = {
+    full_rest: 'Rest Day', off_running: 'No Running',
+    off_lifting: 'No Lifting', active_recovery: 'Active Recovery',
+  };
+  function getRestLabel(t) {
+    if (!t) return 'Rest Day';
+    const key = t.toLowerCase().replace(/_/g, ' ');
+    const found = Object.entries(REST_LABELS).find(([k]) => k.replace(/_/g, ' ') === key);
+    return found ? found[1] : t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
   return (
     <div className="text-center py-6">
-      <div className="w-16 h-16 rounded-[20px] bg-rest-bg flex items-center justify-center
-                      mx-auto mb-3 text-3xl">
-        😴
+      {/* FIXED: emoji → lucide icon */}
+      <div className="w-16 h-16 rounded-[20px] bg-rest-bg flex items-center justify-center mx-auto mb-3">
+        <Moon size={28} className="text-rest-accent" strokeWidth={2} />
       </div>
       <h3 className="text-[17px] font-semibold text-primary mb-1">
-        {workout.details?.restType || 'Rest Day'}
+        {getRestLabel(workout.details?.restType)}
       </h3>
       <p className="text-sm text-secondary">{formatDate(workout.date)}</p>
       {workout.details?.notes && (

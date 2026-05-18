@@ -5,50 +5,66 @@ import { useAuth } from '@/lib/auth';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import { getUserSettings, getNutritionLog, saveNutritionLog } from '@/lib/database';
 import {
-  getTrainingCalorieBonus, getFuelStatus,
-  getMealTimeGroup, MEAL_ORDER, searchFoods, FOOD_DATABASE,
+  getTrainingCalorieBonus, getMealTimeGroup, MEAL_ORDER, searchFoods, FOOD_DATABASE,
 } from '@/utils/nutrition';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
-import { Plus, Search, X, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Plus, Search, X, ChevronDown, ChevronUp,
+  Footprints, Sun, Moon, Coffee, Apple, Dumbbell, Flame,
+  Beef, Wheat, Droplets, Salad, UtensilsCrossed, Zap, GlassWater, Pill,
+} from 'lucide-react';
 
-const MEAL_ICONS = {
-  Breakfast: '🌅',
-  Lunch:     '☀️',
-  Dinner:    '🌙',
-  Snacks:    '🍎',
+// ── Meal icons ──────────────────────────────────────────
+const MEAL_ICON_MAP = {
+  Breakfast: { Icon: Coffee, color: '#FF9500', bg: '#FFF3E0' },
+  Lunch:     { Icon: Sun,    color: '#FF9500', bg: '#FFF3E0' },
+  Dinner:    { Icon: Moon,   color: '#5856D6', bg: '#E8EAF6' },
+  Snacks:    { Icon: Apple,  color: '#34C759', bg: '#E8F5E9' },
 };
+
+// ── Food category config ────────────────────────────────
+const CATEGORY_CONFIG = {
+  'All':          { Icon: UtensilsCrossed, color: '#8E8E93' },
+  'Protein':      { Icon: Beef,            color: '#FF3B30' },
+  'Carbs':        { Icon: Wheat,           color: '#FF9500' },
+  'Fats':         { Icon: Droplets,        color: '#34C759' },
+  'Vegetables':   { Icon: Salad,           color: '#30B050' },
+  'Meals':        { Icon: UtensilsCrossed, color: '#007AFF' },
+  'Breakfast':    { Icon: Coffee,          color: '#FF9500' },
+  'Snacks':       { Icon: Apple,           color: '#FF6B6B' },
+  'Pre-Workout':  { Icon: Zap,             color: '#FFD60A' },
+  'Post-Workout': { Icon: Dumbbell,        color: '#30D158' },
+  'Drinks':       { Icon: GlassWater,      color: '#64D2FF' },
+  'Supplements':  { Icon: Pill,            color: '#BF5AF2' },
+};
+
+const ALL_CATEGORIES = Object.keys(CATEGORY_CONFIG);
 
 export default function NutritionPage() {
   const { user } = useAuth();
   const { workouts } = useWorkouts();
-
   const today = new Date().toISOString().split('T')[0];
 
-  // ── Settings ───────────────────────────────────────────
-  const [calorieTarget,  setCalorieTarget]  = useState(2000);
-  const [proteinTarget,  setProteinTarget]  = useState(150);
-  const [userWeight,     setUserWeight]     = useState(170);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-
-  // ── Nutrition log ──────────────────────────────────────
-  const [entries,   setEntries]   = useState([]);
-  const [logLoaded, setLogLoaded] = useState(false);
-
-  // ── UI state ───────────────────────────────────────────
-  const [showSearch,    setShowSearch]    = useState(false);
-  const [searchQuery,   setSearchQuery]   = useState('');
-  const [selectedMeal,  setSelectedMeal]  = useState('Breakfast');
-  const [customEntry,   setCustomEntry]   = useState({ name: '', calories: '', protein: '' });
-  const [showCustom,    setShowCustom]    = useState(false);
-  const [weeklyData,    setWeeklyData]    = useState([]);
-  const [collapsedMeals, setCollapsedMeals] = useState(new Set());
+  const [calorieTarget,    setCalorieTarget]    = useState(2000);
+  const [proteinTarget,    setProteinTarget]    = useState(150);
+  const [userWeight,       setUserWeight]       = useState(170);
+  const [settingsLoaded,   setSettingsLoaded]   = useState(false);
+  const [entries,          setEntries]          = useState([]);
+  const [logLoaded,        setLogLoaded]        = useState(false);
+  const [weeklyData,       setWeeklyData]       = useState([]);
+  const [showSearch,       setShowSearch]       = useState(false);
+  const [searchQuery,      setSearchQuery]      = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedMeal,     setSelectedMeal]     = useState('Breakfast');
+  const [customEntry,      setCustomEntry]      = useState({ name: '', calories: '', protein: '', carbs: '', fat: '' });
+  const [showCustom,       setShowCustom]       = useState(false);
+  const [collapsedMeals,   setCollapsedMeals]   = useState(new Set());
 
   const searchRef = useRef(null);
 
-  // ── Load settings + log ────────────────────────────────
   useEffect(() => {
     if (!user) return;
     async function load() {
@@ -64,19 +80,16 @@ export default function NutritionPage() {
       if (log?.meals) setEntries(log.meals);
       setLogLoaded(true);
 
-      // Load weekly data
       const weekEntries = [];
       for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
         const dateStr = d.toISOString().split('T')[0];
         const dayLog = await getNutritionLog(user.id, dateStr);
-        const dayMeals = dayLog?.meals || [];
-        const cals = dayMeals.reduce((s, e) => s + (e.calories || 0), 0);
+        const cals = (dayLog?.meals || []).reduce((s, e) => s + (e.calories || 0), 0);
         weekEntries.push({
           day: d.toLocaleDateString('en-US', { weekday: 'short' }),
-          date: dateStr,
-          calories: cals,
+          date: dateStr, calories: cals,
         });
       }
       setWeeklyData(weekEntries);
@@ -84,28 +97,33 @@ export default function NutritionPage() {
     load();
   }, [user, today]);
 
-  // ── Today's workouts ───────────────────────────────────
   const todayWorkouts = useMemo(() =>
     workouts.filter(w => w.date === today && w.type !== 'rest'),
   [workouts, today]);
 
-  // ── Training-adjusted calorie target ───────────────────
   const calorieBonus = useMemo(() =>
     getTrainingCalorieBonus(todayWorkouts, userWeight),
   [todayWorkouts, userWeight]);
 
   const adjustedTarget = calorieTarget + calorieBonus;
 
-  // ── Totals ─────────────────────────────────────────────
+  const exerciseCaloriesBurned = useMemo(() =>
+    workouts
+      .filter(w => w.date === today && w.status === 'completed' && w.details?.caloriesBurned)
+      .reduce((s, w) => s + (w.details.caloriesBurned || 0), 0),
+  [workouts, today]);
+
   const totals = useMemo(() => ({
     calories: entries.reduce((s, e) => s + (e.calories || 0), 0),
     protein:  entries.reduce((s, e) => s + (e.protein  || 0), 0),
+    carbs:    entries.reduce((s, e) => s + (e.carbs    || 0), 0),
+    fat:      entries.reduce((s, e) => s + (e.fat      || 0), 0),
   }), [entries]);
 
   const caloriePct = Math.min(100, Math.round((totals.calories / adjustedTarget) * 100));
   const proteinPct = Math.min(100, Math.round((totals.protein  / proteinTarget)  * 100));
+  const remaining  = Math.max(0, adjustedTarget - totals.calories);
 
-  // ── Grouped meals ──────────────────────────────────────
   const groupedMeals = useMemo(() => {
     const groups = {};
     MEAL_ORDER.forEach(g => { groups[g] = []; });
@@ -117,32 +135,35 @@ export default function NutritionPage() {
     return groups;
   }, [entries]);
 
-  // ── Save to Supabase ───────────────────────────────────
+  // Category-aware search
+  const searchResults = useMemo(() => {
+    if (selectedCategory === 'All') return searchFoods(searchQuery);
+    return FOOD_DATABASE
+      .filter(f => f.category === selectedCategory &&
+        (!searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase())))
+      .slice(0, 12);
+  }, [searchQuery, selectedCategory]);
+
   async function persistEntries(newEntries) {
     setEntries(newEntries);
     if (!user) return;
-    const totals = {
+    const t = {
       calories: newEntries.reduce((s, e) => s + (e.calories || 0), 0),
       protein:  newEntries.reduce((s, e) => s + (e.protein  || 0), 0),
+      target:   adjustedTarget,
     };
-    await saveNutritionLog(user.id, today, { meals: newEntries, daily_totals: totals });
+    await saveNutritionLog(user.id, today, { meals: newEntries, daily_totals: t });
   }
 
-  // ── Add food entry ─────────────────────────────────────
   function addFoodEntry(food) {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const newEntry = {
-      id:        `${Date.now()}-${Math.random()}`,
-      name:      food.name,
-      calories:  food.calories,
-      protein:   food.protein  || 0,
-      carbs:     food.carbs    || 0,
-      fat:       food.fat      || 0,
-      time,
-      mealGroup: selectedMeal,
-    };
-    persistEntries([...entries, newEntry]);
+    const now  = new Date();
+    const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    persistEntries([...entries, {
+      id: `${Date.now()}-${Math.random()}`,
+      name: food.name, calories: food.calories,
+      protein: food.protein || 0, carbs: food.carbs || 0, fat: food.fat || 0,
+      time, mealGroup: selectedMeal,
+    }]);
     setSearchQuery('');
     setShowSearch(false);
   }
@@ -153,15 +174,14 @@ export default function NutritionPage() {
       name:     customEntry.name,
       calories: parseInt(customEntry.calories) || 0,
       protein:  parseInt(customEntry.protein)  || 0,
-      carbs: 0, fat: 0,
+      carbs:    parseInt(customEntry.carbs)    || 0,
+      fat:      parseInt(customEntry.fat)      || 0,
     });
-    setCustomEntry({ name: '', calories: '', protein: '' });
+    setCustomEntry({ name: '', calories: '', protein: '', carbs: '', fat: '' });
     setShowCustom(false);
   }
 
-  function removeEntry(id) {
-    persistEntries(entries.filter(e => e.id !== id));
-  }
+  function removeEntry(id) { persistEntries(entries.filter(e => e.id !== id)); }
 
   function toggleMeal(meal) {
     setCollapsedMeals(prev => {
@@ -171,7 +191,11 @@ export default function NutritionPage() {
     });
   }
 
-  const searchResults = useMemo(() => searchFoods(searchQuery), [searchQuery]);
+  function openSearch(meal) {
+    setSelectedMeal(meal);
+    setShowSearch(true);
+    setTimeout(() => searchRef.current?.focus(), 100);
+  }
 
   if (!logLoaded || !settingsLoaded) {
     return (
@@ -182,7 +206,9 @@ export default function NutritionPage() {
   }
 
   return (
-    <div>
+    <div className="pb-24">
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="bc-caption uppercase tracking-wider">Nutrition</h2>
         <span className="text-xs text-secondary">
@@ -190,200 +216,230 @@ export default function NutritionPage() {
         </span>
       </div>
 
-      {/* ── Training bonus banner ── */}
+      {/* Training bonus */}
       {calorieBonus > 0 && (
-        <div className="bc-card mb-4 bg-run-bg border-l-4 border-run-accent">
+        <div className="bc-card mb-3 bg-run-bg border-l-4 border-run-accent">
           <div className="flex items-center gap-2">
-            <span className="text-base">🏃</span>
+            <Footprints size={16} strokeWidth={2} className="text-run-accent flex-shrink-0" />
             <div>
-              <p className="text-xs font-semibold text-run-accent">
-                Training day — target increased by {calorieBonus} cal
-              </p>
-              <p className="bc-caption">
-                Based on {todayWorkouts.length} session{todayWorkouts.length !== 1 ? 's' : ''} scheduled today
-              </p>
+              <p className="text-xs font-semibold text-run-accent">Training day — target +{calorieBonus} cal</p>
+              <p className="bc-caption">{todayWorkouts.length} session{todayWorkouts.length !== 1 ? 's' : ''} today</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Progress rings ── */}
-      <div className="bc-card mb-6">
-        <div className="flex items-center justify-around py-2">
+      {/* Exercise calories burned */}
+      {exerciseCaloriesBurned > 0 && (
+        <div className="bc-card mb-3 bg-lift-bg border-l-4 border-lift-accent">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Flame size={16} strokeWidth={2} className="text-lift-accent flex-shrink-0" />
+              <p className="text-xs font-semibold text-lift-accent">{exerciseCaloriesBurned.toLocaleString()} cal burned training</p>
+            </div>
+            <p className="bc-caption flex-shrink-0">Net: {Math.max(0, totals.calories - exerciseCaloriesBurned).toLocaleString()} cal</p>
+          </div>
+        </div>
+      )}
 
-          {/* Calories ring */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="relative w-24 h-24">
-              <svg viewBox="0 0 96 96" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx="48" cy="48" r="40" fill="none" stroke="#F2F2F7" strokeWidth="8" />
-                <circle cx="48" cy="48" r="40" fill="none"
-                  stroke={caloriePct >= 90 ? '#34C759' : caloriePct >= 60 ? '#FF9500' : '#007AFF'}
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray="251.2"
-                  strokeDashoffset={251.2 * (1 - caloriePct / 100)}
-                  style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="bc-data text-lg font-bold text-primary">{caloriePct}%</span>
+      {/* ── Summary card ── */}
+      <div className="bc-card mb-5">
+        {/* Calorie row */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="bc-caption uppercase tracking-wider mb-0.5">Calories</p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="bc-data text-2xl font-bold text-primary">{totals.calories.toLocaleString()}</span>
+              <span className="text-sm text-tertiary">/ {adjustedTarget.toLocaleString()}</span>
+            </div>
+            <p className="bc-caption mt-0.5">
+              {remaining > 0
+                ? <span className="text-bc-blue">{remaining.toLocaleString()} remaining</span>
+                : <span className="text-bc-green-dark">Goal reached!</span>}
+            </p>
+          </div>
+          <div className="relative w-20 h-20 flex-shrink-0">
+            <svg viewBox="0 0 80 80" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#F2F2F7" strokeWidth="7" />
+              <circle cx="40" cy="40" r="34" fill="none"
+                stroke={caloriePct >= 100 ? '#34C759' : caloriePct >= 60 ? '#FF9500' : '#007AFF'}
+                strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6"
+                strokeDashoffset={213.6 * (1 - Math.min(caloriePct, 100) / 100)}
+                style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="bc-data text-sm font-bold text-primary">{caloriePct}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Macro progress bars */}
+        <div className="space-y-2.5">
+          <div>
+            <div className="flex justify-between mb-1">
+              <span className="text-xs text-secondary">Protein</span>
+              <span className="bc-data text-xs" style={{ color: '#5856D6' }}>{totals.protein}g / {proteinTarget}g</span>
+            </div>
+            <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, proteinPct)}%`, background: '#5856D6' }} />
+            </div>
+          </div>
+          {totals.carbs > 0 && (
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-xs text-secondary">Carbs</span>
+                <span className="bc-data text-xs text-bc-orange-dark">{totals.carbs}g</span>
+              </div>
+              <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${Math.min(100, (totals.carbs / 250) * 100)}%`, background: '#FF9500' }} />
               </div>
             </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-primary">
-                {totals.calories.toLocaleString()}
-              </p>
-              <p className="bc-caption">of {adjustedTarget.toLocaleString()} cal</p>
-              {calorieBonus > 0 && (
-                <p className="text-[9px] text-run-accent mt-0.5">+{calorieBonus} training</p>
-              )}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-20 w-px bg-border" />
-
-          {/* Protein ring */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="relative w-24 h-24">
-              <svg viewBox="0 0 96 96" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx="48" cy="48" r="40" fill="none" stroke="#F2F2F7" strokeWidth="8" />
-                <circle cx="48" cy="48" r="40" fill="none"
-                  stroke="#5856D6"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray="251.2"
-                  strokeDashoffset={251.2 * (1 - proteinPct / 100)}
-                  style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="bc-data text-lg font-bold text-primary">{proteinPct}%</span>
+          )}
+          {totals.fat > 0 && (
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-xs text-secondary">Fat</span>
+                <span className="bc-data text-xs text-bc-green-dark">{totals.fat}g</span>
+              </div>
+              <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${Math.min(100, (totals.fat / 80) * 100)}%`, background: '#34C759' }} />
               </div>
             </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-primary">{totals.protein}g</p>
-              <p className="bc-caption">of {proteinTarget}g protein</p>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-20 w-px bg-border" />
-
-          {/* Quick macros */}
-          <div className="flex flex-col gap-3">
-            <div className="text-center">
-              <p className="bc-data text-sm font-bold text-primary">{totals.calories}</p>
-              <p className="bc-caption">Calories</p>
-            </div>
-            <div className="text-center">
-              <p className="bc-data text-sm font-bold" style={{ color: '#5856D6' }}>{totals.protein}g</p>
-              <p className="bc-caption">Protein</p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* ── Log Food button ── */}
+      {/* ── Meal tabs + Add ── */}
       <div className="flex gap-2 mb-4">
-        <div className="bc-tab-bar flex-1">
-          {MEAL_ORDER.map(meal => (
-            <button
-              key={meal}
-              onClick={() => setSelectedMeal(meal)}
-              className={`bc-tab text-xs ${selectedMeal === meal ? 'bc-tab-active' : ''}`}>
-              {meal}
-            </button>
-          ))}
+        <div className="bc-tab-bar flex-1 overflow-x-auto">
+          {MEAL_ORDER.map(meal => {
+            const isActive = selectedMeal === meal;
+            const config = MEAL_ICON_MAP[meal];
+            return (
+              <button key={meal} onClick={() => setSelectedMeal(meal)}
+                className="bc-tab text-xs whitespace-nowrap flex items-center gap-1"
+                style={{
+                  background:   isActive ? '#007AFF' : 'transparent',
+                  color:        isActive ? '#FFFFFF' : '#8E8E93',
+                  fontWeight:   isActive ? 600 : 500,
+                  borderRadius: '10px', flex: 1,
+                }}>
+                {config && <config.Icon size={11} strokeWidth={2} style={{ color: isActive ? '#FFFFFF' : config.color, flexShrink: 0 }} />}
+                {meal}
+              </button>
+            );
+          })}
         </div>
-        <button
-          onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 100); }}
-          className="bc-btn-primary !w-auto !px-4 !py-2 flex items-center gap-1.5 text-sm">
-          <Plus size={14} />
-          Add
+        <button onClick={() => openSearch(selectedMeal)}
+          className="bc-btn-primary !w-auto !px-4 !py-2 flex items-center gap-1.5 text-sm min-h-[44px]">
+          <Plus size={14} /> Add
         </button>
       </div>
 
-      {/* ── Food search panel ── */}
+      {/* ── Search panel ── */}
       {showSearch && (
         <div className="bc-card mb-4">
+          {/* Input */}
           <div className="flex items-center gap-2 mb-3">
             <div className="flex-1 relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary" />
-              <input
-                ref={searchRef}
-                type="text"
-                value={searchQuery}
+              <input ref={searchRef} type="text" value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search foods..."
-                className="bc-input !pl-8"
-              />
+                placeholder="Search 150+ foods..."
+                className="bc-input !pl-8" style={{ fontSize: '16px' }} />
             </div>
-            <button
-              onClick={() => { setShowSearch(false); setSearchQuery(''); }}
-              className="w-8 h-8 rounded-full bg-canvas flex items-center justify-center
-                         text-secondary hover:text-primary transition-colors">
+            <button onClick={() => { setShowSearch(false); setSearchQuery(''); setSelectedCategory('All'); }}
+              className="w-10 h-10 rounded-full bg-canvas flex items-center justify-center text-secondary hover:text-primary transition-colors flex-shrink-0">
               <X size={14} />
             </button>
           </div>
 
-          {/* Search results */}
-          <div className="space-y-1 max-h-64 overflow-auto">
-            {searchResults.map(food => (
-              <button
-                key={food.id}
-                onClick={() => addFoodEntry(food)}
-                className="w-full flex items-center justify-between p-2.5 rounded-[10px]
-                           hover:bg-canvas text-left transition-colors">
-                <div>
-                  <p className="text-sm font-medium text-primary">{food.name}</p>
-                  <p className="bc-caption">{food.category}</p>
-                </div>
-                <div className="text-right flex-shrink-0 ml-3">
-                  <p className="bc-data text-sm text-primary">{food.calories} cal</p>
-                  <p className="bc-caption">{food.protein}g protein</p>
-                </div>
-              </button>
-            ))}
+          {/* Category pills */}
+          <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3"
+            style={{ scrollbarWidth: 'none' }}>
+            {ALL_CATEGORIES.map(cat => {
+              const isActive = selectedCategory === cat;
+              const config = CATEGORY_CONFIG[cat];
+              return (
+                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0 transition-all min-h-[32px]"
+                  style={{
+                    background: isActive ? config.color : '#F2F2F7',
+                    color:      isActive ? '#FFFFFF'    : '#8E8E93',
+                  }}>
+                  <config.Icon size={13} strokeWidth={2} style={{ color: isActive ? '#FFFFFF' : config.color }} />
+                  {cat}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Custom entry toggle */}
-          <button
-            onClick={() => setShowCustom(!showCustom)}
-            className="flex items-center gap-1.5 mt-3 text-xs text-bc-blue hover:underline">
+          {/* Results */}
+          <div className="space-y-0.5 max-h-72 overflow-auto">
+            {searchResults.length === 0 ? (
+              <p className="text-center bc-caption py-6">No results — try a different search or category</p>
+            ) : searchResults.map(food => {
+              const catConfig = CATEGORY_CONFIG[food.category];
+              return (
+                <button key={food.id} onClick={() => addFoodEntry(food)}
+                  className="w-full flex items-center justify-between p-2.5 rounded-[10px] hover:bg-canvas text-left transition-colors min-h-[44px]">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {catConfig && (
+                      <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${catConfig.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <catConfig.Icon size={14} strokeWidth={2} style={{ color: catConfig.color }} />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{food.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bc-caption">{food.category}</span>
+                        {food.protein > 0 && <span className="bc-caption" style={{ color: '#5856D6' }}>{food.protein}g pro</span>}
+                        {food.carbs > 0 && <span className="bc-caption text-bc-orange-dark">{food.carbs}g carbs</span>}
+                        {food.fat > 0 && <span className="bc-caption text-bc-green-dark">{food.fat}g fat</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <p className="bc-data text-sm text-primary">{food.calories}</p>
+                    <p className="bc-caption">cal</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Custom entry */}
+          <button onClick={() => setShowCustom(!showCustom)}
+            className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border text-xs text-bc-blue hover:underline min-h-[44px]">
             {showCustom ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             Add custom food
           </button>
 
           {showCustom && (
             <div className="mt-3 space-y-2">
-              <input
-                type="text"
-                value={customEntry.name}
+              <input type="text" value={customEntry.name}
                 onChange={e => setCustomEntry(p => ({ ...p, name: e.target.value }))}
-                placeholder="Food name"
-                className="bc-input"
-              />
+                placeholder="Food name" className="bc-input" />
               <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  value={customEntry.calories}
+                <input type="number" value={customEntry.calories}
                   onChange={e => setCustomEntry(p => ({ ...p, calories: e.target.value }))}
-                  placeholder="Calories"
-                  className="bc-input bc-data"
-                />
-                <input
-                  type="number"
-                  value={customEntry.protein}
+                  placeholder="Calories *" className="bc-input bc-data" />
+                <input type="number" value={customEntry.protein}
                   onChange={e => setCustomEntry(p => ({ ...p, protein: e.target.value }))}
-                  placeholder="Protein (g)"
-                  className="bc-input bc-data"
-                />
+                  placeholder="Protein (g)" className="bc-input bc-data" />
               </div>
-              <button
-                onClick={addCustomEntry}
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" value={customEntry.carbs}
+                  onChange={e => setCustomEntry(p => ({ ...p, carbs: e.target.value }))}
+                  placeholder="Carbs (g)" className="bc-input bc-data" />
+                <input type="number" value={customEntry.fat}
+                  onChange={e => setCustomEntry(p => ({ ...p, fat: e.target.value }))}
+                  placeholder="Fat (g)" className="bc-input bc-data" />
+              </div>
+              <button onClick={addCustomEntry}
                 disabled={!customEntry.name || !customEntry.calories}
-                className="bc-btn-primary disabled:opacity-40">
+                className="bc-btn-primary disabled:opacity-40 min-h-[44px]">
                 Add to {selectedMeal}
               </button>
             </div>
@@ -391,85 +447,80 @@ export default function NutritionPage() {
         </div>
       )}
 
-      {/* ── Meal log grouped by time ── */}
-      <div className="space-y-4 mb-6">
+      {/* ── Meal sections ── */}
+      <div className="space-y-3 mb-6">
         {MEAL_ORDER.map(mealGroup => {
           const mealEntries = groupedMeals[mealGroup] || [];
           const mealCals    = mealEntries.reduce((s, e) => s + (e.calories || 0), 0);
           const mealProtein = mealEntries.reduce((s, e) => s + (e.protein  || 0), 0);
           const isCollapsed = collapsedMeals.has(mealGroup);
+          const mealConfig  = MEAL_ICON_MAP[mealGroup];
 
           return (
             <div key={mealGroup} className="bc-card-flush">
-              {/* Meal section header */}
-              <button
-                onClick={() => toggleMeal(mealGroup)}
-                className="w-full flex items-center justify-between p-4 hover:bg-canvas transition-colors">
+              <button onClick={() => toggleMeal(mealGroup)}
+                className="w-full flex items-center justify-between p-4 hover:bg-canvas transition-colors min-h-[44px]">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">{MEAL_ICONS[mealGroup]}</span>
+                  {mealConfig && (
+                    <div style={{ width: 28, height: 28, borderRadius: '8px', background: mealConfig.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <mealConfig.Icon size={14} strokeWidth={2} style={{ color: mealConfig.color }} />
+                    </div>
+                  )}
                   <span className="text-sm font-semibold text-primary">{mealGroup}</span>
                   {mealEntries.length > 0 && (
-                    <span className="bc-caption">
-                      · {mealCals} cal · {mealProtein}g protein
-                    </span>
+                    <>
+                      <span className="bc-caption hidden sm:inline">· {mealCals} cal · {mealProtein}g protein</span>
+                      <span className="bc-caption sm:hidden">· {mealCals} cal</span>
+                    </>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   {mealEntries.length === 0 && (
-                    <span className="bc-caption">Empty</span>
+                    <button onClick={e => { e.stopPropagation(); openSearch(mealGroup); }}
+                      className="text-xs text-bc-blue hover:underline px-2 py-1">+ Add</button>
                   )}
-                  {isCollapsed
-                    ? <ChevronDown size={14} className="text-tertiary" />
-                    : <ChevronUp   size={14} className="text-tertiary" />}
+                  {isCollapsed ? <ChevronDown size={14} className="text-tertiary" /> : <ChevronUp size={14} className="text-tertiary" />}
                 </div>
               </button>
 
-              {/* Meal entries */}
               {!isCollapsed && (
                 <div className="border-t border-border">
                   {mealEntries.length > 0 ? (
-                    mealEntries.map(entry => (
-                      <div key={entry.id}
-                        className="flex items-center justify-between px-4 py-3
-                                   border-b border-border/50 last:border-0">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-primary truncate">{entry.name}</p>
-                          <p className="bc-caption">
-                            {entry.time && <span>{entry.time} · </span>}
-                            {entry.carbs > 0 && <span>{entry.carbs}g carbs · </span>}
-                            {entry.fat > 0   && <span>{entry.fat}g fat</span>}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4 flex-shrink-0 ml-3">
-                          <div className="text-right">
-                            <p className="bc-data text-sm text-primary">{entry.calories}</p>
-                            <p className="bc-caption">cal</p>
+                    <>
+                      {mealEntries.map(entry => (
+                        <div key={entry.id}
+                          className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-primary truncate">{entry.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              {entry.time && <span className="bc-caption">{entry.time}</span>}
+                              {entry.protein > 0 && <span className="bc-caption" style={{ color: '#5856D6' }}>{entry.protein}g pro</span>}
+                              {entry.carbs > 0 && <span className="bc-caption text-bc-orange-dark">{entry.carbs}g carbs</span>}
+                              {entry.fat > 0 && <span className="bc-caption text-bc-green-dark">{entry.fat}g fat</span>}
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="bc-data text-sm" style={{ color: '#5856D6' }}>{entry.protein}g</p>
-                            <p className="bc-caption">protein</p>
+                          <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                            <div className="text-right">
+                              <p className="bc-data text-sm text-primary">{entry.calories}</p>
+                              <p className="bc-caption">cal</p>
+                            </div>
+                            <button onClick={() => removeEntry(entry.id)}
+                              className="w-8 h-8 rounded-full bg-canvas flex items-center justify-center text-tertiary hover:text-bc-red transition-colors min-w-[44px] min-h-[44px]">
+                              <X size={12} />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => removeEntry(entry.id)}
-                            className="w-6 h-6 rounded-full bg-canvas flex items-center justify-center
-                                       text-tertiary hover:text-bc-red transition-colors">
-                            <X size={12} />
-                          </button>
                         </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-4 py-6 text-center">
-                      <p className="bc-caption">No {mealGroup.toLowerCase()} logged yet.</p>
-                      <button
-                        onClick={() => {
-                          setSelectedMeal(mealGroup);
-                          setShowSearch(true);
-                          setTimeout(() => searchRef.current?.focus(), 100);
-                        }}
-                        className="text-bc-blue text-xs mt-1 hover:underline">
-                        + Add food
+                      ))}
+                      <button onClick={() => openSearch(mealGroup)}
+                        className="w-full flex items-center justify-center gap-1.5 py-3 text-xs text-bc-blue hover:bg-canvas transition-colors">
+                        <Plus size={12} /> Add to {mealGroup}
                       </button>
+                    </>
+                  ) : (
+                    <div className="px-4 py-5 text-center">
+                      <p className="bc-caption">Nothing logged yet.</p>
+                      <button onClick={() => openSearch(mealGroup)}
+                        className="text-bc-blue text-xs mt-1 hover:underline min-h-[44px]">+ Add food</button>
                     </div>
                   )}
                 </div>
@@ -484,43 +535,21 @@ export default function NutritionPage() {
         <>
           <p className="bc-caption uppercase tracking-wider mb-3">Weekly Calories</p>
           <div className="bc-card p-5 mb-6">
-            <div style={{ height: 200 }}>
+            <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weeklyData} barGap={4}>
-                  <XAxis dataKey="day" axisLine={false} tickLine={false}
-                    tick={{ fill: '#8E8E93', fontSize: 11 }} />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#8E8E93', fontSize: 11 }} />
                   <YAxis hide />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#FFFFFF',
-                      border: '0.5px solid rgba(60,60,67,0.12)',
-                      borderRadius: '14px',
-                      fontSize: '12px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                    }}
-                    formatter={(val) => [`${val} cal`, 'Calories']}
+                    contentStyle={{ backgroundColor: '#FFFFFF', border: '0.5px solid rgba(60,60,67,0.12)', borderRadius: '14px', fontSize: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+                    formatter={val => [`${val} cal`, 'Calories']}
                     cursor={{ fill: 'rgba(0,122,255,0.06)' }}
                   />
-                  {/* Dashed target reference line */}
-                  <ReferenceLine
-                    y={adjustedTarget}
-                    stroke="#007AFF"
-                    strokeDasharray="4 4"
-                    strokeOpacity={0.6}
-                    label={{
-                      value: `Target ${adjustedTarget}`,
-                      position: 'insideTopRight',
-                      fill: '#007AFF',
-                      fontSize: 10,
-                    }}
-                  />
+                  <ReferenceLine y={adjustedTarget} stroke="#007AFF" strokeDasharray="4 4" strokeOpacity={0.6}
+                    label={{ value: `${adjustedTarget} target`, position: 'insideTopRight', fill: '#007AFF', fontSize: 10 }} />
                   <Bar dataKey="calories" radius={[6, 6, 0, 0]}>
                     {weeklyData.map((entry, i) => (
-                      <Cell
-                        key={i}
-                        fill={entry.date === today ? '#007AFF' : '#BFDBFE'}
-                        fillOpacity={0.9}
-                      />
+                      <Cell key={i} fill={entry.date === today ? '#007AFF' : '#BFDBFE'} fillOpacity={0.9} />
                     ))}
                   </Bar>
                 </BarChart>

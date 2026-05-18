@@ -1,0 +1,336 @@
+/*
+ * mobile-responsive.css
+ * BaseCamp — mobile-first responsive layer
+ * Import after globals.css / Tailwind base
+ *
+ * Breakpoints:
+ *   sm  → 640px    (large phones / small tablets)
+ *   md  → 768px    (tablets)
+ *   lg  → 1024px   (desktop)
+ *   xl  → 1280px   (wide desktop)
+ *
+ * Safe-area insets use env() for notched devices.
+ */
+
+/* ───────────────────────── Root variables ───────────────────────── */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --bottom-nav-height: 64px;
+  --touch-min: 44px; /* Apple HIG / Material minimum */
+}
+
+/* ───────────────────────── Global touch targets ───────────────────────── */
+@media (max-width: 639px) {
+  button,
+  [role='button'],
+  a,
+  input,
+  select,
+  textarea {
+    min-height: var(--touch-min);
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* prevent iOS zoom on focus */
+  }
+}
+
+/* ───────────────────────── Bottom nav safe area ───────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: calc(var(--bottom-nav-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--bg-surface, #111111);
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.bottom-nav-spacer {
+  height: calc(var(--bottom-nav-height) + var(--safe-bottom) + 16px);
+}
+
+/* ───────────────────────── Dashboard KPI grid ───────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 639px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+}
+
+/* ───────────────────────── Schedule / Calendar ───────────────────────── */
+.schedule-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 639px) {
+  .schedule-calendar {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .schedule-calendar .day-header {
+    display: none;
+  }
+
+  .schedule-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    min-height: var(--touch-min);
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  }
+}
+
+/* ───────────────────────── Log form — full-screen sheet on mobile ──── */
+.log-form-sheet {
+  position: relative;
+}
+
+@media (max-width: 639px) {
+  .log-form-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: var(--safe-top);
+    padding-bottom: calc(72px + var(--safe-bottom));
+    background: var(--bg-primary, #0a0a0a);
+  }
+
+  .log-form-sheet .form-field {
+    min-height: var(--touch-min);
+    padding: 12px 16px;
+  }
+
+  .log-form-sheet .save-btn-anchor {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + var(--safe-bottom));
+    background: var(--bg-primary, #0a0a0a);
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+    z-index: 41;
+  }
+
+  .log-form-sheet .save-btn-anchor button {
+    width: 100%;
+    min-height: 52px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 14px;
+  }
+}
+
+/* ───────────────────────── Readiness check-in ───────────────────────── */
+.readiness-emojis {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.readiness-emoji-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
+}
+
+.readiness-emoji-btn:active,
+.readiness-emoji-btn.selected {
+  transform: scale(1.15);
+  border-color: var(--accent, #22c55e);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+@media (max-width: 639px) {
+  .readiness-emojis {
+    gap: 12px;
+    padding: 0 24px;
+  }
+
+  .readiness-emoji-btn {
+    width: 64px;
+    height: 64px;
+    font-size: 28px;
+  }
+}
+
+/* ───────────────────────── Plan view — week grid ───────────────────── */
+.plan-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 639px) {
+  .plan-week-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .plan-week-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+}
+
+.insight-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 639px) {
+  .insight-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .insight-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+/* ───────────────────────── Nutrition page ───────────────────────────── */
+.nutrition-rings {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+}
+
+@media (max-width: 639px) {
+  .nutrition-rings {
+    gap: 12px;
+    transform: scale(0.82);
+    transform-origin: center top;
+  }
+
+  .nutrition-rings svg {
+    width: 72px;
+    height: 72px;
+  }
+}
+
+.meal-section {
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+@media (max-width: 639px) {
+  .meal-section.collapsed {
+    max-height: 56px; /* header only */
+  }
+
+  .meal-section-header {
+    min-height: var(--touch-min);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+  }
+}
+
+/* ───────────────────────── Training log — horizontal scroll ────────── */
+.training-log-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.training-log-table {
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.training-log-table th:first-child,
+.training-log-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-primary, #0a0a0a);
+}
+
+@media (max-width: 639px) {
+  .training-log-table th,
+  .training-log-table td {
+    padding: 10px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+}
+
+/* ───────────────────────── Utility: mobile-only / desktop-only ────── */
+@media (max-width: 639px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 640px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+/* ───────────────────────── Smooth scrolling & overscroll ─────────── */
+html {
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* ───────────────────────── Pull-to-refresh prevention ─────────────── */
+@media (max-width: 639px) {
+  .app-shell {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+}

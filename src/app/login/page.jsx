@@ -15,22 +15,18 @@ export default function LoginPage() {
   const supabase = createClient()
 
   async function handleEmailLogin(e) {
-    e.preventDefault()   // Prevent the form from refreshing the page
+    e.preventDefault()
     setError(null)
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError(error.message)
       setLoading(false)
     } else {
-      // Successful login — redirect to dashboard
       router.push('/')
-      router.refresh() // Force Next.js to re-run middleware with the new session
+      router.refresh()
     }
   }
 
@@ -39,7 +35,6 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        // After Google auth, redirect back to our app's callback handler
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
@@ -50,16 +45,16 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#0A0F1A] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
 
-        {/* Logo / Wordmark */}
+        {/* Wordmark — CHANGED: BASE is white, CAMP is blue */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-primary">
-            BASE<span className="text-blue-500">CAMP</span>
+          <h1 className="text-3xl font-bold tracking-tight">
+            <span className="text-white">BASE</span><span className="text-blue-500">CAMP</span>
           </h1>
           <p className="text-gray-500 text-sm mt-2">Your entire training life, one app.</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-[bg-surface] rounded-2xl p-6 border border-gray-800">
+        <div className="bg-white/5 rounded-2xl p-6 border border-gray-800">
 
           {/* Google Sign In */}
           <button
@@ -77,47 +72,51 @@ export default function LoginPage() {
 
           {/* Divider */}
           <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px border-border" />
+            <div className="flex-1 h-px bg-gray-800" />
             <span className="text-xs text-gray-500">or</span>
-            <div className="flex-1 h-px border-border" />
+            <div className="flex-1 h-px bg-gray-800" />
           </div>
 
           {/* Email / Password Form */}
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
-              <label className="block text-xs text-gray-400 mb-1.5">Email</label>
+              {/* CHANGED: label white */}
+              <label className="block text-xs text-white mb-1.5">Email</label>
+              {/* CHANGED: input bg white, text dark */}
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full px-4 py-3 bg-[#0A0F1A] border border-gray-700 rounded-xl text-primary text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1.5">Password</label>
+              {/* CHANGED: label white */}
+              <label className="block text-xs text-white mb-1.5">Password</label>
+              {/* CHANGED: input bg white, text dark */}
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-3 bg-[#0A0F1A] border border-gray-700 rounded-xl text-primary text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
               />
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
                 <p className="text-red-400 text-xs">{error}</p>
               </div>
             )}
 
+            {/* CHANGED: button text white */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-primary font-medium rounded-xl transition-colors text-sm"
+              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors text-sm"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>

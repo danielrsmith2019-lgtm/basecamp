@@ -17,9 +17,11 @@ import { useWorkouts } from '@/lib/WorkoutContext';
 import Metric from '@/components/shared/Metric';
 import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon } from '@/utils/icons';
-import { Flame } from 'lucide-react';
+import { Flame, Sparkles } from 'lucide-react';
 import PlanAdaptationList from '@/components/shared/PlanAdaptation';
 import { getFuelStatus } from '@/utils/nutrition';
+import ShareWorkoutButton from '@/components/shared/ShareWorkoutButton';
+import { incrementShareCount } from '@/lib/share-tracking';
 
 
 export default function Dashboard() {
@@ -27,6 +29,7 @@ export default function Dashboard() {
   const { user } = useAuth();
 
   const [logTarget, setLogTarget]                 = useState(null);
+  const [justLogged, setJustLogged]               = useState(null); // ADDED: track just-completed workout for share prompt
   const [dismissedInsights, setDismissedInsights] = useState(new Set());
   const [showCheckIn, setShowCheckIn]             = useState(false);
   const [checkInData, setCheckInData]             = useState(null);
@@ -35,6 +38,22 @@ export default function Dashboard() {
   const [todayCalTarget, setTodayCalTarget]       = useState(2000);
 
   const today = new Date().toISOString().split('T')[0];
+
+  const [insightsSectionCollapsed, setInsightsSectionCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem('bc-insights-dismissed');
+    if (!stored) return false;
+    const { date } = JSON.parse(stored);
+    return date === new Date().toISOString().split('T')[0];
+  });
+
+  const [adaptationsSectionCollapsed, setAdaptationsSectionCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem('bc-adaptations-dismissed');
+    if (!stored) return false;
+    const { date } = JSON.parse(stored);
+    return date === new Date().toISOString().split('T')[0];
+  });
 
   // ── Readiness trigger ──────────────────────────────────
   useEffect(() => {
@@ -45,7 +64,13 @@ export default function Dashboard() {
         setShowCheckIn(true);
       } else if (settings?.last_checkin_data) {
         setCheckInData(settings.last_checkin_data);
-        setReadinessScore(calculateReadinessScore(settings.last_checkin_data, workouts));
+        const score = await calculateReadinessScore(
+          settings.last_checkin_data,
+          workouts,
+          getNutritionLog,
+          user.id
+        );
+        setReadinessScore(score);
       }
     }
     checkTrigger();
@@ -68,7 +93,7 @@ export default function Dashboard() {
 
   async function handleCheckInComplete(data) {
     setCheckInData(data);
-    const score = calculateReadinessScore(data, workouts);
+    const score = await calculateReadinessScore(data, workouts, getNutritionLog, user.id);
     setReadinessScore(score);
     setShowCheckIn(false);
     if (user) {
@@ -94,6 +119,52 @@ export default function Dashboard() {
     const plannedRuns    = runs.filter(w => w.status !== 'skipped');
     const plannedLifts   = lifts.filter(w => w.status !== 'skipped');
 
+    // ── Weekly progress (this week's sessions by day) ──
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(monday.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    const todayStr = now.toISOString().split('T')[0];
+
+    const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    const thisWeekRunProgress = weekDays.map((label, i) => {
+      const date = new Date(monday);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      const dayRuns = runs.filter(w => w.date === dateStr);
+      return {
+        label,
+        planned:   dayRuns.some(w => w.status === 'planned'),
+        completed: dayRuns.some(w => w.status === 'completed'),
+        skipped:   dayRuns.every(w => w.status === 'skipped') && dayRuns.length > 0,
+        isToday:   dateStr === todayStr,
+        isFuture:  dateStr > todayStr,
+      };
+    });
+
+    const thisWeekLiftProgress = weekDays.map((label, i) => {
+      const date = new Date(monday);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      const dayLifts = lifts.filter(w => w.date === dateStr);
+      return {
+        label,
+        planned:   dayLifts.some(w => w.status === 'planned'),
+        completed: dayLifts.some(w => w.status === 'completed'),
+        skipped:   dayLifts.every(w => w.status === 'skipped') && dayLifts.length > 0,
+        isToday:   dateStr === todayStr,
+        isFuture:  dateStr > todayStr,
+      };
+    });
+
+    const thisWeekRunsCompleted  = thisWeekRunProgress.filter(d => d.completed).length;
+    const thisWeekRunsPlanned    = thisWeekRunProgress.filter(d => d.planned || d.completed || d.skipped).length;
+    const thisWeekLiftsCompleted = thisWeekLiftProgress.filter(d => d.completed).length;
+    const thisWeekLiftsPlanned   = thisWeekLiftProgress.filter(d => d.planned || d.completed || d.skipped).length;
+
     return {
       runCompletionRate:  plannedRuns.length  > 0 ? Math.round((completedRuns.length  / plannedRuns.length)  * 100) : 0,
       liftCompletionRate: plannedLifts.length > 0 ? Math.round((completedLifts.length / plannedLifts.length) * 100) : 0,
@@ -106,6 +177,12 @@ export default function Dashboard() {
       currentWeekVolume:   getWeeklyData(completedLifts, w => w.details.totalVolume    || 0)[3] || 0,
       weeklyVolumeData:    getWeeklyData(completedLifts, w => w.details.totalVolume    || 0),
       streak: calculateStreak(workouts),
+      thisWeekRunProgress,
+      thisWeekLiftProgress,
+      thisWeekRunsCompleted,
+      thisWeekRunsPlanned,
+      thisWeekLiftsCompleted,
+      thisWeekLiftsPlanned,
     };
   }, [workouts]);
 
@@ -123,8 +200,12 @@ export default function Dashboard() {
   // ── Fuel status ────────────────────────────────────────
   const fuelStatus = getFuelStatus(todayCalories, todayCalTarget);
 
+  // CHANGED: save handler now tracks just-logged workout for share prompt
   function handleSave(data) {
     saveWorkout(data);
+    if (data.status === 'completed') {
+      setJustLogged(data);
+    }
     setLogTarget(null);
   }
 
@@ -139,32 +220,111 @@ export default function Dashboard() {
   return (
     <div>
 
+      {/* ── Post-workout share prompt ── */}
+      {/* ADDED: shows after logging a completed workout */}
+      {justLogged && (
+        <div className="bc-card mb-6 border-l-4 border-bc-green">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎉</span>
+              <div>
+                <p className="text-sm font-semibold text-primary">Workout logged!</p>
+                <p className="bc-caption">
+                  {justLogged.type === 'run' && justLogged.details.actualDistance
+                    ? `${justLogged.details.actualDistance} mi run`
+                    : justLogged.type === 'lift' && justLogged.details.sessionName
+                    ? justLogged.details.sessionName
+                    : 'Great session'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShareWorkoutButton
+                workout={justLogged}
+                userName={user?.display_name || user?.email?.split('@')[0] || ''}
+                deepLinkUrl={`https://basecamp.fit/workout/${justLogged.id}`}
+                onShareComplete={(w) => incrementShareCount(w.id)}
+                variant="button"
+              />
+              <button
+                onClick={() => setJustLogged(null)}
+                className="text-tertiary hover:text-secondary text-xs min-h-[44px] px-2">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Plan Adaptations ── */}
-      <PlanAdaptationList
-        adaptations={adaptations}
-        onAccept={acceptAdaptation}
-        onReject={rejectAdaptation}
-      />
+      {adaptations?.filter(a => a.status === 'pending').length > 0 && (
+        <div className="mb-6">
+          <button
+            onClick={() => {
+              const next = !adaptationsSectionCollapsed;
+              setAdaptationsSectionCollapsed(next);
+              if (next) {
+                localStorage.setItem('bc-adaptations-dismissed', JSON.stringify({ date: today }));
+              } else {
+                localStorage.removeItem('bc-adaptations-dismissed');
+              }
+            }}
+            className="flex items-center gap-2 mb-3 w-full group min-h-[44px]">
+            <Sparkles size={14} className="text-bc-indigo" />
+            <p className="bc-caption uppercase tracking-wider">Plan Adaptations</p>
+            <span className="bc-pill bg-bc-indigo-light text-bc-indigo-dark text-[10px]">
+              {adaptations.filter(a => a.status === 'pending').length} pending
+            </span>
+            <span className="ml-auto bc-caption group-hover:text-primary transition-colors">
+              {adaptationsSectionCollapsed ? 'Show' : 'Hide'}
+            </span>
+          </button>
+          {!adaptationsSectionCollapsed && (
+            <PlanAdaptationList
+              adaptations={adaptations}
+              onAccept={acceptAdaptation}
+              onReject={rejectAdaptation}
+            />
+          )}
+        </div>
+      )}
 
       {/* ── Cross-Training Insights ── */}
       {visibleInsights.length > 0 && (
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <p className="bc-caption uppercase tracking-wider mb-0">Cross-Training Insights</p>
-            <span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px]">
-              {visibleInsights.length} alert{visibleInsights.length !== 1 ? 's' : ''}
+          <button
+            onClick={() => {
+              const next = !insightsSectionCollapsed;
+              setInsightsSectionCollapsed(next);
+              if (next) {
+                localStorage.setItem('bc-insights-dismissed', JSON.stringify({ date: today }));
+              } else {
+                localStorage.removeItem('bc-insights-dismissed');
+              }
+            }}
+            className="flex items-center justify-between w-full mb-3 group min-h-[44px]">
+            <div className="flex items-center gap-2">
+              <p className="bc-caption uppercase tracking-wider">Cross-Training Insights</p>
+              <span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px]">
+                {visibleInsights.length} alert{visibleInsights.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <span className="bc-caption group-hover:text-primary transition-colors">
+              {insightsSectionCollapsed ? 'Show' : 'Hide'}
             </span>
-          </div>
-          <div className="space-y-3">
-            {visibleInsights.map(insight => (
-              <InsightCard
-                key={insight.id}
-                insight={insight}
-                onDismiss={(id) => setDismissedInsights(prev => new Set([...prev, id]))}
-                onAction={(i)  => setDismissedInsights(prev => new Set([...prev, i.id]))}
-              />
-            ))}
-          </div>
+          </button>
+          {!insightsSectionCollapsed && (
+            <div className="space-y-3">
+              {visibleInsights.map(insight => (
+                <InsightCard
+                  key={insight.id}
+                  insight={insight}
+                  onDismiss={(id) => setDismissedInsights(prev => new Set([...prev, id]))}
+                  onAction={(i)  => setDismissedInsights(prev => new Set([...prev, i.id]))}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -173,7 +333,6 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-3">
           <p className="bc-caption uppercase tracking-wider mb-0">Today&apos;s Plan</p>
           <div className="flex items-center gap-2">
-            {/* Fuel status indicator */}
             <div className="flex items-center gap-1.5">
               <div
                 className="w-2 h-2 rounded-full"
@@ -195,7 +354,6 @@ export default function Dashboard() {
                   ${w.type === 'run' ? 'border-run-accent bg-run-bg' : 'border-lift-accent bg-lift-bg'}
                   ${w.status === 'completed' ? 'opacity-70' : ''}`}>
                 <div className="flex items-center gap-3">
-                  {/* Per-workout fuel dot for planned sessions */}
                   {w.status === 'planned' && (
                     <div
                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -227,15 +385,27 @@ export default function Dashboard() {
                     </p>
                   </div>
                 </div>
-                {w.status === 'planned' ? (
-                  <button onClick={() => setLogTarget(w)} className="bc-btn-log">
-                    Log It
-                  </button>
-                ) : (
-                  <span className="bc-pill bg-bc-green-light text-bc-green-dark text-xs flex items-center gap-1">
-                    <StatusIcon status="completed" size={10} /> Done
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {w.status === 'planned' ? (
+                    <button onClick={() => setLogTarget(w)} className="bc-btn-log min-h-[44px]">
+                      Log It
+                    </button>
+                  ) : (
+                    <>
+                      {/* ADDED: share icon on completed today's workouts */}
+                      <ShareWorkoutButton
+                        workout={w}
+                        userName={user?.display_name || user?.email?.split('@')[0] || ''}
+                        deepLinkUrl={`https://basecamp.fit/workout/${w.id}`}
+                        onShareComplete={(wk) => incrementShareCount(wk.id)}
+                        variant="icon"
+                      />
+                      <span className="bc-pill bg-bc-green-light text-bc-green-dark text-xs flex items-center gap-1">
+                        <StatusIcon status="completed" size={10} /> Done
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -285,7 +455,7 @@ export default function Dashboard() {
             </div>
             <button
               onClick={() => setShowCheckIn(true)}
-              className="bc-btn-secondary !text-xs !py-1.5 !px-3">
+              className="bc-btn-secondary !text-xs !py-1.5 !px-3 min-h-[44px]">
               Update
             </button>
           </div>
@@ -295,7 +465,7 @@ export default function Dashboard() {
               <span className="text-base" style={{ color: '#FF9500' }}>⚠️</span>
               <div>
                 <p className="text-xs font-semibold" style={{ color: '#E65100' }}>
-                  Consider swapping today's hard session
+                  Consider swapping today&apos;s hard session
                 </p>
                 <p className="bc-caption mt-0.5">
                   Your readiness is low. An easy run or rest day would help recovery.
@@ -307,35 +477,98 @@ export default function Dashboard() {
       )}
 
       {/* ── KPI Cards ── */}
+      {/* CHANGED: bento-grid gets responsive overrides for mobile 2-col */}
       <p className="bc-caption uppercase tracking-wider mb-3">Performance</p>
       <div className="bento-grid mb-6">
 
+        {/* ── Run Completion ── */}
         <div className="bc-card p-5 bento-hero">
-          <Metric label="Run Completion" value={`${stats.runCompletionRate}%`} size="hero" color="text-run-accent" />
-          <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-3 mb-2">
+          <div className="flex items-start justify-between mb-1">
+            <Metric label="Run Completion" value={`${stats.runCompletionRate}%`} size="hero" color="text-run-accent" />
+            <span className="bc-caption mt-1">
+              {stats.thisWeekRunsCompleted}/{stats.thisWeekRunsPlanned} this week
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-2 mb-3">
             <div className="h-full rounded-full bg-run-accent transition-[width] duration-700 ease-out"
               style={{ width: `${stats.runCompletionRate}%` }} />
           </div>
+          {/* Weekly day bars */}
+          <div className="flex items-center gap-1 mb-2">
+            {stats.thisWeekRunProgress.map((day, i) => (
+              <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
+                <div
+                  className="w-full h-1.5 rounded-full transition-all"
+                  style={{
+                    backgroundColor:
+                      day.completed ? '#2E7D32' :
+                      day.skipped   ? '#FFEBEE' :
+                      day.planned   ? '#A5D6A7' :
+                      day.isToday   ? '#E8F5E9' :
+                      '#F2F2F7',
+                    opacity: day.isFuture && !day.planned ? 0.4 : 1,
+                  }}
+                />
+                <span className="text-[8px] font-medium"
+                      style={{ color: day.isToday ? '#2E7D32' : '#AEAEB2' }}>
+                  {day.label}
+                </span>
+              </div>
+            ))}
+          </div>
           <p className="text-xs text-tertiary">
-            <span className="bc-data">{stats.completedRuns}</span> of <span className="bc-data">{stats.totalRuns}</span> runs
+            <span className="bc-data">{stats.completedRuns}</span> of{' '}
+            <span className="bc-data">{stats.totalRuns}</span> total runs
           </p>
         </div>
 
+        {/* ── Lift Completion ── */}
         <div className="bc-card p-5 bento-half">
-          <Metric label="Lift Completion" value={`${stats.liftCompletionRate}%`} size="hero" color="text-lift-accent" />
-          <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-3 mb-2">
+          <div className="flex items-start justify-between mb-1">
+            <Metric label="Lift Completion" value={`${stats.liftCompletionRate}%`} size="hero" color="text-lift-accent" />
+            <span className="bc-caption mt-1">
+              {stats.thisWeekLiftsCompleted}/{stats.thisWeekLiftsPlanned} this week
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-2 mb-3">
             <div className="h-full rounded-full bg-lift-accent transition-[width] duration-700 ease-out"
               style={{ width: `${stats.liftCompletionRate}%` }} />
           </div>
+          {/* Weekly day bars */}
+          <div className="flex items-center gap-1 mb-2">
+            {stats.thisWeekLiftProgress.map((day, i) => (
+              <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
+                <div
+                  className="w-full h-1.5 rounded-full transition-all"
+                  style={{
+                    backgroundColor:
+                      day.completed ? '#1565C0' :
+                      day.skipped   ? '#FFEBEE' :
+                      day.planned   ? '#90CAF9' :
+                      day.isToday   ? '#E3F2FD' :
+                      '#F2F2F7',
+                    opacity: day.isFuture && !day.planned ? 0.4 : 1,
+                  }}
+                />
+                <span className="text-[8px] font-medium"
+                      style={{ color: day.isToday ? '#1565C0' : '#AEAEB2' }}>
+                  {day.label}
+                </span>
+              </div>
+            ))}
+          </div>
           <p className="text-xs text-tertiary">
-            <span className="bc-data">{stats.completedLifts}</span> of <span className="bc-data">{stats.totalLifts}</span> lifts
+            <span className="bc-data">{stats.completedLifts}</span> of{' '}
+            <span className="bc-data">{stats.totalLifts}</span> total lifts
           </p>
         </div>
 
+        {/* ── Training Load ── */}
         <div className="bento-third">
           <TrainingLoadCard load={trainingLoad} />
         </div>
 
+        {/* ── Weekly Miles ── */}
         <div className="bc-card p-4 bento-quarter">
           <div className="flex items-end justify-between mb-1">
             <Metric label="Weekly Miles" value={stats.currentWeekMileage} size="lg" />
@@ -344,6 +577,7 @@ export default function Dashboard() {
           <p className="text-[10px] text-tertiary">Last 4 weeks trend</p>
         </div>
 
+        {/* ── Weekly Volume ── */}
         <div className="bc-card p-4 bento-quarter">
           <div className="flex items-end justify-between mb-1">
             <Metric
@@ -359,6 +593,7 @@ export default function Dashboard() {
           <p className="text-[10px] text-tertiary">Last 4 weeks</p>
         </div>
 
+        {/* ── Streak ── */}
         <div className="bc-card p-4 bento-quarter">
           <p className="bc-caption uppercase tracking-wider mb-2">Streak</p>
           <div className="flex items-end justify-between mb-1">
@@ -373,10 +608,10 @@ export default function Dashboard() {
           <p className="text-[10px] text-tertiary">in a row</p>
         </div>
 
-        <div className="bento-quarter hidden md:block" />
+        <div className="hidden md:block bento-quarter" />
       </div>
 
-      {/* ── Weekly Chart ── */}
+      {/* ── Weekly Training Load Chart ── */}
       <p className="bc-caption uppercase tracking-wider mb-3">Weekly Training Load</p>
       <div className="bc-card p-5 mb-6">
         <div className="h-48 w-full">
@@ -447,6 +682,14 @@ export default function Dashboard() {
               {w.type === 'lift' && w.details.totalVolume && (
                 <span className="bc-data text-sm text-lift-accent">{formatVolume(w.details.totalVolume)}</span>
               )}
+              {/* ADDED: share icon on recent activity items */}
+              <ShareWorkoutButton
+                workout={w}
+                userName={user?.display_name || user?.email?.split('@')[0] || ''}
+                deepLinkUrl={`https://basecamp.fit/workout/${w.id}`}
+                onShareComplete={(wk) => incrementShareCount(wk.id)}
+                variant="icon"
+              />
             </div>
           </div>
         ))}

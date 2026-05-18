@@ -28,6 +28,13 @@ function ShellContent({ children }) {
       <Header workouts={workouts} />
       <Navigation />
 
+      {/*
+        pt-14  = clears the fixed header (h-14 = 56px)
+        pb-20  = clears the mobile bottom nav (h-16 = 64px + safe area)
+        md:pl-56 = clears the desktop sidebar (w-56)
+        md:pb-0  = no bottom padding needed on desktop
+        These values are fixed and never change between pages.
+      */}
       <main className="pt-14 md:pl-56 pb-20 md:pb-0 min-h-screen bg-canvas">
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
           {children}
