@@ -693,70 +693,193 @@ export default function PlansPage() {
                     </div>
                   </div>
 
-                  {/* ── Mobile: vertical day list (active days only) ── */}
-                  <div className="sm:hidden mt-3 space-y-2">
-                    {DAY_ORDER.map(day => {
-                      const run = week.runs?.find(r => r.dayOfWeek === day);
-                      const lift = week.lifts?.find(l => l.dayOfWeek === day);
-                      const restEntry = Array.isArray(week.restDays)
-                        ? week.restDays.find(r => typeof r === 'object' ? r.dayOfWeek === day : r === day)
-                        : null;
-                      const isRest = !!restEntry;
-                      const hasContent = run || lift || isRest;
-                      if (!hasContent) return null;
+                  {/* ── Mobile: horizontal scrollable week strip ── */}
+                  <div className="sm:hidden mt-3 -mx-4">
+                    <div className="flex gap-2 overflow-x-auto px-4 pb-2"
+                      style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                      {DAY_ORDER.map(day => {
+                        const run = week.runs?.find(r => r.dayOfWeek === day);
+                        const lift = week.lifts?.find(l => l.dayOfWeek === day);
+                        const restEntry = Array.isArray(week.restDays)
+                          ? week.restDays.find(r => typeof r === 'object' ? r.dayOfWeek === day : r === day)
+                          : null;
+                        const isRest = !!restEntry;
+                        const isEmpty = !run && !lift && !isRest;
 
-                      const dayDate = getPlanDayDate(week.weekNumber, day);
-                      const isToday = dayDate.toLocaleDateString('en-CA') === TODAY_STR;
+                        const dayDate = getPlanDayDate(week.weekNumber, day);
+                        const isToday = dayDate.toLocaleDateString('en-CA') === TODAY_STR;
+                        const dateLabel = dayDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 
-                      return (
-                        <div key={day} className={`flex items-start gap-3 p-3 rounded-[12px] border ${
-                          isToday ? 'border-bc-blue/30 bg-bc-blue-light/30' :
-                          run ? 'bg-run-bg border-run-accent/20' :
-                          lift ? 'bg-lift-bg border-lift-accent/20' :
-                          'bg-rest-bg border-rest-accent/20'
-                        }`}>
-                          {/* Date pill */}
-                          <div className={`flex-shrink-0 text-center w-10 pt-0.5`}>
-                            <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-bc-blue' : 'text-tertiary'}`}>
-                              {DAY_SHORT[day]}
-                            </p>
-                            <p className={`text-[9px] ${isToday ? 'text-bc-blue' : 'text-tertiary'}`}>
-                              {dayDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
-                            </p>
+                        return (
+                          <div key={day} className="flex-shrink-0 flex flex-col"
+                            style={{ width: isEmpty ? 44 : (run && lift) ? 120 : 108 }}>
+                            {/* Day header pill */}
+                            <div className={`flex flex-col items-center py-1.5 rounded-t-[10px] mb-0.5
+                              ${isToday ? 'bg-bc-blue' : 'bg-canvas'}`}>
+                              <span className={`text-[10px] font-bold uppercase
+                                ${isToday ? 'text-white' : 'text-tertiary'}`}>
+                                {DAY_SHORT[day]}
+                              </span>
+                              <span className={`text-[9px] ${isToday ? 'text-white/80' : 'text-tertiary'}`}>
+                                {dateLabel}
+                              </span>
+                            </div>
+                            {/* Day content cell */}
+                            <div className={`rounded-b-[10px] rounded-t-[2px] p-2 flex-1 border
+                              ${isToday ? 'border-bc-blue/30' :
+                                isRest ? 'border-rest-accent/20 bg-rest-bg' :
+                                run && lift ? 'border-border bg-surface' :
+                                run ? 'border-run-accent/20 bg-run-bg' :
+                                lift ? 'border-lift-accent/20 bg-lift-bg' :
+                                'border-transparent bg-canvas opacity-30'}`}
+                              style={{ minHeight: 80 }}>
+                              {run && (
+                                <div className="mb-1.5">
+                                  <div className="flex items-center gap-0.5 mb-0.5">
+                                    <div className="w-1 h-1 rounded-full bg-run-accent flex-shrink-0" />
+                                    <span className="text-[9px] font-semibold text-run-accent uppercase truncate">
+                                      {getRunLabel(run.runType)}
+                                    </span>
+                                  </div>
+                                  <p className="text-[12px] font-bold text-primary leading-none"
+                                    style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                    {run.distance} <span className="text-[9px] font-normal text-tertiary">mi</span>
+                                  </p>
+                                  {run.targetPace && (
+                                    <p className="text-[9px] text-tertiary mt-0.5">{run.targetPace}</p>
+                                  )}
+                                </div>
+                              )}
+                              {lift && (
+                                <div>
+                                  <div className="flex items-center gap-0.5 mb-0.5">
+                                    <div className="w-1 h-1 rounded-full bg-lift-accent flex-shrink-0" />
+                                    <span className="text-[9px] font-semibold text-lift-accent truncate">
+                                      {(lift.sessionName || 'Lift').split(' ')[0]}
+                                    </span>
+                                  </div>
+                                  <p className="text-[9px] text-tertiary">
+                                    {lift.exercises?.length || 0} ex
+                                  </p>
+                                </div>
+                              )}
+                              {isRest && !run && !lift && (
+                                <div className="flex items-center justify-center h-full">
+                                  <span className="text-[9px] text-rest-accent font-medium">Rest</span>
+                                </div>
+                              )}
+                              {isEmpty && (
+                                <div className="flex items-center justify-center h-full">
+                                  <span className="text-[9px] text-tertiary">—</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          {/* Content */}
-                          <div className="flex-1 min-w-0 space-y-1">
-                            {run && (
-                              <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-run-accent flex-shrink-0" />
-                                <span className="text-xs font-semibold text-run-accent">{getRunLabel(run.runType)}</span>
-                                <span className="text-xs font-bold text-primary ml-auto" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                                  {run.distance} mi
-                                </span>
-                              </div>
-                            )}
-                            {run?.targetPace && (
-                              <p className="text-[10px] text-tertiary pl-4">@ {run.targetPace}</p>
-                            )}
-                            {lift && (
-                              <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-lift-accent flex-shrink-0" />
-                                <span className="text-xs font-semibold text-lift-accent truncate">{lift.sessionName || 'Strength'}</span>
-                                <span className="text-[10px] text-tertiary ml-auto">{lift.exercises?.length || 0} ex</span>
-                              </div>
-                            )}
-                            {isRest && (
-                              <p className="text-xs text-rest-accent font-medium">Rest Day</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                    {/* Scroll hint */}
+                    <p className="px-4 bc-caption text-center mt-1 opacity-60">swipe to see full week</p>
                   </div>
 
-                  {/* Session details — view mode */}
+                  {/* ── Mobile session detail cards ── */}
                   {isExpanded && !editMode && (
-                    <div className="mt-4 space-y-2">
+                    <div className="sm:hidden mt-3 space-y-2">
+                      {week.runs?.map((run, runIdx) => {
+                        const dayDate = getPlanDayDate(week.weekNumber, run.dayOfWeek);
+                        const isToday = dayDate.toLocaleDateString('en-CA') === TODAY_STR;
+                        return (
+                          <div key={`mob-run-${runIdx}`}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-[12px] border
+                              ${isToday ? 'border-bc-blue/30 bg-bc-blue-light/20' : 'bg-run-bg border-run-accent/20'}`}>
+                            <div className="w-1 self-stretch rounded-full bg-run-accent flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className={`text-[10px] font-bold uppercase ${isToday ? 'text-bc-blue' : 'text-run-accent'}`}>
+                                  {DAY_SHORT[run.dayOfWeek]}
+                                </span>
+                                <span className="text-[10px] text-tertiary">
+                                  {dayDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                                </span>
+                                <span className="text-[10px] text-run-accent opacity-50">·</span>
+                                <span className="text-[10px] font-medium text-run-accent">{getRunLabel(run.runType)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold text-primary"
+                                  style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                  {run.distance} <span className="text-xs font-normal text-tertiary">mi</span>
+                                </span>
+                                {run.targetPace && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 bg-white/60 rounded-full border border-run-accent/20">
+                                    <span className="text-[9px] text-tertiary">@</span>
+                                    <span className="text-[10px] font-semibold text-primary">{run.targetPace}</span>
+                                    <span className="text-[9px] text-tertiary">/mi</span>
+                                  </span>
+                                )}
+                                {run.duration && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 bg-white/60 rounded-full border border-run-accent/20">
+                                    <span className="text-[10px] font-semibold text-primary">{run.duration}</span>
+                                    <span className="text-[9px] text-tertiary">min</span>
+                                  </span>
+                                )}
+                              </div>
+                              {run.notes && <p className="text-[10px] text-secondary mt-1 italic">{run.notes}</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {week.lifts?.map((lift, liftIdx) => {
+                        const dayDate = getPlanDayDate(week.weekNumber, lift.dayOfWeek);
+                        const isToday = dayDate.toLocaleDateString('en-CA') === TODAY_STR;
+                        return (
+                          <div key={`mob-lift-${liftIdx}`}
+                            className={`px-3 py-2.5 rounded-[12px] border
+                              ${isToday ? 'border-bc-blue/30 bg-bc-blue-light/20' : 'bg-lift-bg border-lift-accent/20'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`text-[10px] font-bold uppercase ${isToday ? 'text-bc-blue' : 'text-lift-accent'}`}>
+                                {DAY_SHORT[lift.dayOfWeek]}
+                              </span>
+                              <span className="text-[10px] text-tertiary">
+                                {dayDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                              </span>
+                              <span className="text-[10px] text-lift-accent opacity-50">·</span>
+                              <span className="text-xs font-semibold text-lift-accent flex-1 truncate">{lift.sessionName}</span>
+                              {lift.duration && (
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/60 rounded-full border border-lift-accent/20 flex-shrink-0">
+                                  <span className="text-[10px] font-semibold text-primary">{lift.duration}</span>
+                                  <span className="text-[9px] text-tertiary">min</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 gap-1">
+                              {lift.exercises?.slice(0, 4).map((ex, i) => (
+                                <div key={i} className="flex items-center justify-between gap-2 px-2 py-1 bg-white/50 rounded-[8px]">
+                                  <span className="text-[11px] text-primary truncate flex-1">{ex.name}</span>
+                                  {(ex.sets && ex.reps) && (
+                                    <span className="px-1.5 py-0.5 bg-lift-bg rounded-full border border-lift-accent/20 flex-shrink-0">
+                                      <span className="text-[11px] font-bold text-lift-accent"
+                                        style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                        {ex.sets}×{ex.reps}
+                                      </span>
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                              {lift.exercises?.length > 4 && (
+                                <p className="text-[10px] text-tertiary text-center pt-0.5">
+                                  +{lift.exercises.length - 4} more exercises
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Session details — desktop only (mobile uses the scroll strip above) */}
+                  {isExpanded && !editMode && (
+                    <div className="hidden sm:block mt-4 space-y-2">
 
                       {/* ── Run rows ── */}
                       {week.runs?.map((run, runIdx) => (
@@ -841,7 +964,7 @@ export default function PlansPage() {
 
                   {/* Session details — edit mode */}
                   {isExpanded && editMode && (
-                    <div className="mt-4 space-y-3">
+                    <div className="hidden sm:block mt-4 space-y-3">
                       {week.lifts?.map((lift, liftIdx) => (
                         <div key={`edit-lift-${liftIdx}`} className="p-3 bg-lift-bg rounded-[14px] border border-lift-accent/20">
                           <p className="text-xs font-medium text-lift-accent mb-2">{DAY_SHORT[lift.dayOfWeek]} — {lift.sessionName}</p>
