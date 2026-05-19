@@ -8,7 +8,7 @@ import PlanWizard from '@/components/shared/PlanWizard';
 import PlanEditor from '@/components/shared/PlanEditor';
 import {
   Sparkles, Play, Pencil, X, Check, ChevronDown, ChevronUp,
-  Calendar, Loader2, Lightbulb, MessageSquare,
+  Calendar, Loader2, Lightbulb, MessageSquare, AlertTriangle,
 } from 'lucide-react';
 
 const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
