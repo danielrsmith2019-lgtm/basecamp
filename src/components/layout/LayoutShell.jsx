@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Navigation from './Navigation';
-import { WorkoutProvider, useWorkouts } from '@/lib/WorkoutContext';
+import { WorkoutsProvider as WorkoutProvider, useWorkouts } from '@/lib/WorkoutContext';
 import { Trophy } from 'lucide-react';
 
 const AUTH_ROUTES      = ['/login', '/signup'];
