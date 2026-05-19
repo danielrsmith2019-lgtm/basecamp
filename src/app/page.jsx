@@ -23,13 +23,20 @@ import { getFuelStatus } from '@/utils/nutrition';
 import ShareWorkoutButton from '@/components/shared/ShareWorkoutButton';
 import { incrementShareCount } from '@/lib/share-tracking';
 
+// ── FIX: use local date, not UTC ──────────────────────────
+// new Date().toISOString() returns UTC — e.g. 11pm EST Mon = Tue UTC
+// toLocaleDateString('en-CA') returns YYYY-MM-DD in the user's local timezone
+function getLocalToday() {
+  return new Date().toLocaleDateString('en-CA');
+}
+
 
 export default function Dashboard() {
   const { workouts, prs, saveWorkout, isLoaded, adaptations, acceptAdaptation, rejectAdaptation } = useWorkouts();
   const { user } = useAuth();
 
   const [logTarget, setLogTarget]                 = useState(null);
-  const [justLogged, setJustLogged]               = useState(null); // ADDED: track just-completed workout for share prompt
+  const [justLogged, setJustLogged]               = useState(null);
   const [dismissedInsights, setDismissedInsights] = useState(new Set());
   const [showCheckIn, setShowCheckIn]             = useState(false);
   const [checkInData, setCheckInData]             = useState(null);
@@ -37,22 +44,25 @@ export default function Dashboard() {
   const [todayCalories, setTodayCalories]         = useState(0);
   const [todayCalTarget, setTodayCalTarget]       = useState(2000);
 
-  const today = new Date().toISOString().split('T')[0];
+  // FIX: use local date throughout
+  const today = getLocalToday();
 
   const [insightsSectionCollapsed, setInsightsSectionCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem('bc-insights-dismissed');
-    if (!stored) return false;
-    const { date } = JSON.parse(stored);
-    return date === new Date().toISOString().split('T')[0];
+    try {
+      const stored = localStorage.getItem('bc-insights-dismissed');
+      if (!stored) return false;
+      return JSON.parse(stored).date === getLocalToday();
+    } catch { return false; }
   });
 
   const [adaptationsSectionCollapsed, setAdaptationsSectionCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem('bc-adaptations-dismissed');
-    if (!stored) return false;
-    const { date } = JSON.parse(stored);
-    return date === new Date().toISOString().split('T')[0];
+    try {
+      const stored = localStorage.getItem('bc-adaptations-dismissed');
+      if (!stored) return false;
+      return JSON.parse(stored).date === getLocalToday();
+    } catch { return false; }
   });
 
   // ── Readiness trigger ──────────────────────────────────
@@ -65,10 +75,7 @@ export default function Dashboard() {
       } else if (settings?.last_checkin_data) {
         setCheckInData(settings.last_checkin_data);
         const score = await calculateReadinessScore(
-          settings.last_checkin_data,
-          workouts,
-          getNutritionLog,
-          user.id
+          settings.last_checkin_data, workouts, getNutritionLog, user.id
         );
         setReadinessScore(score);
       }
@@ -76,7 +83,7 @@ export default function Dashboard() {
     checkTrigger();
   }, [user, isLoaded, workouts]);
 
-  // ── Nutrition fuel status load ─────────────────────────
+  // ── Nutrition fuel status ─────────────────────────────
   useEffect(() => {
     if (!user) return;
     async function loadNutrition() {
@@ -119,21 +126,21 @@ export default function Dashboard() {
     const plannedRuns    = runs.filter(w => w.status !== 'skipped');
     const plannedLifts   = lifts.filter(w => w.status !== 'skipped');
 
-    // ── Weekly progress (this week's sessions by day) ──
     const now = new Date();
     const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(now);
     monday.setDate(monday.getDate() + mondayOffset);
     monday.setHours(0, 0, 0, 0);
-    const todayStr = now.toISOString().split('T')[0];
+    const sundayStr = new Date(monday.getTime() + 6 * 86400000).toLocaleDateString('en-CA');
+    const mondayStr = monday.toLocaleDateString('en-CA');
+    const todayStr  = getLocalToday();
 
     const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
     const thisWeekRunProgress = weekDays.map((label, i) => {
-      const date = new Date(monday);
-      date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
+      const date    = new Date(monday); date.setDate(date.getDate() + i);
+      const dateStr = date.toLocaleDateString('en-CA');
       const dayRuns = runs.filter(w => w.date === dateStr);
       return {
         label,
@@ -146,9 +153,8 @@ export default function Dashboard() {
     });
 
     const thisWeekLiftProgress = weekDays.map((label, i) => {
-      const date = new Date(monday);
-      date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
+      const date    = new Date(monday); date.setDate(date.getDate() + i);
+      const dateStr = date.toLocaleDateString('en-CA');
       const dayLifts = lifts.filter(w => w.date === dateStr);
       return {
         label,
@@ -165,27 +171,73 @@ export default function Dashboard() {
     const thisWeekLiftsCompleted = thisWeekLiftProgress.filter(d => d.completed).length;
     const thisWeekLiftsPlanned   = thisWeekLiftProgress.filter(d => d.planned || d.completed || d.skipped).length;
 
+    // ── This week's mileage & volume ──
+    const thisWeekRuns  = completedRuns.filter(w => w.date >= mondayStr && w.date <= sundayStr);
+    const thisWeekLifts = completedLifts.filter(w => w.date >= mondayStr && w.date <= sundayStr);
+    const thisWeekMiles  = thisWeekRuns.reduce((s, w) => s + (w.details.actualDistance || 0), 0);
+    const thisWeekVol    = thisWeekLifts.reduce((s, w) => s + (w.details.totalVolume || 0), 0);
+
+    // Planned this week (for target comparison)
+    const thisWeekPlannedRuns  = runs.filter(w => w.date >= mondayStr && w.date <= sundayStr && w.status !== 'skipped');
+    const thisWeekPlannedMiles = thisWeekPlannedRuns.reduce((s, w) => s + (w.details.plannedDistance || 0), 0);
+
+    // ── Current phase detection ──
+    // Phase comes from workout details.phase — find the dominant phase this week
+    const thisWeekWorkouts = workouts.filter(w => w.date >= mondayStr && w.date <= sundayStr);
+    const phaseCounts = {};
+    thisWeekWorkouts.forEach(w => {
+      const p = w.details?.phase;
+      if (p) phaseCounts[p] = (phaseCounts[p] || 0) + 1;
+    });
+    const currentPhase = Object.keys(phaseCounts).sort((a,b) => phaseCounts[b]-phaseCounts[a])[0] || null;
+
+    // ── Phase completion (past + this week workouts in same phase) ──
+    const phaseRuns  = currentPhase ? runs.filter(w => w.details?.phase === currentPhase) : [];
+    const phaseLifts = currentPhase ? lifts.filter(w => w.details?.phase === currentPhase) : [];
+    const phaseRunsDone  = phaseRuns.filter(w => w.status === 'completed').length;
+    const phaseRunsTotal = phaseRuns.filter(w => w.status !== 'skipped').length;
+    const phaseLiftsDone  = phaseLifts.filter(w => w.status === 'completed').length;
+    const phaseLiftsTotal = phaseLifts.filter(w => w.status !== 'skipped').length;
+    const phaseRunRate  = phaseRunsTotal  > 0 ? Math.round((phaseRunsDone  / phaseRunsTotal)  * 100) : 0;
+    const phaseLiftRate = phaseLiftsTotal > 0 ? Math.round((phaseLiftsDone / phaseLiftsTotal) * 100) : 0;
+
+    // ── Week number from plan ──
+    const weekNumber = thisWeekWorkouts[0]?.details?.weekNumber || null;
+
     return {
+      // Overall (for reference)
       runCompletionRate:  plannedRuns.length  > 0 ? Math.round((completedRuns.length  / plannedRuns.length)  * 100) : 0,
       liftCompletionRate: plannedLifts.length > 0 ? Math.round((completedLifts.length / plannedLifts.length) * 100) : 0,
       completedRuns:  completedRuns.length,
       totalRuns:      plannedRuns.length,
       completedLifts: completedLifts.length,
       totalLifts:     plannedLifts.length,
-      currentWeekMileage: (getWeeklyData(completedRuns,  w => w.details.actualDistance || 0)[3] || 0).toFixed(1),
-      weeklyMileageData:   getWeeklyData(completedRuns,  w => w.details.actualDistance || 0),
-      currentWeekVolume:   getWeeklyData(completedLifts, w => w.details.totalVolume    || 0)[3] || 0,
-      weeklyVolumeData:    getWeeklyData(completedLifts, w => w.details.totalVolume    || 0),
-      streak: calculateStreak(workouts),
+
+      // Weekly focus
+      thisWeekRunsCompleted, thisWeekRunsPlanned,
+      thisWeekLiftsCompleted, thisWeekLiftsPlanned,
+      thisWeekMiles:  parseFloat(thisWeekMiles.toFixed(1)),
+      thisWeekPlannedMiles: parseFloat(thisWeekPlannedMiles.toFixed(1)),
+      thisWeekVol,
       thisWeekRunProgress,
       thisWeekLiftProgress,
-      thisWeekRunsCompleted,
-      thisWeekRunsPlanned,
-      thisWeekLiftsCompleted,
-      thisWeekLiftsPlanned,
+
+      // Phase-aware
+      currentPhase,
+      weekNumber,
+      phaseRunRate,  phaseRunsDone,  phaseRunsTotal,
+      phaseLiftRate, phaseLiftsDone, phaseLiftsTotal,
+
+      // Sparklines
+      weeklyMileageData: getWeeklyData(completedRuns,  w => w.details.actualDistance || 0),
+      weeklyVolumeData:  getWeeklyData(completedLifts, w => w.details.totalVolume    || 0),
+      currentWeekMileage: (getWeeklyData(completedRuns, w => w.details.actualDistance || 0)[3] || 0).toFixed(1),
+      currentWeekVolume:  getWeeklyData(completedLifts, w => w.details.totalVolume   || 0)[3] || 0,
+      streak: calculateStreak(workouts),
     };
   }, [workouts]);
 
+  // FIX: today comparison uses local date — this is why runs were missing
   const todayWorkouts = useMemo(() =>
     workouts.filter(w => w.date === today && w.type !== 'rest'),
   [workouts, today]);
@@ -197,15 +249,11 @@ export default function Dashboard() {
 
   const weeklyChartData = useMemo(() => buildWeeklyChartData(workouts), [workouts]);
 
-  // ── Fuel status ────────────────────────────────────────
   const fuelStatus = getFuelStatus(todayCalories, todayCalTarget);
 
-  // CHANGED: save handler now tracks just-logged workout for share prompt
   function handleSave(data) {
     saveWorkout(data);
-    if (data.status === 'completed') {
-      setJustLogged(data);
-    }
+    if (data.status === 'completed') setJustLogged(data);
     setLogTarget(null);
   }
 
@@ -221,12 +269,13 @@ export default function Dashboard() {
     <div>
 
       {/* ── Post-workout share prompt ── */}
-      {/* ADDED: shows after logging a completed workout */}
       {justLogged && (
         <div className="bc-card mb-6 border-l-4 border-bc-green">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🎉</span>
+              <div className="w-8 h-8 rounded-lg bg-bc-green-light flex items-center justify-center">
+                <StatusIcon status="completed" size={16} />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-primary">Workout logged!</p>
                 <p className="bc-caption">
@@ -246,8 +295,7 @@ export default function Dashboard() {
                 onShareComplete={(w) => incrementShareCount(w.id)}
                 variant="button"
               />
-              <button
-                onClick={() => setJustLogged(null)}
+              <button onClick={() => setJustLogged(null)}
                 className="text-tertiary hover:text-secondary text-xs min-h-[44px] px-2">
                 Dismiss
               </button>
@@ -263,11 +311,8 @@ export default function Dashboard() {
             onClick={() => {
               const next = !adaptationsSectionCollapsed;
               setAdaptationsSectionCollapsed(next);
-              if (next) {
-                localStorage.setItem('bc-adaptations-dismissed', JSON.stringify({ date: today }));
-              } else {
-                localStorage.removeItem('bc-adaptations-dismissed');
-              }
+              if (next) localStorage.setItem('bc-adaptations-dismissed', JSON.stringify({ date: today }));
+              else localStorage.removeItem('bc-adaptations-dismissed');
             }}
             className="flex items-center gap-2 mb-3 w-full group min-h-[44px]">
             <Sparkles size={14} className="text-bc-indigo" />
@@ -280,11 +325,7 @@ export default function Dashboard() {
             </span>
           </button>
           {!adaptationsSectionCollapsed && (
-            <PlanAdaptationList
-              adaptations={adaptations}
-              onAccept={acceptAdaptation}
-              onReject={rejectAdaptation}
-            />
+            <PlanAdaptationList adaptations={adaptations} onAccept={acceptAdaptation} onReject={rejectAdaptation} />
           )}
         </div>
       )}
@@ -296,11 +337,8 @@ export default function Dashboard() {
             onClick={() => {
               const next = !insightsSectionCollapsed;
               setInsightsSectionCollapsed(next);
-              if (next) {
-                localStorage.setItem('bc-insights-dismissed', JSON.stringify({ date: today }));
-              } else {
-                localStorage.removeItem('bc-insights-dismissed');
-              }
+              if (next) localStorage.setItem('bc-insights-dismissed', JSON.stringify({ date: today }));
+              else localStorage.removeItem('bc-insights-dismissed');
             }}
             className="flex items-center justify-between w-full mb-3 group min-h-[44px]">
             <div className="flex items-center gap-2">
@@ -316,12 +354,9 @@ export default function Dashboard() {
           {!insightsSectionCollapsed && (
             <div className="space-y-3">
               {visibleInsights.map(insight => (
-                <InsightCard
-                  key={insight.id}
-                  insight={insight}
+                <InsightCard key={insight.id} insight={insight}
                   onDismiss={(id) => setDismissedInsights(prev => new Set([...prev, id]))}
-                  onAction={(i)  => setDismissedInsights(prev => new Set([...prev, i.id]))}
-                />
+                  onAction={(i) => setDismissedInsights(prev => new Set([...prev, i.id]))} />
               ))}
             </div>
           )}
@@ -334,11 +369,7 @@ export default function Dashboard() {
           <p className="bc-caption uppercase tracking-wider mb-0">Today&apos;s Plan</p>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: fuelStatus.color }}
-                title={fuelStatus.label}
-              />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: fuelStatus.color }} />
               <span className="text-[10px] text-tertiary">{fuelStatus.label}</span>
             </div>
             <span className="text-xs text-tertiary">·</span>
@@ -351,48 +382,44 @@ export default function Dashboard() {
             {todayWorkouts.map(w => (
               <div key={w.id}
                 className={`flex items-center justify-between p-3 rounded-[14px] border-l-4
-                  ${w.type === 'run' ? 'border-run-accent bg-run-bg' : 'border-lift-accent bg-lift-bg'}
+                  ${w.type === 'run'    ? 'border-run-accent bg-run-bg'     :
+                    w.type === 'lift'   ? 'border-lift-accent bg-lift-bg'   :
+                    w.type === 'cardio' ? 'border-cardio-accent bg-cardio-bg' :
+                                         'border-border bg-canvas'}
                   ${w.status === 'completed' ? 'opacity-70' : ''}`}>
                 <div className="flex items-center gap-3">
                   {w.status === 'planned' && (
-                    <div
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: fuelStatus.color }}
-                      title={`Fuel: ${fuelStatus.label} · ${todayCalories} of ${todayCalTarget} cal`}
-                    />
+                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: fuelStatus.color }} />
                   )}
                   <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
                     {w.type === 'run'
                       ? <RunTypeIcon runType={w.details.runType} size={18} />
-                      : <LiftSessionIcon sessionName={w.details.sessionName} size={18} />
-                    }
+                      : <LiftSessionIcon sessionName={w.details.sessionName} size={18} />}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-primary">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">
                       {w.type === 'run'
-                        ? w.details.runDescription || w.details.runType
-                        : w.details.sessionName}
+                        ? (w.details.runDescription || w.details.runType || 'Run')
+                        : (w.details.sessionName || 'Lift')}
                     </p>
                     <p className="text-xs text-secondary">
-                      {w.type === 'run' && (
-                        <>
-                          <span className="bc-data">{w.details.plannedDistance} mi</span>
-                          {' @ '}
-                          <span className="bc-data">{w.details.targetPace}</span>
-                        </>
+                      {w.type === 'run' && w.details.plannedDistance && (
+                        <>{w.details.plannedDistance} mi
+                          {w.details.targetPace ? ` @ ${w.details.targetPace}` : ''}</>
                       )}
-                      {w.type === 'lift' && (w.details.muscleGroups || []).join(', ')}
+                      {w.type === 'lift' && (w.details.muscleGroups || []).slice(0, 3).join(', ')}
+                      {w.type === 'cardio' && (w.details.activityType || 'Cardio')}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                   {w.status === 'planned' ? (
                     <button onClick={() => setLogTarget(w)} className="bc-btn-log min-h-[44px]">
                       Log It
                     </button>
                   ) : (
                     <>
-                      {/* ADDED: share icon on completed today's workouts */}
                       <ShareWorkoutButton
                         workout={w}
                         userName={user?.display_name || user?.email?.split('@')[0] || ''}
@@ -412,7 +439,7 @@ export default function Dashboard() {
         ) : (
           <div className="bc-empty py-6">
             <p className="bc-empty-title">No workouts scheduled for today.</p>
-            <p className="bc-empty-text">Rest day or add a session from the schedule.</p>
+            <p className="bc-empty-text">Rest day or add a session from the log.</p>
           </div>
         )}
       </div>
@@ -423,38 +450,29 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="relative w-16 h-16 flex-shrink-0">
-                <svg viewBox="0 0 64 64" className="w-full h-full"
-                     style={{ transform: 'rotate(-90deg)' }}>
+                <svg viewBox="0 0 64 64" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
                   <circle cx="32" cy="32" r="26" fill="none" stroke="#F2F2F7" strokeWidth="6" />
                   <circle cx="32" cy="32" r="26" fill="none"
                     stroke={getReadinessColor(readinessScore)}
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeDasharray="163.36"
+                    strokeWidth="6" strokeLinecap="round" strokeDasharray="163.36"
                     strokeDashoffset={163.36 * (1 - readinessScore / 100)} />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="bc-data text-base font-bold"
-                        style={{ color: getReadinessColor(readinessScore) }}>
+                  <span className="bc-data text-base font-bold" style={{ color: getReadinessColor(readinessScore) }}>
                     {readinessScore}
                   </span>
                 </div>
               </div>
               <div>
-                <p className="text-[15px] font-semibold text-primary">
-                  {getReadinessLabel(readinessScore)}
-                </p>
+                <p className="text-[15px] font-semibold text-primary">{getReadinessLabel(readinessScore)}</p>
                 {checkInData && (
                   <p className="bc-caption mt-0.5">
-                    🌙 {checkInData.sleepHours}h
-                    {' · '}Energy {checkInData.energyLevel}/5
-                    {' · '}Soreness {checkInData.soreness}/5
+                    {checkInData.sleepHours}h sleep · Energy {checkInData.energyLevel}/5 · Soreness {checkInData.soreness}/5
                   </p>
                 )}
               </div>
             </div>
-            <button
-              onClick={() => setShowCheckIn(true)}
+            <button onClick={() => setShowCheckIn(true)}
               className="bc-btn-secondary !text-xs !py-1.5 !px-3 min-h-[44px]">
               Update
             </button>
@@ -462,7 +480,9 @@ export default function Dashboard() {
 
           {shouldSuggestSwap(readinessScore, todayWorkouts) && (
             <div className="mt-3 pt-3 border-t border-border flex items-start gap-2">
-              <span className="text-base" style={{ color: '#FF9500' }}>⚠️</span>
+              <div className="w-4 h-4 rounded-full bg-bc-orange-light flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span style={{ color: '#FF9500', fontSize: '10px', fontWeight: 700 }}>!</span>
+              </div>
               <div>
                 <p className="text-xs font-semibold" style={{ color: '#E65100' }}>
                   Consider swapping today&apos;s hard session
@@ -477,120 +497,173 @@ export default function Dashboard() {
       )}
 
       {/* ── KPI Cards ── */}
-      {/* CHANGED: bento-grid gets responsive overrides for mobile 2-col */}
-      <p className="bc-caption uppercase tracking-wider mb-3">Performance</p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="bc-caption uppercase tracking-wider">Performance</p>
+        {stats.currentPhase && (
+          <span className="bc-pill bg-canvas border border-border text-tertiary text-[10px] capitalize">
+            {stats.currentPhase} phase{stats.weekNumber ? ` · Wk ${stats.weekNumber}` : ''}
+          </span>
+        )}
+      </div>
       <div className="bento-grid mb-6">
 
-        {/* ── Run Completion ── */}
-        <div className="bc-card p-5 bento-hero">
-          <div className="flex items-start justify-between mb-1">
-            <Metric label="Run Completion" value={`${stats.runCompletionRate}%`} size="hero" color="text-run-accent" />
-            <span className="bc-caption mt-1">
-              {stats.thisWeekRunsCompleted}/{stats.thisWeekRunsPlanned} this week
-            </span>
-          </div>
-          <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-2 mb-3">
-            <div className="h-full rounded-full bg-run-accent transition-[width] duration-700 ease-out"
-              style={{ width: `${stats.runCompletionRate}%` }} />
-          </div>
-          {/* Weekly day bars */}
-          <div className="flex items-center gap-1 mb-2">
+        {/* ── Run Completion ── primary metric: this week, secondary: phase ── */}
+        <div className="bc-card p-4 bento-hero">
+          {/* Week dot tracker */}
+          <div className="flex items-center gap-1 mb-3">
             {stats.thisWeekRunProgress.map((day, i) => (
               <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
-                <div
-                  className="w-full h-1.5 rounded-full transition-all"
+                <div className="w-full h-1.5 rounded-full transition-all"
                   style={{
-                    backgroundColor:
-                      day.completed ? '#2E7D32' :
-                      day.skipped   ? '#FFEBEE' :
-                      day.planned   ? '#A5D6A7' :
-                      day.isToday   ? '#E8F5E9' :
-                      '#F2F2F7',
-                    opacity: day.isFuture && !day.planned ? 0.4 : 1,
-                  }}
-                />
-                <span className="text-[8px] font-medium"
-                      style={{ color: day.isToday ? '#2E7D32' : '#AEAEB2' }}>
-                  {day.label}
-                </span>
+                    backgroundColor: day.completed ? '#2E7D32' : day.skipped ? '#FFEBEE' : day.planned ? '#A5D6A7' : day.isToday ? '#E8F5E9' : '#F2F2F7',
+                    opacity: day.isFuture && !day.planned ? 0.35 : 1,
+                  }} />
+                <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#2E7D32' : '#AEAEB2' }}>{day.label}</span>
               </div>
             ))}
           </div>
-          <p className="text-xs text-tertiary">
-            <span className="bc-data">{stats.completedRuns}</span> of{' '}
-            <span className="bc-data">{stats.totalRuns}</span> total runs
-          </p>
+
+          {/* Hero number: this week */}
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <p className="bc-caption uppercase tracking-wider mb-1">This Week · Runs</p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-bold text-run-accent"
+                  style={{ fontSize: '28px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                  {stats.thisWeekRunsCompleted}
+                </span>
+                <span className="text-sm text-tertiary">/ {stats.thisWeekRunsPlanned}</span>
+              </div>
+            </div>
+            {/* Miles this week */}
+            {stats.thisWeekMiles > 0 && (
+              <div className="text-right">
+                <p className="bc-caption uppercase tracking-wider mb-1">Miles</p>
+                <div className="flex items-baseline gap-0.5 justify-end">
+                  <span className="font-bold text-primary"
+                    style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {stats.thisWeekMiles}
+                  </span>
+                  {stats.thisWeekPlannedMiles > 0 && (
+                    <span className="text-xs text-tertiary">/{stats.thisWeekPlannedMiles} mi</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Phase progress bar + label */}
+          {stats.currentPhase && stats.phaseRunsTotal > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
+                <span className="text-[10px] font-semibold text-run-accent">{stats.phaseRunsDone}/{stats.phaseRunsTotal} runs · {stats.phaseRunRate}%</span>
+              </div>
+              <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-run-accent/60 transition-[width] duration-700"
+                  style={{ width: `${stats.phaseRunRate}%` }} />
+              </div>
+            </div>
+          )}
+          {/* Overall progress — small, context only */}
+          {!stats.currentPhase && (
+            <p className="text-[10px] text-tertiary">
+              {stats.completedRuns} of {stats.totalRuns} total runs · {stats.runCompletionRate}%
+            </p>
+          )}
         </div>
 
         {/* ── Lift Completion ── */}
-        <div className="bc-card p-5 bento-half">
-          <div className="flex items-start justify-between mb-1">
-            <Metric label="Lift Completion" value={`${stats.liftCompletionRate}%`} size="hero" color="text-lift-accent" />
-            <span className="bc-caption mt-1">
-              {stats.thisWeekLiftsCompleted}/{stats.thisWeekLiftsPlanned} this week
-            </span>
-          </div>
-          <div className="h-1.5 w-full bg-canvas rounded-full overflow-hidden mt-2 mb-3">
-            <div className="h-full rounded-full bg-lift-accent transition-[width] duration-700 ease-out"
-              style={{ width: `${stats.liftCompletionRate}%` }} />
-          </div>
-          {/* Weekly day bars */}
-          <div className="flex items-center gap-1 mb-2">
+        <div className="bc-card p-4 bento-half">
+          <div className="flex items-center gap-1 mb-3">
             {stats.thisWeekLiftProgress.map((day, i) => (
               <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
-                <div
-                  className="w-full h-1.5 rounded-full transition-all"
+                <div className="w-full h-1.5 rounded-full transition-all"
                   style={{
-                    backgroundColor:
-                      day.completed ? '#1565C0' :
-                      day.skipped   ? '#FFEBEE' :
-                      day.planned   ? '#90CAF9' :
-                      day.isToday   ? '#E3F2FD' :
-                      '#F2F2F7',
-                    opacity: day.isFuture && !day.planned ? 0.4 : 1,
-                  }}
-                />
-                <span className="text-[8px] font-medium"
-                      style={{ color: day.isToday ? '#1565C0' : '#AEAEB2' }}>
-                  {day.label}
-                </span>
+                    backgroundColor: day.completed ? '#1565C0' : day.skipped ? '#FFEBEE' : day.planned ? '#90CAF9' : day.isToday ? '#E3F2FD' : '#F2F2F7',
+                    opacity: day.isFuture && !day.planned ? 0.35 : 1,
+                  }} />
+                <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#1565C0' : '#AEAEB2' }}>{day.label}</span>
               </div>
             ))}
           </div>
-          <p className="text-xs text-tertiary">
-            <span className="bc-data">{stats.completedLifts}</span> of{' '}
-            <span className="bc-data">{stats.totalLifts}</span> total lifts
-          </p>
+
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <p className="bc-caption uppercase tracking-wider mb-1">This Week · Lifts</p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-bold text-lift-accent"
+                  style={{ fontSize: '28px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                  {stats.thisWeekLiftsCompleted}
+                </span>
+                <span className="text-sm text-tertiary">/ {stats.thisWeekLiftsPlanned}</span>
+              </div>
+            </div>
+            {stats.thisWeekVol > 0 && (
+              <div className="text-right">
+                <p className="bc-caption uppercase tracking-wider mb-1">Volume</p>
+                <div className="flex items-baseline gap-0.5 justify-end">
+                  <span className="font-bold text-primary"
+                    style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {(stats.thisWeekVol / 1000).toFixed(1)}k
+                  </span>
+                  <span className="text-xs text-tertiary">lbs</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {stats.currentPhase && stats.phaseLiftsTotal > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
+                <span className="text-[10px] font-semibold text-lift-accent">{stats.phaseLiftsDone}/{stats.phaseLiftsTotal} lifts · {stats.phaseLiftRate}%</span>
+              </div>
+              <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-lift-accent/60 transition-[width] duration-700"
+                  style={{ width: `${stats.phaseLiftRate}%` }} />
+              </div>
+            </div>
+          )}
+          {!stats.currentPhase && (
+            <p className="text-[10px] text-tertiary">
+              {stats.completedLifts} of {stats.totalLifts} total lifts · {stats.liftCompletionRate}%
+            </p>
+          )}
         </div>
 
-        {/* ── Training Load ── */}
-        <div className="bento-third">
-          <TrainingLoadCard load={trainingLoad} />
-        </div>
+        <div className="bento-third"><TrainingLoadCard load={trainingLoad} /></div>
 
         {/* ── Weekly Miles ── */}
         <div className="bc-card p-4 bento-quarter">
+          <p className="bc-caption uppercase tracking-wider mb-2">Weekly Miles</p>
           <div className="flex items-end justify-between mb-1">
-            <Metric label="Weekly Miles" value={stats.currentWeekMileage} size="lg" />
-            <Sparkline data={stats.weeklyMileageData} color="#34C759" width={60} height={20} />
+            <div className="flex items-baseline gap-1">
+              <span className="font-bold text-primary"
+                style={{ fontSize: '24px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {stats.currentWeekMileage}
+              </span>
+              <span className="text-xs text-tertiary">mi</span>
+            </div>
+            <Sparkline data={stats.weeklyMileageData} color="#34C759" width={56} height={24} />
           </div>
-          <p className="text-[10px] text-tertiary">Last 4 weeks trend</p>
+          <p className="text-[10px] text-tertiary">4-week trend</p>
         </div>
 
         {/* ── Weekly Volume ── */}
         <div className="bc-card p-4 bento-quarter">
+          <p className="bc-caption uppercase tracking-wider mb-2">Weekly Volume</p>
           <div className="flex items-end justify-between mb-1">
-            <Metric
-              label="Weekly Volume"
-              value={stats.currentWeekVolume > 0
-                ? (stats.currentWeekVolume / 1000).toFixed(1) + 'k'
-                : '0'}
-              unit="lbs"
-              size="lg"
-            />
-            <Sparkline data={stats.weeklyVolumeData} color="#007AFF" width={60} height={20} />
+            <div className="flex items-baseline gap-1">
+              <span className="font-bold text-primary"
+                style={{ fontSize: '24px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {stats.currentWeekVolume > 0 ? (stats.currentWeekVolume / 1000).toFixed(1) + 'k' : '0'}
+              </span>
+              <span className="text-xs text-tertiary">lbs</span>
+            </div>
+            <Sparkline data={stats.weeklyVolumeData} color="#007AFF" width={56} height={24} />
           </div>
-          <p className="text-[10px] text-tertiary">Last 4 weeks</p>
+          <p className="text-[10px] text-tertiary">4-week trend</p>
         </div>
 
         {/* ── Streak ── */}
@@ -598,10 +671,11 @@ export default function Dashboard() {
           <p className="bc-caption uppercase tracking-wider mb-2">Streak</p>
           <div className="flex items-end justify-between mb-1">
             <div className="flex items-baseline gap-1">
-              <span className="bc-data text-2xl font-bold text-primary">{stats.streak}</span>
-              <span className="bc-data text-sm text-tertiary">
-                {stats.streak === 1 ? 'day' : 'days'}
+              <span className="font-bold text-primary"
+                style={{ fontSize: '24px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {stats.streak}
               </span>
+              <span className="text-xs text-tertiary">{stats.streak === 1 ? 'day' : 'days'}</span>
             </div>
             <Flame size={22} style={{ color: '#FF9500' }} />
           </div>
@@ -621,22 +695,13 @@ export default function Dashboard() {
                 tick={{ fill: '#8E8E93', fontSize: 11, fontFamily: 'var(--font-dm-sans)' }} />
               <YAxis hide />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#FFFFFF',
-                  border: '0.5px solid rgba(60,60,67,0.12)',
-                  borderRadius: '14px',
-                  fontSize: '12px',
-                  fontFamily: 'var(--font-jetbrains)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                }}
-                labelStyle={{ color: '#1C1C1E', marginBottom: '4px' }}
-                itemStyle={{ color: '#8E8E93', padding: '1px 0' }}
+                contentStyle={{ backgroundColor: '#FFFFFF', border: '0.5px solid rgba(60,60,67,0.12)', borderRadius: '14px', fontSize: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
                 cursor={{ fill: 'rgba(0,122,255,0.06)' }}
               />
-              <Bar dataKey="runMiles" name="Run (mi)" stackId="stack" radius={[0, 0, 4, 4]}>
+              <Bar dataKey="runMiles" name="Run (mi)" stackId="stack" radius={[0,0,4,4]}>
                 {weeklyChartData.map((_, i) => <Cell key={i} fill="#34C759" fillOpacity={0.85} />)}
               </Bar>
-              <Bar dataKey="liftScore" name="Lift (score)" stackId="stack" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="liftScore" name="Lift (score)" stackId="stack" radius={[4,4,0,0]}>
                 {weeklyChartData.map((_, i) => <Cell key={i} fill="#007AFF" fillOpacity={0.85} />)}
               </Bar>
             </BarChart>
@@ -659,15 +724,15 @@ export default function Dashboard() {
       <div className="space-y-2 mb-6">
         {recentActivity.map(w => (
           <div key={w.id} className={`bc-card p-3 flex items-center justify-between border-l-4
-            ${w.type === 'run' ? 'border-run-accent' : 'border-lift-accent'}`}>
+            ${w.type === 'run' ? 'border-run-accent' : w.type === 'lift' ? 'border-lift-accent' : 'border-cardio-accent'}`}>
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
-                ${w.type === 'run' ? 'bg-run-bg' : 'bg-lift-bg'}`}>
+                ${w.type === 'run' ? 'bg-run-bg' : w.type === 'lift' ? 'bg-lift-bg' : 'bg-cardio-bg'}`}>
                 <ActivityIcon type={w.type} size={16} />
               </div>
               <div>
                 <p className="text-sm font-medium text-primary">
-                  {w.type === 'run' ? w.details.runType : w.details.sessionName}
+                  {w.type === 'run' ? (w.details.runType || 'Run') : (w.details.sessionName || 'Lift')}
                 </p>
                 <p className="text-xs text-secondary">{formatDate(w.date)}</p>
               </div>
@@ -677,12 +742,11 @@ export default function Dashboard() {
                 <span className="bc-data text-sm text-secondary">{w.details.actualDistance} mi</span>
               )}
               {w.type === 'run' && w.details.actualPace && (
-                <span className="bc-data text-sm text-run-accent">{w.details.actualPace}</span>
+                <span className="bc-data-mono text-sm text-run-accent">{w.details.actualPace}</span>
               )}
               {w.type === 'lift' && w.details.totalVolume && (
                 <span className="bc-data text-sm text-lift-accent">{formatVolume(w.details.totalVolume)}</span>
               )}
-              {/* ADDED: share icon on recent activity items */}
               <ShareWorkoutButton
                 workout={w}
                 userName={user?.display_name || user?.email?.split('@')[0] || ''}
@@ -696,19 +760,14 @@ export default function Dashboard() {
       </div>
 
       {/* ── Recent PRs ── */}
-      <div className="mb-6">
-        <RecentPRs prs={prs.recent} />
-      </div>
+      <div className="mb-6"><RecentPRs prs={prs.recent} /></div>
 
       {/* ── Modals ── */}
       {logTarget && (
         <LogForm workout={logTarget} onSave={handleSave} onClose={() => setLogTarget(null)} />
       )}
       {showCheckIn && (
-        <ReadinessCheckIn
-          onComplete={handleCheckInComplete}
-          onClose={() => setShowCheckIn(false)}
-        />
+        <ReadinessCheckIn onComplete={handleCheckInComplete} onClose={() => setShowCheckIn(false)} />
       )}
     </div>
   );
@@ -722,7 +781,7 @@ function getWeeklyData(workouts, getValue) {
   const now = new Date();
   const weeks = [0, 0, 0, 0];
   workouts.forEach(w => {
-    const diffDays = Math.floor((now - new Date(w.date + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.floor((now - new Date(w.date + 'T12:00:00')) / (1000 * 60 * 60 * 24));
     if (diffDays < 7)       weeks[3] += getValue(w);
     else if (diffDays < 14) weeks[2] += getValue(w);
     else if (diffDays < 21) weeks[1] += getValue(w);
@@ -736,12 +795,13 @@ function calculateStreak(workouts) {
     workouts.filter(w => w.status === 'completed').map(w => w.date)
   );
   let streak = 0;
-  const now = new Date();
-  if (completedDates.has(now.toISOString().split('T')[0])) streak++;
-  const check = new Date(now);
+  // FIX: local date for streak calculation
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  if (completedDates.has(todayStr)) streak++;
+  const check = new Date();
   check.setDate(check.getDate() - 1);
   for (let i = 0; i < 365; i++) {
-    const dateStr = check.toISOString().split('T')[0];
+    const dateStr = check.toLocaleDateString('en-CA');
     if (completedDates.has(dateStr)) { streak++; check.setDate(check.getDate() - 1); }
     else break;
   }
@@ -760,7 +820,8 @@ function buildWeeklyChartData(workouts) {
   return dayNames.map((day, i) => {
     const date = new Date(monday);
     date.setDate(date.getDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
+    // FIX: local date string for chart day matching
+    const dateStr = date.toLocaleDateString('en-CA');
     const dayWorkouts = workouts.filter(w => w.date === dateStr);
     const runMiles = dayWorkouts
       .filter(w => w.type === 'run' && w.status === 'completed')

@@ -25,6 +25,32 @@ const PHASE_COLORS = {
   deload:      'text-bc-indigo-dark bg-bc-indigo-light border-bc-indigo/20',
 };
 
+// Compute the actual calendar date for a given week number in the plan
+// weekNumber is 1-based; week 1 = current week starting Monday
+function getPlanWeekStartDate(weekNumber) {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToMonday, 12, 0, 0);
+  monday.setDate(monday.getDate() + (weekNumber - 1) * 7);
+  return monday;
+}
+
+function getPlanDayDate(weekNumber, dayName) {
+  const weekStart = getPlanWeekStartDate(weekNumber);
+  const DAY_OFFSETS = { monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6 };
+  const offset = DAY_OFFSETS[dayName] ?? 0;
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() + offset);
+  return d;
+}
+
+function formatShortDate(d) {
+  return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+}
+
+const TODAY_STR = new Date().toLocaleDateString('en-CA');
+
 const RUN_TYPE_LABELS = {
   // snake_case keys (from plan generator)
   easy:          'Easy Run',
@@ -116,6 +142,7 @@ export default function PlansPage() {
   const [showAIEditor, setShowAIEditor] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState(new Set([1, 2]));
   const [activating, setActivating] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState(null);
   const [insightsCollapsed, toggleInsights, openInsights] = useInsightsCollapsed();
 
@@ -232,17 +259,65 @@ export default function PlansPage() {
     }
   }
 
+  // Reactivate: rewrites all future planned workouts from today using fixed date logic
+  // Preserves completed workouts — only deletes status='planned' from today forward
+  async function handleReactivate() {
+    if (!user || !activePlan?.plan_data) return;
+    setReactivating(true);
+    setError(null);
+    try {
+      const { createClient } = await import('@/lib/supabase');
+      const supabase = createClient();
+      const today = new Date().toLocaleDateString('en-CA');
+
+      // Delete only future planned workouts — keep completed history
+      await supabase
+        .from('workouts')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('status', 'planned')
+        .gte('date', today);
+
+      // Re-insert using the fixed local-date planToWorkouts
+      const workoutEntries = planToWorkouts(activePlan.plan_data);
+      if (workoutEntries.length > 0) {
+        const created = await addWorkoutsBatch(user.id, workoutEntries);
+        if (created.length === 0) console.warn('No workouts created from plan');
+      }
+
+      refresh?.();
+      setError(null);
+    } catch (err) {
+      console.error('Reactivate error:', err);
+      setError('Failed to reactivate plan. Please try again.');
+    } finally {
+      setReactivating(false);
+    }
+  }
+
   function planToWorkouts(plan) {
     const workouts = [];
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() + daysUntilMonday);
+
+    // Use local date arithmetic throughout — toISOString() returns UTC which shifts dates
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, 2=Tue...
+
+    // Go BACK to this week's Monday (not forward to next Monday)
+    // Sun(0)->-6, Mon(1)->0, Tue(2)->-1, Wed(3)->-2, Thu(4)->-3, Fri(5)->-4, Sat(6)->-5
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+    // Build a local-date-safe date string helper
+    function localDateStr(d) {
+      return d.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+    }
+
+    // Start from THIS week's Monday at noon (noon avoids DST edge cases)
+    const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToMonday, 12, 0, 0);
 
     plan.weeks.forEach((week, weekIdx) => {
       const weekStart = new Date(startDate);
       weekStart.setDate(startDate.getDate() + weekIdx * 7);
+
       const restDayNames = new Set(
         (week.restDays || []).map(entry => typeof entry === 'object' ? entry.dayOfWeek : entry)
       );
@@ -253,7 +328,7 @@ export default function PlansPage() {
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
         workouts.push({
-          date: date.toISOString().split('T')[0], type: 'run', status: 'planned',
+          date: localDateStr(date), type: 'run', status: 'planned',
           details: {
             runType: run.runType || 'easy',
             runDescription: getRunLabel(run.runType),
@@ -273,7 +348,7 @@ export default function PlansPage() {
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
         workouts.push({
-          date: date.toISOString().split('T')[0], type: 'lift', status: 'planned',
+          date: localDateStr(date), type: 'lift', status: 'planned',
           details: {
             sessionName: lift.sessionName || 'Strength Session',
             muscleGroups: lift.muscleGroups || [],
@@ -293,7 +368,7 @@ export default function PlansPage() {
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
         workouts.push({
-          date: date.toISOString().split('T')[0], type: 'rest', status: 'planned',
+          date: localDateStr(date), type: 'rest', status: 'planned',
           details: { restType, weekNumber: week.weekNumber, phase: week.phase },
         });
       });
@@ -413,11 +488,23 @@ export default function PlansPage() {
             </>
           )}
           {view === 'active' && (
-            <button onClick={() => setView('wizard')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas border border-border
-                         text-secondary text-xs rounded-[10px] hover:text-primary transition-colors min-h-[44px]">
-              <Sparkles size={12} /> New Plan
-            </button>
+            <>
+              <button onClick={handleReactivate} disabled={reactivating}
+                title="Rewrite all planned workout dates using fixed local-date logic"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas border border-border
+                           text-secondary text-xs rounded-[10px] hover:text-primary transition-colors min-h-[44px]
+                           disabled:opacity-40">
+                {reactivating
+                  ? <Loader2 size={12} className="animate-spin" />
+                  : <Play size={12} />}
+                {reactivating ? 'Syncing…' : 'Reactivate'}
+              </button>
+              <button onClick={() => setView('wizard')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas border border-border
+                           text-secondary text-xs rounded-[10px] hover:text-primary transition-colors min-h-[44px]">
+                <Sparkles size={12} /> New Plan
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -490,12 +577,24 @@ export default function PlansPage() {
                 onClick={() => toggleWeek(week.weekNumber)}
                 className="w-full flex items-center justify-between p-4 hover:bg-canvas transition-colors min-h-[44px]">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <span className="bc-data text-sm font-bold text-primary w-16">Week {week.weekNumber}</span>
+                  <span className="text-sm font-bold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>Week {week.weekNumber}</span>
                   <span className={`bc-pill text-[10px] font-medium capitalize border ${phaseStyle}`}>{week.phase}</span>
+                  {/* Show actual date range for this week */}
+                  {(() => {
+                    const wStart = getPlanWeekStartDate(week.weekNumber);
+                    const wEnd = new Date(wStart); wEnd.setDate(wStart.getDate() + 6);
+                    const wStartStr = wStart.toLocaleDateString('en-CA');
+                    const isCurrentWeek = wStartStr <= TODAY_STR && TODAY_STR <= wEnd.toLocaleDateString('en-CA');
+                    return (
+                      <span className={`bc-caption ${isCurrentWeek ? 'text-bc-blue font-semibold' : ''}`}>
+                        {isCurrentWeek ? 'This week · ' : ''}{formatShortDate(wStart)}–{formatShortDate(wEnd)}
+                      </span>
+                    );
+                  })()}
                   <span className="bc-caption hidden sm:inline">
-                    {week.totalMileage && `${week.totalMileage} mi`}
-                    {week.runs?.length > 0 && ` · ${week.runs.length} run${week.runs.length !== 1 ? 's' : ''}`}
-                    {week.lifts?.length > 0 && ` · ${week.lifts.length} lift${week.lifts.length !== 1 ? 's' : ''}`}
+                    {week.totalMileage ? `· ${week.totalMileage} mi` : ''}
+                    {week.runs?.length > 0 ? ` · ${week.runs.length} run${week.runs.length !== 1 ? 's' : ''}` : ''}
+                    {week.lifts?.length > 0 ? ` · ${week.lifts.length} lift${week.lifts.length !== 1 ? 's' : ''}` : ''}
                   </span>
                   <span className="bc-caption sm:hidden">
                     {(week.runs?.length || 0) + (week.lifts?.length || 0)} sessions
@@ -506,8 +605,9 @@ export default function PlansPage() {
 
               {isExpanded && (
                 <div className="px-4 pb-4 border-t border-border">
-                  <div className="overflow-x-auto -mx-4 px-4 sm:overflow-visible sm:mx-0 sm:px-0">
-                    <div className="grid grid-cols-7 gap-1.5 mt-3 min-w-[560px] sm:min-w-0">
+                  {/* ── Desktop: 7-col calendar grid ── */}
+                  <div className="hidden sm:block overflow-x-auto mt-3">
+                    <div className="grid grid-cols-7 gap-1" style={{ minWidth: 560 }}>
                       {DAY_ORDER.map(day => {
                         const run = week.runs?.find(r => r.dayOfWeek === day);
                         const lift = week.lifts?.find(l => l.dayOfWeek === day);
@@ -516,64 +616,74 @@ export default function PlansPage() {
                           : null;
                         const isRest = !!restEntry;
                         const restType = typeof restEntry === 'object' ? restEntry?.restType : 'full_rest';
-
+                        const dayDate = getPlanDayDate(week.weekNumber, day);
+                        const isToday = dayDate.toLocaleDateString('en-CA') === TODAY_STR;
                         const REST_COLORS = { full_rest: 'text-rest-accent', off_running: 'text-run-mid', off_lifting: 'text-lift-mid', active_recovery: 'text-cardio-accent' };
 
                         return (
-                          <div key={day} className="min-h-[100px]">
-                            <p className="text-[10px] text-tertiary text-center mb-1 uppercase tracking-wider">{DAY_SHORT[day]}</p>
-                            <div className={`rounded-[10px] p-2 h-full transition-colors border ${
+                          <div key={day}>
+                            {/* Day header */}
+                            <div className={`text-center py-1.5 rounded-t-[8px] mb-0.5 ${isToday ? 'bg-bc-blue' : 'bg-canvas'}`}>
+                              <p className={`text-[10px] font-semibold uppercase tracking-wider ${isToday ? 'text-white' : 'text-tertiary'}`}>
+                                {DAY_SHORT[day]}
+                              </p>
+                              <p className={`text-[9px] ${isToday ? 'text-white/80' : 'text-tertiary'}`}>
+                                {dayDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                              </p>
+                            </div>
+                            {/* Day content */}
+                            <div className={`rounded-b-[8px] rounded-t-[2px] p-1.5 min-h-[90px] border ${
                               isRest ? 'bg-rest-bg border-rest-accent/20' :
                               run && lift ? 'bg-surface border-border' :
                               run ? 'bg-run-bg border-run-accent/20' :
                               lift ? 'bg-lift-bg border-lift-accent/20' :
-                              'bg-canvas border-border'
+                              'bg-canvas border-transparent'
                             }`}>
                               {isRest && (
-                                <div className="flex flex-col items-center justify-center h-full min-h-[80px]">
-                                  <span className={`text-[10px] font-medium ${REST_COLORS[restType] || 'text-rest-accent'}`}>{getRestLabel(restType)}</span>
-                                  {editMode && <button onClick={() => toggleRestDay(weekIdx, day)} className="mt-1 text-[9px] text-tertiary hover:text-bc-red min-h-[44px] flex items-center">remove</button>}
+                                <div className="flex items-center justify-center h-full min-h-[70px]">
+                                  <span className={`text-[9px] font-medium ${REST_COLORS[restType] || 'text-rest-accent'}`}>
+                                    {getRestLabel(restType)}
+                                  </span>
                                 </div>
                               )}
                               {run && (
-                                <div className="mb-1.5">
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-run-accent" />
-                                    <span className="text-[10px] font-medium text-run-accent uppercase">{getRunLabel(run.runType)}</span>
+                                <div className="mb-1">
+                                  <div className="flex items-center gap-0.5 mb-0.5">
+                                    <div className="w-1 h-1 rounded-full bg-run-accent flex-shrink-0" />
+                                    <span className="text-[9px] font-semibold text-run-accent uppercase truncate">{getRunLabel(run.runType)}</span>
                                   </div>
                                   {editMode ? (
                                     <input type="number" value={run.distance || ''}
                                       onChange={e => updateRun(weekIdx, week.runs.indexOf(run), 'distance', Number(e.target.value))}
-                                      className="bc-input !py-0.5 !px-1.5 !text-[10px] bc-data" step="0.5" />
+                                      className="bc-input !py-0.5 !px-1 !text-[9px] w-full" step="0.5" />
                                   ) : (
-                                    <>
-                                      <p className="bc-data text-xs text-primary">{run.distance} mi</p>
-                                      {run.targetPace && <p className="text-[9px] text-tertiary">{run.targetPace}</p>}
-                                    </>
+                                    <p className="text-[11px] font-bold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                      {run.distance} mi
+                                    </p>
                                   )}
+                                  {run.targetPace && <p className="text-[9px] text-tertiary">{run.targetPace}</p>}
                                 </div>
                               )}
                               {lift && (
                                 <div>
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-lift-accent" />
-                                    <span className="text-[10px] font-medium text-lift-accent truncate">
-                                      {editMode ? (
-                                        <input type="text" value={lift.sessionName || ''}
-                                          onChange={e => updateLift(weekIdx, week.lifts.indexOf(lift), 'sessionName', e.target.value)}
-                                          className="bc-input !py-0.5 !px-1.5 !text-[10px]" />
-                                      ) : (lift.sessionName || 'Strength')}
-                                    </span>
+                                  <div className="flex items-center gap-0.5 mb-0.5">
+                                    <div className="w-1 h-1 rounded-full bg-lift-accent flex-shrink-0" />
+                                    {editMode ? (
+                                      <input type="text" value={lift.sessionName || ''}
+                                        onChange={e => updateLift(weekIdx, week.lifts.indexOf(lift), 'sessionName', e.target.value)}
+                                        className="bc-input !py-0.5 !px-1 !text-[9px] w-full" />
+                                    ) : (
+                                      <span className="text-[9px] font-semibold text-lift-accent truncate">{lift.sessionName || 'Strength'}</span>
+                                    )}
                                   </div>
-                                  <p className="text-[9px] text-tertiary">{lift.exercises?.length || 0} exercises</p>
-                                  {lift.muscleGroups && <p className="text-[9px] text-tertiary truncate">{lift.muscleGroups.join(', ')}</p>}
+                                  <p className="text-[9px] text-tertiary">{lift.exercises?.length || 0} ex</p>
                                 </div>
                               )}
                               {!isRest && !run && !lift && (
-                                <div className="flex items-center justify-center h-full min-h-[80px]">
-                                  {editMode ? (
-                                    <button onClick={() => toggleRestDay(weekIdx, day)} className="text-[9px] text-tertiary hover:text-rest-accent min-h-[44px] flex items-center">+ rest</button>
-                                  ) : <span className="text-[9px] text-tertiary">—</span>}
+                                <div className="flex items-center justify-center min-h-[70px]">
+                                  {editMode
+                                    ? <button onClick={() => toggleRestDay(weekIdx, day)} className="text-[9px] text-tertiary hover:text-rest-accent">+ rest</button>
+                                    : <span className="text-[9px] text-tertiary opacity-30">—</span>}
                                 </div>
                               )}
                             </div>
@@ -583,35 +693,144 @@ export default function PlansPage() {
                     </div>
                   </div>
 
+                  {/* ── Mobile: vertical day list (active days only) ── */}
+                  <div className="sm:hidden mt-3 space-y-2">
+                    {DAY_ORDER.map(day => {
+                      const run = week.runs?.find(r => r.dayOfWeek === day);
+                      const lift = week.lifts?.find(l => l.dayOfWeek === day);
+                      const restEntry = Array.isArray(week.restDays)
+                        ? week.restDays.find(r => typeof r === 'object' ? r.dayOfWeek === day : r === day)
+                        : null;
+                      const isRest = !!restEntry;
+                      const hasContent = run || lift || isRest;
+                      if (!hasContent) return null;
+
+                      const dayDate = getPlanDayDate(week.weekNumber, day);
+                      const isToday = dayDate.toLocaleDateString('en-CA') === TODAY_STR;
+
+                      return (
+                        <div key={day} className={`flex items-start gap-3 p-3 rounded-[12px] border ${
+                          isToday ? 'border-bc-blue/30 bg-bc-blue-light/30' :
+                          run ? 'bg-run-bg border-run-accent/20' :
+                          lift ? 'bg-lift-bg border-lift-accent/20' :
+                          'bg-rest-bg border-rest-accent/20'
+                        }`}>
+                          {/* Date pill */}
+                          <div className={`flex-shrink-0 text-center w-10 pt-0.5`}>
+                            <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-bc-blue' : 'text-tertiary'}`}>
+                              {DAY_SHORT[day]}
+                            </p>
+                            <p className={`text-[9px] ${isToday ? 'text-bc-blue' : 'text-tertiary'}`}>
+                              {dayDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                            </p>
+                          </div>
+                          {/* Content */}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            {run && (
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-run-accent flex-shrink-0" />
+                                <span className="text-xs font-semibold text-run-accent">{getRunLabel(run.runType)}</span>
+                                <span className="text-xs font-bold text-primary ml-auto" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                  {run.distance} mi
+                                </span>
+                              </div>
+                            )}
+                            {run?.targetPace && (
+                              <p className="text-[10px] text-tertiary pl-4">@ {run.targetPace}</p>
+                            )}
+                            {lift && (
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-lift-accent flex-shrink-0" />
+                                <span className="text-xs font-semibold text-lift-accent truncate">{lift.sessionName || 'Strength'}</span>
+                                <span className="text-[10px] text-tertiary ml-auto">{lift.exercises?.length || 0} ex</span>
+                              </div>
+                            )}
+                            {isRest && (
+                              <p className="text-xs text-rest-accent font-medium">Rest Day</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {/* Session details — view mode */}
                   {isExpanded && !editMode && (
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-4 space-y-2">
+
+                      {/* ── Run rows ── */}
                       {week.runs?.map((run, runIdx) => (
-                        <div key={`run-${runIdx}`} className="flex items-start gap-3 p-3 bg-run-bg rounded-[14px] border border-run-accent/20">
-                          <div className="w-1 rounded-full bg-run-accent self-stretch" />
+                        <div key={`run-${runIdx}`} className="flex items-center gap-3 px-3 py-2.5 bg-run-bg rounded-[12px] border border-run-accent/20">
+                          {/* Left accent + day/type */}
+                          <div className="w-1 self-stretch rounded-full bg-run-accent flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-medium text-run-accent capitalize">{DAY_SHORT[run.dayOfWeek]} — {getRunLabel(run.runType)}</span>
-                              <span className="bc-data text-xs text-primary">{run.distance} mi</span>
-                              {run.targetPace && <span className="text-[10px] text-tertiary">@ {run.targetPace}</span>}
-                              {run.duration && <span className="text-[10px] text-tertiary">{run.duration} min</span>}
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-[10px] font-semibold text-run-accent uppercase tracking-wide">
+                                {DAY_SHORT[run.dayOfWeek]}
+                              </span>
+                              <span className="text-[10px] text-run-accent opacity-40">·</span>
+                              <span className="text-[10px] font-medium text-run-accent">{getRunLabel(run.runType)}</span>
                             </div>
-                            {run.notes && <p className="text-[10px] text-secondary mt-1">{run.notes}</p>}
+                            {/* Key metrics row */}
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {/* Distance — biggest number */}
+                              <span className="text-base font-bold text-primary leading-none"
+                                style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                {run.distance} <span className="text-xs font-medium text-secondary">mi</span>
+                              </span>
+                              {/* Pace pill */}
+                              {run.targetPace && (
+                                <span className="flex items-center gap-1 px-2 py-0.5 bg-white/60 rounded-full border border-run-accent/20">
+                                  <span className="text-[10px] text-tertiary">@</span>
+                                  <span className="text-[11px] font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                    {run.targetPace}
+                                  </span>
+                                  <span className="text-[9px] text-tertiary">/mi</span>
+                                </span>
+                              )}
+                              {/* Duration pill */}
+                              {run.duration && (
+                                <span className="flex items-center gap-1 px-2 py-0.5 bg-white/60 rounded-full border border-run-accent/20">
+                                  <span className="text-[11px] font-semibold text-primary">{run.duration}</span>
+                                  <span className="text-[9px] text-tertiary">min</span>
+                                </span>
+                              )}
+                            </div>
+                            {run.notes && <p className="text-[10px] text-secondary mt-1 italic">{run.notes}</p>}
                           </div>
                         </div>
                       ))}
+
+                      {/* ── Lift rows ── */}
                       {week.lifts?.map((lift, liftIdx) => (
-                        <div key={`lift-${liftIdx}`} className="p-3 bg-lift-bg rounded-[14px] border border-lift-accent/20">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-lift-accent" />
-                            <span className="text-xs font-medium text-lift-accent">{DAY_SHORT[lift.dayOfWeek]} — {lift.sessionName}</span>
-                            {lift.duration && <span className="text-[10px] text-tertiary">{lift.duration} min</span>}
+                        <div key={`lift-${liftIdx}`} className="px-3 py-2.5 bg-lift-bg rounded-[12px] border border-lift-accent/20">
+                          {/* Header */}
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-lift-accent flex-shrink-0" />
+                            <span className="text-[10px] font-semibold text-lift-accent uppercase tracking-wide">
+                              {DAY_SHORT[lift.dayOfWeek]}
+                            </span>
+                            <span className="text-[10px] text-lift-accent opacity-40">·</span>
+                            <span className="text-xs font-medium text-lift-accent flex-1 truncate">{lift.sessionName}</span>
+                            {lift.duration && (
+                              <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/60 rounded-full border border-lift-accent/20 flex-shrink-0">
+                                <span className="text-[10px] font-semibold text-primary">{lift.duration}</span>
+                                <span className="text-[9px] text-tertiary">min</span>
+                              </span>
+                            )}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 ml-3">
+                          {/* Exercise grid — uniform columns */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                             {lift.exercises?.map((ex, exIdx) => (
-                              <div key={exIdx} className="flex items-baseline gap-2">
-                                <span className="text-[10px] text-primary">{ex.name}</span>
-                                <span className="bc-data text-[10px] text-tertiary">{ex.sets}×{ex.reps}</span>
+                              <div key={exIdx} className="flex items-center justify-between gap-2 px-2 py-1.5 bg-white/50 rounded-[8px]">
+                                <span className="text-[11px] text-primary truncate flex-1">{ex.name}</span>
+                                {/* Sets×Reps badge */}
+                                <span className="flex-shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 bg-lift-bg rounded-full border border-lift-accent/20">
+                                  <span className="text-[11px] font-bold text-lift-accent"
+                                    style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
+                                    {ex.sets}×{ex.reps}
+                                  </span>
+                                </span>
                               </div>
                             ))}
                           </div>

@@ -88,7 +88,7 @@ export default function TrainingLog() {
   const allRows = useMemo(() => buildTableRows(filtered, sortOrder), [filtered, sortOrder]);
 
   const { currentAndFutureRows, pastRows } = useMemo(() => {
-    const currentWeekKey = getISOWeek(new Date().toISOString().split('T')[0]);
+    const currentWeekKey = getISOWeek(new Date().toLocaleDateString('en-CA'));
     let hitPast = false;
     const current = [];
     const past = [];
@@ -453,7 +453,7 @@ function MobileSummaryCard({ summary }) {
 
 function buildTableRows(workouts, sortOrder) {
   if (workouts.length === 0) return [];
-  const currentWeekKey = getISOWeek(new Date().toISOString().split('T')[0]);
+  const currentWeekKey = getISOWeek(new Date().toLocaleDateString('en-CA'));
   const weeks = {};
   workouts.forEach(w => {
     const weekKey = getISOWeek(w.date);

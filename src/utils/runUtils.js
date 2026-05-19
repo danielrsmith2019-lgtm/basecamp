@@ -147,7 +147,7 @@ export function getDayOfWeek(isoDate) {
  * Returns today's date as an ISO string: "2026-05-06"
  */
 export function getToday() {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA');
 }
 
 

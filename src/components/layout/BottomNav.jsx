@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { Target, Trophy, CalendarCheck, Settings } from 'lucide-react';
+import { Target, Trophy, Settings, UtensilsCrossed } from 'lucide-react';
 
 const PRIMARY_TABS = [
   {
@@ -34,6 +34,25 @@ const PRIMARY_TABS = [
     ),
   },
   {
+    label: 'Schedule',
+    href: '/schedule',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active ? '#007AFF' : '#AEAEB2'} strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <line x1="8" y1="14" x2="8" y2="14" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="12" y1="14" x2="12" y2="14" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="16" y1="14" x2="16" y2="14" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="8" y1="18" x2="8" y2="18" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="12" y1="18" x2="12" y2="18" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     label: 'Log',
     href: '/log',
     icon: (active) => (
@@ -49,24 +68,17 @@ const PRIMARY_TABS = [
       </svg>
     ),
   },
-  {
-    label: 'Nutrition',
-    href: '/nutrition',
-    icon: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active ? '#007AFF' : '#AEAEB2'} strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8h1a4 4 0 010 8h-1" />
-        <path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" />
-        <line x1="6" y1="1" x2="6" y2="4" />
-        <line x1="10" y1="1" x2="10" y2="4" />
-        <line x1="14" y1="1" x2="14" y2="4" />
-      </svg>
-    ),
-  },
 ];
 
 const MORE_ITEMS = [
+  {
+    label: 'Nutrition',
+    href: '/nutrition',
+    description: 'Log food & track macros',
+    Icon: UtensilsCrossed,
+    color: '#34C759',
+    bg: '#E8F5E9',
+  },
   {
     label: 'Goals',
     href: '/goals',
@@ -82,14 +94,6 @@ const MORE_ITEMS = [
     Icon: Trophy,
     color: '#FF9500',
     bg: '#FFF3E0',
-  },
-  {
-    label: 'Schedule',
-    href: '/schedule',
-    description: 'Full training calendar',
-    Icon: CalendarCheck,
-    color: '#007AFF',
-    bg: '#E3F2FD',
   },
   {
     label: 'Settings',
@@ -163,46 +167,23 @@ export default function BottomNav() {
                   WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                {/* Icon in a tinted circle */}
                 <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '12px',
+                  width: '40px', height: '40px', borderRadius: '12px',
                   background: active ? 'rgba(0,122,255,0.12)' : item.bg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <Icon
-                    size={20}
-                    strokeWidth={2}
-                    color={active ? '#007AFF' : item.color}
-                  />
+                  <Icon size={20} strokeWidth={2} color={active ? '#007AFF' : item.color} />
                 </div>
-
-                {/* Label + description */}
                 <div style={{ flex: 1 }}>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: active ? '#007AFF' : '#1C1C1E',
-                    lineHeight: '20px',
-                  }}>
+                  <p style={{ margin: 0, fontSize: '15px', fontWeight: 600,
+                    color: active ? '#007AFF' : '#1C1C1E', lineHeight: '20px' }}>
                     {item.label}
                   </p>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '12px',
-                    color: '#8E8E93',
-                    lineHeight: '16px',
-                  }}>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#8E8E93', lineHeight: '16px' }}>
                     {item.description}
                   </p>
                 </div>
-
-                {/* Chevron */}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
                   stroke={active ? '#007AFF' : '#C7C7CC'} strokeWidth="2.5"
                   strokeLinecap="round" strokeLinejoin="round">
@@ -216,16 +197,12 @@ export default function BottomNav() {
 
       {/* Nav bar */}
       <nav style={{
-        position: 'fixed',
-        bottom: 0, left: 0, right: 0,
-        zIndex: 50,
-        display: 'flex',
-        alignItems: 'stretch',
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+        display: 'flex', alignItems: 'stretch',
         height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         background: 'rgba(255,255,255,0.92)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderTop: '0.5px solid rgba(60,60,67,0.12)',
       }}>
         {PRIMARY_TABS.map((item) => {
@@ -233,29 +210,17 @@ export default function BottomNav() {
             item.href === '/'
               ? pathname === '/'
               : pathname === item.href || pathname?.startsWith(item.href + '/');
-
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setShowMore(false)}
+            <Link key={item.href} href={item.href} onClick={() => setShowMore(false)}
               style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '3px',
-                textDecoration: 'none',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
+                flex: 1, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: '3px',
+                textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
+              }}>
               {item.icon(isActive)}
               <span style={{
-                fontSize: '10px',
-                fontWeight: isActive ? 600 : 500,
-                color: isActive ? '#007AFF' : '#AEAEB2',
-                lineHeight: '13px',
+                fontSize: '10px', fontWeight: isActive ? 600 : 500,
+                color: isActive ? '#007AFF' : '#AEAEB2', lineHeight: '13px',
               }}>
                 {item.label}
               </span>
@@ -264,31 +229,21 @@ export default function BottomNav() {
         })}
 
         {/* More button */}
-        <button
-          onClick={() => setShowMore(!showMore)}
+        <button onClick={() => setShowMore(!showMore)}
           style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
+            flex: 1, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: '3px',
+            border: 'none', background: 'transparent', cursor: 'pointer',
             WebkitTapHighlightColor: 'transparent',
-          }}
-        >
+          }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
             <circle cx="5"  cy="12" r="1.4" fill={isMoreActive || showMore ? '#007AFF' : '#AEAEB2'} />
             <circle cx="12" cy="12" r="1.4" fill={isMoreActive || showMore ? '#007AFF' : '#AEAEB2'} />
             <circle cx="19" cy="12" r="1.4" fill={isMoreActive || showMore ? '#007AFF' : '#AEAEB2'} />
           </svg>
           <span style={{
-            fontSize: '10px',
-            fontWeight: isMoreActive || showMore ? 600 : 500,
-            color: isMoreActive || showMore ? '#007AFF' : '#AEAEB2',
-            lineHeight: '13px',
+            fontSize: '10px', fontWeight: isMoreActive || showMore ? 600 : 500,
+            color: isMoreActive || showMore ? '#007AFF' : '#AEAEB2', lineHeight: '13px',
           }}>
             More
           </span>

@@ -94,7 +94,7 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   const [cardioNotes,    setCardioNotes]    = useState(workout?.details?.notes          ?? '');
 
   // ── Shared state ──
-  const [date, setDate] = useState(workout?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(workout?.date || new Date().toLocaleDateString('en-CA'));
 
   // ── Live pace ──
   const livePace = useMemo(() => {

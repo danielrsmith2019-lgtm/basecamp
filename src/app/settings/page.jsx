@@ -158,7 +158,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `basecamp-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `basecamp-backup-${new Date().toLocaleDateString('en-CA')}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -188,7 +188,7 @@ export default function SettingsPage() {
     setPlanDeleteStatus('deleting');
     try {
       const supabase = createClient();
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toLocaleDateString('en-CA');
 
       // Delete only future planned workouts — keep completed history
       await supabase
@@ -223,7 +223,7 @@ export default function SettingsPage() {
   }
 
   // Plan stats
-  const plannedCount = workouts.filter(w => w.status === 'planned' && w.date >= new Date().toISOString().split('T')[0]).length;
+  const plannedCount = workouts.filter(w => w.status === 'planned' && w.date >= new Date().toLocaleDateString('en-CA')).length;
   const completedCount = workouts.filter(w => w.status === 'completed').length;
 
   if (loading) {

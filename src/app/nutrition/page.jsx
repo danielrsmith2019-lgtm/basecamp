@@ -46,7 +46,7 @@ const ALL_CATEGORIES = Object.keys(CATEGORY_CONFIG);
 export default function NutritionPage() {
   const { user } = useAuth();
   const { workouts } = useWorkouts();
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
 
   const [calorieTarget,    setCalorieTarget]    = useState(2000);
   const [proteinTarget,    setProteinTarget]    = useState(150);

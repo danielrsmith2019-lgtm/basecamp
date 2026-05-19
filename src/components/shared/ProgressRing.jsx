@@ -2,8 +2,7 @@
 
 /**
  * ProgressRing — Circular progress indicator.
- * Uses SVG stroke-dasharray for the fill animation.
- * Color shifts based on percentage: green >75, blue 40-75, orange <40.
+ * Light mode: track uses #F2F2F7, auto-colors use BaseCamp tokens.
  */
 
 export default function ProgressRing({
@@ -19,16 +18,16 @@ export default function ProgressRing({
   const clamped = Math.min(Math.max(percentage, 0), 100);
   const offset = circumference - (clamped / 100) * circumference;
 
-  // Auto-color if none specified
+  // Auto-color using BaseCamp design tokens
   const ringColor = color || (
-    clamped >= 75 ? '#4ADE80' :
-    clamped >= 40 ? '#60A5FA' :
-    '#FB923C'
+    clamped >= 75 ? '#34C759' :  // bc-green
+    clamped >= 40 ? '#007AFF' :  // bc-blue
+                    '#FF9500'    // bc-orange
   );
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative" style={{ width: size, height: size }}>
+      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
         {/* Track */}
         <svg width={size} height={size} className="transform -rotate-90">
           <circle
@@ -36,7 +35,7 @@ export default function ProgressRing({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#1E293B"
+            stroke="#F2F2F7"
             strokeWidth={strokeWidth}
           />
           {/* Fill */}
@@ -56,18 +55,22 @@ export default function ProgressRing({
 
         {/* Center text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="stride-data text-lg font-bold text-primary">
+          <span className="font-bold text-primary"
+            style={{
+              fontSize: size >= 72 ? '14px' : '12px',
+              fontVariantNumeric: 'tabular-nums',
+              lineHeight: 1,
+            }}>
             {Math.round(clamped)}%
           </span>
         </div>
       </div>
 
-      {/* Labels below ring */}
       {label && (
         <p className="text-xs font-medium text-primary mt-2 text-center">{label}</p>
       )}
       {sublabel && (
-        <p className="text-[10px] text-muted text-center mt-0.5">{sublabel}</p>
+        <p className="text-[10px] text-tertiary text-center mt-0.5">{sublabel}</p>
       )}
     </div>
   );

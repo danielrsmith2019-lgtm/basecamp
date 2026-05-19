@@ -4,9 +4,9 @@ import { InsightIcon } from '@/utils/icons';
 
 export default function InsightCard({ insight, onDismiss, onAction }) {
   const styles = {
-    warning:    { border: 'border-bc-orange', iconBg: 'bg-bc-orange-light', title: 'text-bc-orange-dark', bg: 'bg-bc-gray-light' },
-    suggestion: { border: 'border-bc-blue',   iconBg: 'bg-bc-blue-light',   title: 'text-bc-blue-dark',   bg: 'bg-bc-gray-light'   },
-    info:       { border: 'border-border',        iconBg: 'bg-canvas',          title: 'text-primary',        bg: 'bg-canvas'             },
+    warning:    { border: 'border-bc-orange', iconBg: 'bg-bc-orange-light', title: 'text-bc-orange-dark', bg: 'bg-bc-orange-light/30' },
+    suggestion: { border: 'border-bc-blue',   iconBg: 'bg-bc-blue-light',   title: 'text-bc-blue-dark',   bg: 'bg-bc-blue-light/30'   },
+    info:       { border: 'border-border',     iconBg: 'bg-canvas',          title: 'text-primary',        bg: 'bg-canvas'             },
   };
   const style = styles[insight.type] || styles.info;
 

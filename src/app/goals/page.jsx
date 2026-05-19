@@ -180,17 +180,17 @@ export default function GoalsPage() {
       {/* ── Summary stats ── */}
       <div className="bc-card flex items-center gap-6 mb-5 py-4">
         <div className="flex flex-col items-center flex-1">
-          <span className="bc-stat text-bc-green-dark">{completedGoals.length}</span>
+          <span className="text-[26px] font-bold text-bc-green-dark" style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{completedGoals.length}</span>
           <span className="bc-label mt-1">Achieved</span>
         </div>
         <div className="h-8 w-px bg-border" />
         <div className="flex flex-col items-center flex-1">
-          <span className="bc-stat text-primary">{activeGoals.length}</span>
+          <span className="text-[26px] font-bold text-primary" style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{activeGoals.length}</span>
           <span className="bc-label mt-1">In Progress</span>
         </div>
         <div className="h-8 w-px bg-border" />
         <div className="flex flex-col items-center flex-1">
-          <span className="bc-stat text-bc-orange-dark">
+          <span className="text-[26px] font-bold text-bc-orange-dark" style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
             {[...allBuiltIn, ...customGoalsComputed].length > 0
               ? Math.round([...allBuiltIn, ...customGoalsComputed].reduce((s, g) => s + g.percentage, 0) / ([...allBuiltIn, ...customGoalsComputed].length))
               : 0}%
@@ -221,7 +221,8 @@ export default function GoalsPage() {
               )}
               <span className="truncate text-xs">{tab.label}</span>
               <span style={{
-                fontSize: '9px', fontFamily: 'var(--font-mono)',
+                fontSize: '9px',
+                fontVariantNumeric: 'tabular-nums',
                 color: isActive ? 'rgba(255,255,255,0.7)' : '#AEAEB2',
                 flexShrink: 0,
               }}>{tab.count}</span>

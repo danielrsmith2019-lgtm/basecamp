@@ -20,6 +20,12 @@ const LIFTING_SPLITS = [
   { value: 'strength_focused',  label: 'Strength / Powerlifting',   desc: 'Built around squat, bench, deadlift with accessory work. Heavy, low-rep.', bestFor: 'Strength & powerlifting goals', days: 4 },
 ];
 
+const DAY_TYPE_OPTIONS = [
+  { value: 'run',  label: 'Run',  color: 'text-run-accent',  bg: 'bg-run-bg',          border: 'border-run-accent',  Icon: Footprints },
+  { value: 'lift', label: 'Lift', color: 'text-lift-accent', bg: 'bg-lift-bg',          border: 'border-lift-accent', Icon: Dumbbell   },
+  { value: 'both', label: 'Both', color: 'text-bc-indigo',   bg: 'bg-bc-indigo-light',  border: 'border-bc-indigo',   Icon: Zap        },
+];
+
 const INITIAL_STATE = {
   planType: null,
   runningGoal: 'general_fitness',
@@ -42,8 +48,7 @@ const INITIAL_STATE = {
   targetSquat: '',
   targetDeadlift: '',
   availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
-  runsPerWeek: 3,
-  liftsPerWeek: 3,
+  dayAssignments: {}, // { monday: 'run', tuesday: 'lift', wednesday: 'both', ... }
   longRunDay: 'saturday',
   fullRestDays: ['sunday'],
   maxMinutesPerSession: 60,
@@ -69,10 +74,13 @@ export default function PlanWizard({ onComplete, onCancel }) {
   function toggleDay(day) {
     setForm(prev => {
       const isSelected = prev.availableDays.includes(day);
+      const newAssignments = { ...prev.dayAssignments };
+      if (isSelected) delete newAssignments[day];
       return {
         ...prev,
-        availableDays: isSelected ? prev.availableDays.filter(d => d !== day) : [...prev.availableDays, day],
-        fullRestDays: isSelected ? prev.fullRestDays : prev.fullRestDays.filter(d => d !== day),
+        availableDays:  isSelected ? prev.availableDays.filter(d => d !== day) : [...prev.availableDays, day],
+        fullRestDays:   isSelected ? prev.fullRestDays : prev.fullRestDays.filter(d => d !== day),
+        dayAssignments: newAssignments,
       };
     });
   }
@@ -80,13 +88,37 @@ export default function PlanWizard({ onComplete, onCancel }) {
   function toggleFullRestDay(day) {
     setForm(prev => {
       const isRest = prev.fullRestDays.includes(day);
+      const newAssignments = { ...prev.dayAssignments };
+      if (!isRest) delete newAssignments[day];
       return {
         ...prev,
-        fullRestDays: isRest ? prev.fullRestDays.filter(d => d !== day) : [...prev.fullRestDays, day],
-        availableDays: isRest ? prev.availableDays : prev.availableDays.filter(d => d !== day),
-        longRunDay: !isRest && prev.longRunDay === day ? '' : prev.longRunDay,
+        fullRestDays:   isRest ? prev.fullRestDays.filter(d => d !== day) : [...prev.fullRestDays, day],
+        availableDays:  isRest ? prev.availableDays : prev.availableDays.filter(d => d !== day),
+        longRunDay:     !isRest && prev.longRunDay === day ? '' : prev.longRunDay,
+        dayAssignments: newAssignments,
       };
     });
+  }
+
+  function setDayAssignment(day, type) {
+    setForm(prev => {
+      const newAssignments = { ...prev.dayAssignments };
+      if (type === null) delete newAssignments[day];
+      else newAssignments[day] = type;
+      return { ...prev, dayAssignments: newAssignments };
+    });
+  }
+
+  // Derive counts from dayAssignments for API
+  function getComputedCounts() {
+    const vals = Object.values(form.dayAssignments);
+    const runs  = vals.filter(v => v === 'run'  || v === 'both').length;
+    const lifts = vals.filter(v => v === 'lift' || v === 'both').length;
+    // Fall back to available days if nothing assigned
+    return {
+      runsPerWeek:  runs  || Math.round(form.availableDays.length * 0.5),
+      liftsPerWeek: lifts || Math.round(form.availableDays.length * 0.5),
+    };
   }
 
   function canAdvance() {
@@ -109,10 +141,11 @@ export default function PlanWizard({ onComplete, onCancel }) {
     setGenerating(true);
     setError(null);
     try {
+      const { runsPerWeek, liftsPerWeek } = getComputedCounts();
       const res = await fetch('/api/generate-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, runsPerWeek, liftsPerWeek }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -157,24 +190,29 @@ export default function PlanWizard({ onComplete, onCancel }) {
 
   return (
     <div className="bc-card-flush">
-      {/* Progress bar */}
+      {/* ── Progress bar ── */}
       <div className="flex border-b border-border overflow-x-auto">
         {stepLabels.map((label, i) => (
           <button key={i} onClick={() => i < step && setStep(i)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium transition-colors whitespace-nowrap px-2
-              ${step===i?'text-bc-blue border-b-2 border-bc-blue bg-bc-blue-light/40':step>i?'text-bc-green-dark cursor-pointer hover:bg-canvas':'text-tertiary cursor-default'}`}>
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium
+                        transition-colors whitespace-nowrap px-2
+              ${step===i ? 'text-bc-blue border-b-2 border-bc-blue bg-bc-blue-light/40'
+                : step>i ? 'text-bc-green-dark cursor-pointer hover:bg-canvas'
+                : 'text-tertiary cursor-default'}`}>
             <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0
-              ${step>i?'bg-bc-green-light text-bc-green-dark':step===i?'bg-bc-blue-light text-bc-blue':'bg-canvas text-tertiary'}`}>
-              {step>i?'✓':i+1}
+              ${step>i  ? 'bg-bc-green-light text-bc-green-dark'
+                : step===i ? 'bg-bc-blue-light text-bc-blue'
+                : 'bg-canvas text-tertiary'}`}>
+              {step>i ? '✓' : i+1}
             </div>
             <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
       </div>
 
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-6">
 
-        {/* ── STEP 0: PLAN TYPE ── */}
+        {/* ══ STEP 0: PLAN TYPE ══ */}
         {step === 0 && (
           <div className="space-y-5">
             <div>
@@ -191,11 +229,11 @@ export default function PlanWizard({ onComplete, onCancel }) {
                 return (
                   <button key={opt.value} onClick={() => update('planType', opt.value)}
                     className={`w-full flex items-center gap-4 p-4 rounded-[16px] border-2 text-left transition-all
-                      ${selected?`${opt.activeBg} ${opt.border}`:'border-border bg-canvas hover:border-border-strong'}`}>
+                      ${selected ? `${opt.activeBg} ${opt.border}` : 'border-border bg-canvas hover:border-border-strong'}`}>
                     <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center flex-shrink-0 ${opt.bg}`}>
                       <opt.Icon size={24} className={opt.color} strokeWidth={2} />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-primary">{opt.label}</p>
                       <p className="text-xs text-secondary mt-0.5 leading-relaxed">{opt.desc}</p>
                     </div>
@@ -207,7 +245,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
           </div>
         )}
 
-        {/* ── STEP 1: GOAL ── */}
+        {/* ══ STEP 1: GOAL ══ */}
         {step === 1 && (
           <div className="space-y-5">
             <div>
@@ -217,7 +255,6 @@ export default function PlanWizard({ onComplete, onCancel }) {
               <p className="text-sm text-secondary">Be specific — this drives every decision in your plan.</p>
             </div>
 
-            {/* Running goals */}
             {(form.planType === 'running' || form.planType === 'hybrid') && (
               <div className="space-y-4">
                 <div>
@@ -232,7 +269,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
                     ].map(opt => (
                       <button key={opt.value} onClick={() => update('runningGoal', opt.value)}
                         className={`w-full p-3.5 rounded-[14px] border text-left transition-all
-                          ${form.runningGoal===opt.value?'border-run-accent bg-run-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                          ${form.runningGoal===opt.value ? 'border-run-accent bg-run-bg' : 'border-border bg-canvas hover:border-border-strong'}`}>
                         <p className="text-sm font-semibold text-primary">{opt.label}</p>
                         <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
                       </button>
@@ -240,48 +277,60 @@ export default function PlanWizard({ onComplete, onCancel }) {
                   </div>
                 </div>
 
-                {/* Race inputs */}
+                {/* ── Race inputs — FIX: fully vertical stack, no grid overflow ── */}
                 {form.runningGoal === 'race' && (
-                  <div className="space-y-4 p-4 bg-run-bg rounded-[14px] border border-run-accent/20">
+                  <div className="space-y-3 p-4 bg-run-bg rounded-[14px] border border-run-accent/20">
+                    {/* Distance grid — 3 cols is safe at any width */}
                     <div>
                       <label className="bc-caption uppercase tracking-wider block mb-2">Race Distance *</label>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { value:'5k',           label:'5K' },
-                          { value:'10k',          label:'10K' },
+                          { value:'5k',            label:'5K' },
+                          { value:'10k',           label:'10K' },
                           { value:'half_marathon', label:'Half' },
-                          { value:'marathon',     label:'Marathon' },
-                          { value:'ultra',        label:'Ultra' },
-                          { value:'custom',       label:'Custom' },
+                          { value:'marathon',      label:'Marathon' },
+                          { value:'ultra',         label:'Ultra' },
+                          { value:'custom',        label:'Custom' },
                         ].map(opt => (
                           <button key={opt.value} onClick={() => update('raceDistance', opt.value)}
                             className={`py-2.5 rounded-[10px] border text-sm font-medium transition-all
-                              ${form.raceDistance===opt.value?'border-run-accent bg-run-accent text-white':'border-border bg-surface text-primary hover:border-run-accent/50'}`}>
+                              ${form.raceDistance===opt.value
+                                ? 'border-run-accent bg-run-accent text-white'
+                                : 'border-border bg-surface text-primary hover:border-run-accent/50'}`}>
                             {opt.label}
                           </button>
                         ))}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-3">
-                      {/* RACE DAY — prominently labelled */}
-                      <div className="p-3 bg-white/60 rounded-[12px] border border-run-accent/30">
-                        <label className="bc-caption uppercase tracking-wider block mb-1.5 text-run-accent">
-                          Race Day * — appears in your plan calendar
-                        </label>
-                        <input type="date" value={form.raceDate}
-                          onChange={e => update('raceDate', e.target.value)}
-                          min={new Date().toISOString().split('T')[0]}
-                          className="bc-input" />
-                        <p className="bc-caption mt-1">Plan length auto-calculates from today to race day</p>
-                      </div>
-                      <div>
-                        <label className="bc-caption uppercase tracking-wider block mb-1.5">Target Finish Time (optional)</label>
-                        <input type="text" value={form.targetTime}
-                          onChange={e => update('targetTime', e.target.value)}
-                          placeholder={form.raceDistance==='marathon'?'3:59:00':'1:45:00'}
-                          className="bc-input bc-data" />
-                        <p className="bc-caption mt-1">H:MM:SS — used to set pace zones</p>
-                      </div>
+
+                    {/* Race date — full width, explicit max-width: 100% prevents overflow */}
+                    <div className="p-3 bg-white/60 rounded-[12px] border border-run-accent/30">
+                      <label className="bc-caption uppercase tracking-wider block mb-1.5 text-run-accent">
+                        Race Day * — appears in your plan calendar
+                      </label>
+                      <input
+                        type="date"
+                        value={form.raceDate}
+                        onChange={e => update('raceDate', e.target.value)}
+                        min={new Date().toLocaleDateString('en-CA')}
+                        className="bc-input"
+                        style={{ fontSize: '16px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
+                      />
+                      <p className="bc-caption mt-1">Plan length auto-calculates from today to race day</p>
+                    </div>
+
+                    {/* Target time — full width */}
+                    <div>
+                      <label className="bc-caption uppercase tracking-wider block mb-1.5">Target Finish Time (optional)</label>
+                      <input
+                        type="text"
+                        value={form.targetTime}
+                        onChange={e => update('targetTime', e.target.value)}
+                        placeholder={form.raceDistance==='marathon' ? '3:59:00' : '1:45:00'}
+                        className="bc-input"
+                        style={{ fontSize: '16px' }}
+                      />
+                      <p className="bc-caption mt-1">H:MM:SS — used to set pace zones</p>
                     </div>
                   </div>
                 )}
@@ -289,8 +338,9 @@ export default function PlanWizard({ onComplete, onCancel }) {
                 {form.runningGoal === 'base_building' && (
                   <div>
                     <label className="bc-caption uppercase tracking-wider block mb-1.5">Target Weekly Mileage</label>
-                    <input type="number" value={form.targetWeeklyMileage} onChange={e => update('targetWeeklyMileage', e.target.value)}
-                      placeholder="40" className="bc-input bc-data" />
+                    <input type="number" value={form.targetWeeklyMileage}
+                      onChange={e => update('targetWeeklyMileage', e.target.value)}
+                      placeholder="40" className="bc-input" style={{ fontSize: '16px' }} />
                     <p className="bc-caption mt-1">Miles per week to reach by end of plan</p>
                   </div>
                 )}
@@ -304,7 +354,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
                     ].map(opt => (
                       <button key={opt.value} onClick={() => update('planStyle', opt.value)}
                         className={`p-3 rounded-[14px] border text-left transition-all
-                          ${form.planStyle===opt.value?'border-bc-teal bg-bc-teal-light/40':'border-border bg-canvas hover:border-border-strong'}`}>
+                          ${form.planStyle===opt.value ? 'border-bc-teal bg-bc-teal-light/40' : 'border-border bg-canvas hover:border-border-strong'}`}>
                         <p className="text-xs font-semibold text-primary">{opt.label}</p>
                         <p className="bc-caption mt-0.5">{opt.desc}</p>
                       </button>
@@ -314,31 +364,28 @@ export default function PlanWizard({ onComplete, onCancel }) {
               </div>
             )}
 
-            {/* Lifting goals */}
             {(form.planType === 'lifting' || form.planType === 'hybrid') && (
-              <div className={form.planType==='hybrid'?'pt-4 border-t border-border space-y-4':'space-y-4'}>
+              <div className={form.planType==='hybrid' ? 'pt-4 border-t border-border space-y-4' : 'space-y-4'}>
                 {form.planType==='hybrid' && (
                   <label className="bc-caption uppercase tracking-wider block">Lifting Goal</label>
                 )}
-
                 <div className="space-y-2">
                   {[
                     { value:'strength',     label:'Strength',             desc:'Heavy lifts, low reps (3-5). Maximize force production.' },
                     { value:'hypertrophy',  label:'Hypertrophy',          desc:'Moderate weight, 8-12 reps. Build muscle mass.' },
                     { value:'powerlifting', label:'Powerlifting',         desc:'Maximize squat, bench, deadlift. Competition-focused.' },
                     { value:'athletic',     label:'Athletic Performance', desc:'Functional strength, power, agility. Complements running.' },
-                    { value:'maintenance',  label:'Maintenance',           desc:'Keep current strength while prioritizing another goal.' },
+                    { value:'maintenance',  label:'Maintenance',          desc:'Keep current strength while prioritizing another goal.' },
                   ].map(opt => (
                     <button key={opt.value} onClick={() => update('liftingGoal', opt.value)}
                       className={`w-full p-3.5 rounded-[14px] border text-left transition-all
-                        ${form.liftingGoal===opt.value?'border-lift-accent bg-lift-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                        ${form.liftingGoal===opt.value ? 'border-lift-accent bg-lift-bg' : 'border-border bg-canvas hover:border-border-strong'}`}>
                       <p className="text-sm font-semibold text-primary">{opt.label}</p>
                       <p className="text-xs text-secondary mt-0.5">{opt.desc}</p>
                     </button>
                   ))}
                 </div>
 
-                {/* ── LIFTING SPLIT SELECTOR ── */}
                 <div>
                   <label className="bc-caption uppercase tracking-wider block mb-2">
                     Lifting Split
@@ -352,9 +399,9 @@ export default function PlanWizard({ onComplete, onCancel }) {
                       return (
                         <button key={split.value} onClick={() => update('liftingSplit', split.value)}
                           className={`w-full p-3.5 rounded-[14px] border text-left transition-all
-                            ${selected?'border-lift-accent bg-lift-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                            ${selected ? 'border-lift-accent bg-lift-bg' : 'border-border bg-canvas hover:border-border-strong'}`}>
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-primary">{split.label}</p>
                               <p className="text-xs text-secondary mt-0.5 leading-relaxed">{split.desc}</p>
                               <p className="bc-caption mt-1">
@@ -372,8 +419,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
                   </div>
                 </div>
 
-                {/* Strength targets */}
-                {(form.liftingGoal==='strength'||form.liftingGoal==='powerlifting') && (
+                {(form.liftingGoal==='strength' || form.liftingGoal==='powerlifting') && (
                   <div className="p-4 bg-lift-bg rounded-[14px] border border-lift-accent/20">
                     <p className="text-xs font-semibold text-lift-accent mb-3">Strength Targets (optional)</p>
                     <div className="grid grid-cols-3 gap-2">
@@ -384,8 +430,10 @@ export default function PlanWizard({ onComplete, onCancel }) {
                       ].map(t => (
                         <div key={t.field}>
                           <label className="bc-caption block mb-1">{t.label}</label>
-                          <input type="number" value={form[t.field]||''} onChange={e => update(t.field, e.target.value)}
-                            placeholder={t.placeholder} className="bc-input bc-data !py-2" />
+                          <input type="number" value={form[t.field]||''}
+                            onChange={e => update(t.field, e.target.value)}
+                            placeholder={t.placeholder} className="bc-input !py-2"
+                            style={{ fontSize: '16px' }} />
                         </div>
                       ))}
                     </div>
@@ -399,7 +447,9 @@ export default function PlanWizard({ onComplete, onCancel }) {
                       {['Chest','Back','Legs','Shoulders','Arms','Core'].map(m => (
                         <button key={m} onClick={() => toggleArrayItem('liftingFocus', m)}
                           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all
-                            ${form.liftingFocus?.includes(m)?'bg-lift-accent text-white border-lift-accent':'border-border text-secondary hover:border-lift-accent/50'}`}>
+                            ${form.liftingFocus?.includes(m)
+                              ? 'bg-lift-accent text-white border-lift-accent'
+                              : 'border-border text-secondary hover:border-lift-accent/50'}`}>
                           {m}
                         </button>
                       ))}
@@ -422,7 +472,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
           </div>
         )}
 
-        {/* ── STEP 2: FITNESS ── */}
+        {/* ══ STEP 2: FITNESS ══ */}
         {step === 2 && (
           <div className="space-y-5">
             <div>
@@ -430,34 +480,38 @@ export default function PlanWizard({ onComplete, onCancel }) {
               <p className="text-sm text-secondary">Honest answers = better plan.</p>
             </div>
 
-            {(form.planType==='running'||form.planType==='hybrid') && (
+            {(form.planType==='running' || form.planType==='hybrid') && (
               <div className="space-y-4">
                 <p className="text-xs font-semibold text-run-accent uppercase tracking-wider">Running</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="bc-caption uppercase tracking-wider block mb-1.5">Weekly Mileage *</label>
-                    <input type="number" value={form.weeklyMileage} onChange={e => update('weeklyMileage', e.target.value)}
-                      placeholder="20" className="bc-input bc-data" />
+                    <input type="number" value={form.weeklyMileage}
+                      onChange={e => update('weeklyMileage', e.target.value)}
+                      placeholder="20" className="bc-input" style={{ fontSize: '16px' }} />
                     <p className="bc-caption mt-1">Current miles/week</p>
                   </div>
                   <div>
                     <label className="bc-caption uppercase tracking-wider block mb-1.5">Longest Recent Run</label>
-                    <input type="number" value={form.longestRecentRun} onChange={e => update('longestRecentRun', e.target.value)}
-                      placeholder="10" className="bc-input bc-data" />
+                    <input type="number" value={form.longestRecentRun}
+                      onChange={e => update('longestRecentRun', e.target.value)}
+                      placeholder="10" className="bc-input" style={{ fontSize: '16px' }} />
                     <p className="bc-caption mt-1">Miles</p>
                   </div>
                 </div>
                 <div>
                   <label className="bc-caption uppercase tracking-wider block mb-1.5">Recent Race Time (optional)</label>
-                  <input type="text" value={form.recentRaceTime} onChange={e => update('recentRaceTime', e.target.value)}
-                    placeholder="e.g. 2:05 half, 22:00 5K" className="bc-input" />
+                  <input type="text" value={form.recentRaceTime}
+                    onChange={e => update('recentRaceTime', e.target.value)}
+                    placeholder="e.g. 2:05 half, 22:00 5K" className="bc-input"
+                    style={{ fontSize: '16px' }} />
                   <p className="bc-caption mt-1">Helps calibrate pace zones</p>
                 </div>
               </div>
             )}
 
-            {(form.planType==='lifting'||form.planType==='hybrid') && (
-              <div className={`space-y-4 ${form.planType==='hybrid'?'pt-4 border-t border-border':''}`}>
+            {(form.planType==='lifting' || form.planType==='hybrid') && (
+              <div className={`space-y-4 ${form.planType==='hybrid' ? 'pt-4 border-t border-border' : ''}`}>
                 <p className="text-xs font-semibold text-lift-accent uppercase tracking-wider">Lifting</p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
@@ -467,7 +521,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
                   ].map(opt => (
                     <button key={opt.value} onClick={() => update('liftingExperience', opt.value)}
                       className={`p-3 rounded-[14px] border text-center transition-all
-                        ${form.liftingExperience===opt.value?'border-lift-accent bg-lift-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                        ${form.liftingExperience===opt.value ? 'border-lift-accent bg-lift-bg' : 'border-border bg-canvas hover:border-border-strong'}`}>
                       <p className="text-xs font-semibold text-primary">{opt.label}</p>
                       <p className="bc-caption mt-0.5">{opt.desc}</p>
                     </button>
@@ -481,8 +535,10 @@ export default function PlanWizard({ onComplete, onCancel }) {
                   ].map(t => (
                     <div key={t.field}>
                       <label className="bc-caption block mb-1.5">{t.label}</label>
-                      <input type="number" value={form[t.field]||''} onChange={e => update(t.field, e.target.value)}
-                        placeholder={t.placeholder} className="bc-input bc-data !py-2" />
+                      <input type="number" value={form[t.field]||''}
+                        onChange={e => update(t.field, e.target.value)}
+                        placeholder={t.placeholder} className="bc-input !py-2"
+                        style={{ fontSize: '16px' }} />
                       <p className="bc-caption mt-0.5">lbs</p>
                     </div>
                   ))}
@@ -492,17 +548,17 @@ export default function PlanWizard({ onComplete, onCancel }) {
           </div>
         )}
 
-        {/* ── STEP 3: SCHEDULE ── */}
+        {/* ══ STEP 3: SCHEDULE ══ */}
         {step === 3 && (
           <div className="space-y-5">
             <div>
               <h3 className="text-[17px] font-semibold text-primary mb-1">Design your week</h3>
-              <p className="text-sm text-secondary">Pick training days, rest days, and session limits.</p>
+              <p className="text-sm text-secondary">Choose your training days, then assign what happens each day.</p>
             </div>
 
+            {/* Part A: Training day picker */}
             <div>
-              <label className="bc-caption uppercase tracking-wider block mb-1.5">Weekly Layout</label>
-              <p className="bc-caption mb-2">Tap: training → rest → off.</p>
+              <label className="bc-caption uppercase tracking-wider block mb-2">Training Days</label>
               <div className="grid grid-cols-7 gap-1">
                 {DAYS.map((day, i) => {
                   const isTraining = form.availableDays.includes(day);
@@ -510,14 +566,17 @@ export default function PlanWizard({ onComplete, onCancel }) {
                   return (
                     <button key={day}
                       onClick={() => {
-                        if (isTraining) { toggleDay(day); toggleFullRestDay(day); }
-                        else if (isFullRest) { toggleFullRestDay(day); }
-                        else { toggleDay(day); }
+                        if (isTraining) toggleDay(day);
+                        else if (isFullRest) toggleFullRestDay(day);
+                        else toggleDay(day);
                       }}
-                      className={`py-3 rounded-[12px] text-[10px] font-medium transition-all flex flex-col items-center gap-1
-                        ${isTraining?'bg-bc-blue text-white':isFullRest?'bg-rest-bg text-rest-accent border border-rest-accent/30':'bg-canvas border border-border text-tertiary'}`}>
+                      className={`py-3 rounded-[12px] text-[10px] font-medium transition-all
+                                  flex flex-col items-center gap-1
+                        ${isTraining  ? 'bg-bc-blue text-white'
+                          : isFullRest ? 'bg-rest-bg text-rest-accent border border-rest-accent/30'
+                          : 'bg-canvas border border-border text-tertiary'}`}>
                       {DAY_LABELS[i]}
-                      <span className="text-[8px]">{isTraining?'Train':isFullRest?'Rest':'—'}</span>
+                      <span className="text-[8px]">{isTraining ? 'Train' : isFullRest ? 'Rest' : '—'}</span>
                     </button>
                   );
                 })}
@@ -525,48 +584,132 @@ export default function PlanWizard({ onComplete, onCancel }) {
               {form.fullRestDays.length < 1 && (
                 <p className="bc-caption text-bc-orange-dark mt-2">At least 1 full rest day required</p>
               )}
+              <p className="bc-caption mt-1.5">
+                {form.availableDays.length} training · {form.fullRestDays.length} rest
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {(form.planType==='running'||form.planType==='hybrid') && (
-                <div>
-                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Runs / Week</label>
-                  <select value={form.runsPerWeek} onChange={e => update('runsPerWeek', Number(e.target.value))} className="bc-input cursor-pointer">
-                    {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-              )}
-              {(form.planType==='lifting'||form.planType==='hybrid') && (
-                <div>
-                  <label className="bc-caption uppercase tracking-wider block mb-1.5">Lifts / Week</label>
-                  <select value={form.liftsPerWeek} onChange={e => update('liftsPerWeek', Number(e.target.value))} className="bc-input cursor-pointer">
-                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
+            {/* Part B: Per-day assignment */}
+            {form.availableDays.length > 0 && (
+              <div>
+                <label className="bc-caption uppercase tracking-wider block mb-1">Day Assignment</label>
+                <p className="bc-caption mb-3">
+                  {form.planType === 'hybrid'
+                    ? 'Tap to assign each day as Run, Lift, or Both. Leave as "Auto" to let AI decide.'
+                    : form.planType === 'running'
+                    ? 'All training days will be run days.'
+                    : 'All training days will be lift days.'}
+                </p>
 
-            {(form.planType==='running'||form.planType==='hybrid') && (
+                <div className="space-y-2">
+                  {DAYS.filter(day => form.availableDays.includes(day)).map(day => {
+                    const idx    = DAYS.indexOf(day);
+                    const assign = form.dayAssignments[day] || null;
+
+                    const options = form.planType === 'running'
+                      ? DAY_TYPE_OPTIONS.filter(t => t.value === 'run')
+                      : form.planType === 'lifting'
+                      ? DAY_TYPE_OPTIONS.filter(t => t.value === 'lift')
+                      : DAY_TYPE_OPTIONS;
+
+                    return (
+                      <div key={day} className="flex items-center gap-2">
+                        {/* Day label — fixed width */}
+                        <span className="text-sm font-semibold text-primary w-9 flex-shrink-0">
+                          {DAY_LABELS[idx]}
+                        </span>
+
+                        {/* Type toggle buttons */}
+                        <div className="flex gap-1 flex-1 flex-wrap">
+                          {options.map(opt => {
+                            const isSelected = assign === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => setDayAssignment(day, isSelected ? null : opt.value)}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs
+                                            font-medium border transition-all flex-1 justify-center min-h-[36px]
+                                  ${isSelected
+                                    ? `${opt.bg} ${opt.border} ${opt.color}`
+                                    : 'bg-canvas border-border text-tertiary hover:border-border-strong'}`}>
+                                <opt.Icon size={11} strokeWidth={2} />
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                          {/* Auto pill for hybrid when nothing assigned */}
+                          {form.planType === 'hybrid' && !assign && (
+                            <span className="flex items-center px-2.5 py-1.5 rounded-full text-[10px]
+                                            text-tertiary border border-dashed border-border bg-canvas">
+                              Auto
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Summary for hybrid */}
+                {form.planType === 'hybrid' && (
+                  <div className="mt-3 flex items-center gap-4 p-3 bg-canvas rounded-[12px] border border-border flex-wrap">
+                    {(() => {
+                      const vals  = Object.values(form.dayAssignments);
+                      const runs  = vals.filter(v => v === 'run'  || v === 'both').length;
+                      const lifts = vals.filter(v => v === 'lift' || v === 'both').length;
+                      const unset = form.availableDays.length - Object.keys(form.dayAssignments).filter(d => form.availableDays.includes(d)).length;
+                      return (
+                        <>
+                          <div className="flex items-center gap-1">
+                            <Footprints size={12} className="text-run-accent" />
+                            <span className="text-xs font-semibold text-run-accent">{runs}</span>
+                            <span className="bc-caption">run{runs !== 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Dumbbell size={12} className="text-lift-accent" />
+                            <span className="text-xs font-semibold text-lift-accent">{lifts}</span>
+                            <span className="bc-caption">lift{lifts !== 1 ? 's' : ''}</span>
+                          </div>
+                          {unset > 0 && (
+                            <span className="bc-caption text-tertiary">{unset} auto-assigned</span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Long run day */}
+            {(form.planType==='running' || form.planType==='hybrid') && form.availableDays.length > 0 && (
               <div>
                 <label className="bc-caption uppercase tracking-wider block mb-1.5">Long Run Day</label>
-                <select value={form.longRunDay} onChange={e => update('longRunDay', e.target.value)} className="bc-input cursor-pointer">
-                  {form.availableDays.map(day => (
-                    <option key={day} value={day}>
-                      {DAY_LABELS[DAYS.indexOf(day)]}{(day==='saturday'||day==='sunday')?' (recommended)':''}
-                    </option>
-                  ))}
+                <select value={form.longRunDay} onChange={e => update('longRunDay', e.target.value)}
+                  className="bc-input cursor-pointer">
+                  {form.availableDays
+                    .filter(day => !form.dayAssignments[day] || ['run','both'].includes(form.dayAssignments[day]))
+                    .map(day => (
+                      <option key={day} value={day}>
+                        {DAY_LABELS[DAYS.indexOf(day)]}{(day==='saturday'||day==='sunday') ? ' (recommended)' : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
             )}
 
+            {/* Max session length */}
             <div>
               <label className="bc-caption uppercase tracking-wider block mb-1.5">Max Session Length</label>
-              <select value={form.maxMinutesPerSession} onChange={e => update('maxMinutesPerSession', Number(e.target.value))} className="bc-input cursor-pointer">
+              <select value={form.maxMinutesPerSession}
+                onChange={e => update('maxMinutesPerSession', Number(e.target.value))}
+                className="bc-input cursor-pointer">
                 {[30,45,60,75,90,120].map(n => <option key={n} value={n}>{n} minutes</option>)}
               </select>
             </div>
 
-            {(form.planType==='lifting'||form.planType==='hybrid') && (
+            {/* Equipment */}
+            {(form.planType==='lifting' || form.planType==='hybrid') && (
               <div>
                 <label className="bc-caption uppercase tracking-wider block mb-2">Equipment</label>
                 <div className="space-y-2">
@@ -577,7 +720,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
                   ].map(opt => (
                     <button key={opt.value} onClick={() => update('equipment', opt.value)}
                       className={`w-full flex items-center gap-3 p-3 rounded-[12px] border text-left transition-all
-                        ${form.equipment===opt.value?'border-rest-accent bg-rest-bg':'border-border bg-canvas hover:border-border-strong'}`}>
+                        ${form.equipment===opt.value ? 'border-rest-accent bg-rest-bg' : 'border-border bg-canvas hover:border-border-strong'}`}>
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-primary">{opt.label}</p>
                         <p className="bc-caption">{opt.desc}</p>
@@ -601,19 +744,29 @@ export default function PlanWizard({ onComplete, onCancel }) {
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
           <div>
             {step > 0
-              ? <button onClick={() => setStep(step-1)} className="flex items-center gap-1.5 px-4 py-2.5 text-secondary text-sm hover:text-primary transition-colors min-h-[44px]">
+              ? <button onClick={() => setStep(step-1)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 text-secondary text-sm
+                             hover:text-primary transition-colors min-h-[44px]">
                   <ChevronLeft size={14} /> Back
                 </button>
-              : <button onClick={onCancel} className="px-4 py-2.5 text-secondary text-sm hover:text-primary transition-colors min-h-[44px]">Cancel</button>
+              : <button onClick={onCancel}
+                  className="px-4 py-2.5 text-secondary text-sm hover:text-primary
+                             transition-colors min-h-[44px]">
+                  Cancel
+                </button>
             }
           </div>
           {step < 3
             ? <button onClick={() => setStep(step+1)} disabled={!canAdvance()}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-bc-blue hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-bc-blue hover:opacity-90
+                           disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm
+                           font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
                 Next <ChevronRight size={14} />
               </button>
             : <button onClick={handleGenerate} disabled={!canAdvance()}
-                className="flex items-center gap-2 px-5 py-2.5 bg-bc-indigo hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
+                className="flex items-center gap-2 px-5 py-2.5 bg-bc-indigo hover:opacity-90
+                           disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm
+                           font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
                 <Sparkles size={14} /> Generate Plan
               </button>
           }

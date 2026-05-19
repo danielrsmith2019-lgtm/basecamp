@@ -37,7 +37,7 @@ export default function CalendarView({ workouts, onWorkoutClick }) {
   const monthLabel = new Date(currentMonth.year, currentMonth.month, 1)
     .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
 
   function prevMonth() {
     setCurrentMonth(prev => {

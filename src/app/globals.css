@@ -126,18 +126,27 @@ body {
 
 /* ── Typography helpers ── */
 
-/* Hero stat numbers — Fitbod-style bold rounded */
+/* CHANGE bc-stat */
 .bc-stat {
-  font-family: var(--font-rounded);
-  font-size: 28px;
+  font-family: var(--font-sans);   /* was var(--font-rounded) */
+  font-size: 26px;                 /* was 28px */
   font-weight: 700;
+  font-variant-numeric: tabular-nums;  /* ADD */
   letter-spacing: -0.02em;
   line-height: 1;
   color: var(--color-primary);
 }
 
-/* Monospace data values — pace, time, weight */
 .bc-data {
+  font-family: var(--font-sans);   /* was var(--font-mono) */
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;  /* ADD this — keeps numbers aligned without mono */
+  line-height: 1;
+}
+
+/* ADD this new class right after bc-data — for pace/time only */
+.bc-data-mono {
   font-family: var(--font-mono);
   font-size: 15px;
   font-weight: 600;
@@ -538,10 +547,12 @@ body {
    migrated off the old dark-theme classes.
    ══════════════════════════════════════════ */
 
+/* CHANGE stride-data legacy alias */
 .stride-data {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);   /* was var(--font-mono) */
   font-size: 15px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;  /* ADD */
   line-height: 1;
 }
 

@@ -16,7 +16,7 @@ export default function SchedulePage() {
   const [showNewForm, setShowNewForm] = useState(false);
   const [showPast, setShowPast] = useState(false);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
 
   const filteredWorkouts = useMemo(() => {
     const sorted = [...workouts].sort((a, b) => a.date.localeCompare(b.date));

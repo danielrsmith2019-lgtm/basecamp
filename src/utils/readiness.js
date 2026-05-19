@@ -26,7 +26,7 @@ function getTrainingLoad(workouts, days) {
 }
 
 function getDaysSinceRest(workouts) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const restDays = workouts
     .filter(w => w.type === 'rest' && w.status === 'completed' && w.date <= today)
     .map(w => w.date)

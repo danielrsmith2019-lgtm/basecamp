@@ -45,7 +45,7 @@ function getISOWeek(dateStr) {
 
 // ── Helper: get the current ISO week key ──
 function getCurrentWeekKey() {
-  return getISOWeek(new Date().toISOString().split('T')[0]);
+  return getISOWeek(new Date().toLocaleDateString('en-CA'));
 }
 
 // ── Helper: get next week's ISO key ──
@@ -68,7 +68,7 @@ function checkMissedSessions(workouts) {
   const skipped = thisWeekWorkouts.filter(w => w.status === 'skipped');
 
   // Only count sessions that are in the past (today or earlier)
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const missedCount = planned.filter(w => w.date <= today).length + skipped.length;
 
   if (missedCount < 2) return null;
@@ -152,7 +152,7 @@ function checkPaceTrending(workouts) {
   const adjustment = 10; // seconds to tighten
 
   // Find future planned easy runs to show what would change
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const futureEasyRuns = workouts.filter(w =>
     w.type === 'run' &&
     w.status === 'planned' &&
@@ -241,7 +241,7 @@ function checkOverexertion(workouts) {
 // ══════════════════════════════════════════════
 function checkCrossDomainBalance(workouts) {
   const currentWeek = getCurrentWeekKey();
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const thisWeekWorkouts = workouts.filter(w =>
     getISOWeek(w.date) === currentWeek && w.date <= today
   );

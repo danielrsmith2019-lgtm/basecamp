@@ -124,7 +124,7 @@ function checkLegDayRunConflict(workouts) {
   const HARD_RUNS = ['Tempo', 'Intervals', 'Long Run', 'Race'];
 
   // Only look at planned or upcoming workouts (not past completed ones)
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const upcoming = workouts.filter(w => w.date >= today && w.status === 'planned');
 
   const legDays = upcoming.filter(w => {
