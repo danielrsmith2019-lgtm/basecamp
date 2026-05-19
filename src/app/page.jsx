@@ -19,6 +19,8 @@ import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon } from '@/utils/icons';
 import { Flame, Sparkles } from 'lucide-react';
 import PlanAdaptationList from '@/components/shared/PlanAdaptation';
+import SkipInsightCard from '@/components/shared/SkipInsightCard';
+import { analyzeSkips, computeWeeklySkipRate } from '@/utils/skipIntelligence';
 import { getFuelStatus } from '@/utils/nutrition';
 import ShareWorkoutButton from '@/components/shared/ShareWorkoutButton';
 import { incrementShareCount } from '@/lib/share-tracking';
@@ -37,7 +39,26 @@ export default function Dashboard() {
 
   const [logTarget, setLogTarget]                 = useState(null);
   const [justLogged, setJustLogged]               = useState(null);
-  const [dismissedInsights, setDismissedInsights] = useState(new Set());
+  // Persist dismissed insight IDs in localStorage, keyed by date
+  // so they reset naturally the next day
+  const [dismissedInsights, setDismissedInsights] = useState(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = JSON.parse(localStorage.getItem('bc-dismissed-insights') || '{}');
+      const today  = new Date().toLocaleDateString('en-CA');
+      // Only restore if saved today — stale dismissals expire at midnight
+      return stored.date === today ? new Set(stored.ids || []) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const [dismissedSkips, setDismissedSkips] = useState(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = JSON.parse(localStorage.getItem('bc-dismissed-skips') || '{}');
+      const today  = new Date().toLocaleDateString('en-CA');
+      return stored.date === today ? new Set(stored.ids || []) : new Set();
+    } catch { return new Set(); }
+  });
   const [showCheckIn, setShowCheckIn]             = useState(false);
   const [checkInData, setCheckInData]             = useState(null);
   const [readinessScore, setReadinessScore]       = useState(null);
@@ -117,6 +138,39 @@ export default function Dashboard() {
   const visibleInsights = useMemo(() =>
     allInsights.filter(i => !dismissedInsights.has(i.id)),
   [allInsights, dismissedInsights]);
+
+  // ── Skip intelligence ──────────────────────────────
+  const skipInsights = useMemo(() =>
+    analyzeSkips(workouts).filter(i => !dismissedSkips.has(i.id)),
+  [workouts, dismissedSkips]);
+
+  const skipStats = useMemo(() => computeWeeklySkipRate(workouts), [workouts]);
+
+  async function handleRescue(insight) {
+    // Reschedule: create a new planned workout on the rescue date
+    // (copy the skipped workout's details to the new date)
+    const rescue = insight.action?.rescue;
+    const skip   = insight.action?.skipWorkout;
+    if (!rescue || !skip) return;
+    const newWorkout = {
+      ...skip,
+      id:     undefined, // let DB assign new id
+      date:   rescue.date,
+      status: 'planned',
+    };
+    await saveWorkout(newWorkout);
+    // Dismiss this skip insight
+    setDismissedSkips(prev => {
+      const next = new Set([...prev, insight.id]);
+      try {
+        localStorage.setItem('bc-dismissed-skips', JSON.stringify({
+          date: new Date().toLocaleDateString('en-CA'),
+          ids:  [...next],
+        }));
+      } catch {}
+      return next;
+    });
+  }
 
   const stats = useMemo(() => {
     const runs  = workouts.filter(w => w.type === 'run');
@@ -234,6 +288,43 @@ export default function Dashboard() {
       currentWeekMileage: (getWeeklyData(completedRuns, w => w.details.actualDistance || 0)[3] || 0).toFixed(1),
       currentWeekVolume:  getWeeklyData(completedLifts, w => w.details.totalVolume   || 0)[3] || 0,
       streak: calculateStreak(workouts),
+
+      // ── Phase run adherence ──
+      // Adherence = completed / (completed + skipped) for runs in current phase
+      // Excludes future planned sessions — only judges past decisions
+      ...(() => {
+        if (!currentPhase) return {
+          phaseRunAdherence: null,
+          phaseRunAdherenceTrend: [null, null, null, null],
+          phaseRunsSkipped: 0,
+        };
+        const phaseAllRuns = runs.filter(w => w.details?.phase === currentPhase);
+        const pastPhaseRuns = phaseAllRuns.filter(w => w.date <= todayStr && w.status !== 'planned');
+        const phDone    = pastPhaseRuns.filter(w => w.status === 'completed').length;
+        const phSkipped = pastPhaseRuns.filter(w => w.status === 'skipped').length;
+        const phPast    = phDone + phSkipped;
+        const adherence = phPast > 0 ? Math.round((phDone / phPast) * 100) : null;
+
+        // 4-week adherence sparkline (% per week, most recent last)
+        const trend = [0, 1, 2, 3].map(weeksAgo => {
+          const wEnd   = new Date(monday); wEnd.setDate(monday.getDate() - weeksAgo * 7 + 6);
+          const wStart = new Date(monday); wStart.setDate(monday.getDate() - weeksAgo * 7);
+          const wEndStr   = wEnd.toLocaleDateString('en-CA');
+          const wStartStr = wStart.toLocaleDateString('en-CA');
+          const wRuns = phaseAllRuns.filter(w => w.date >= wStartStr && w.date <= wEndStr && w.status !== 'planned');
+          const wDone    = wRuns.filter(w => w.status === 'completed').length;
+          const wSkipped = wRuns.filter(w => w.status === 'skipped').length;
+          const wTotal   = wDone + wSkipped;
+          return wTotal > 0 ? Math.round((wDone / wTotal) * 100) : null;
+        }).reverse(); // oldest → newest
+
+        return {
+          phaseRunAdherence:      adherence,
+          phaseRunAdherenceTrend: trend,
+          phaseRunsSkipped:       phSkipped,
+          phaseRunsTotal:         phPast,
+        };
+      })(),
     };
   }, [workouts]);
 
@@ -330,6 +421,60 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Skip Intelligence ── */}
+      {skipInsights.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <p className="bc-caption uppercase tracking-wider">Skipped Sessions</p>
+              <span className="bc-pill bg-bc-red-light text-bc-red-dark text-[10px]">
+                {skipInsights.length} impact{skipInsights.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            {skipStats.phaseRisk && (
+              <span className="text-[10px] font-semibold text-bc-red-dark">
+                {skipStats.phaseRisk.projected}% projected · target 80%
+              </span>
+            )}
+          </div>
+          <div className="space-y-3">
+            {skipInsights.map(insight => (
+              <SkipInsightCard
+                key={insight.id}
+                insight={insight}
+                onDismiss={id => {
+                  setDismissedSkips(prev => {
+                    const next = new Set([...prev, id]);
+                    try {
+                      localStorage.setItem('bc-dismissed-skips', JSON.stringify({
+                        date: new Date().toLocaleDateString('en-CA'),
+                        ids:  [...next],
+                      }));
+                    } catch {}
+                    return next;
+                  });
+                }}
+                onRescue={handleRescue}
+              />
+            ))}
+          </div>
+          {/* Weekly skip summary if rate is concerning */}
+          {skipStats.skipRate >= 20 && (
+            <div className="mt-3 p-3 bg-bc-orange-light rounded-[12px] border border-bc-orange/20">
+              <p className="text-xs font-semibold text-bc-orange-dark">
+                {skipStats.skipRate}% skip rate this week
+                ({skipStats.skippedThisWeek}/{skipStats.plannedThisWeek} sessions)
+              </p>
+              <p className="bc-caption mt-0.5">
+                {skipStats.onTrack
+                  ? 'Still within acceptable range — keep going.'
+                  : 'Above 20% — consider adjusting your schedule or reducing load.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Cross-Training Insights ── */}
       {visibleInsights.length > 0 && (
         <div className="mb-6">
@@ -355,8 +500,30 @@ export default function Dashboard() {
             <div className="space-y-3">
               {visibleInsights.map(insight => (
                 <InsightCard key={insight.id} insight={insight}
-                  onDismiss={(id) => setDismissedInsights(prev => new Set([...prev, id]))}
-                  onAction={(i) => setDismissedInsights(prev => new Set([...prev, i.id]))} />
+                  onDismiss={(id) => {
+                    setDismissedInsights(prev => {
+                      const next = new Set([...prev, id]);
+                      try {
+                        localStorage.setItem('bc-dismissed-insights', JSON.stringify({
+                          date: new Date().toLocaleDateString('en-CA'),
+                          ids:  [...next],
+                        }));
+                      } catch {}
+                      return next;
+                    });
+                  }}
+                  onAction={(i) => {
+                    setDismissedInsights(prev => {
+                      const next = new Set([...prev, i.id]);
+                      try {
+                        localStorage.setItem('bc-dismissed-insights', JSON.stringify({
+                          date: new Date().toLocaleDateString('en-CA'),
+                          ids:  [...next],
+                        }));
+                      } catch {}
+                      return next;
+                    });
+                  }} />
               ))}
             </div>
           )}
@@ -682,7 +849,69 @@ export default function Dashboard() {
           <p className="text-[10px] text-tertiary">in a row</p>
         </div>
 
-        <div className="hidden md:block bento-quarter" />
+        {/* ── Run Adherence (phase) ── */}
+        {stats.phaseRunAdherence !== null ? (
+          <div className="bc-card p-4 bento-quarter">
+            <p className="bc-caption uppercase tracking-wider mb-2">Run Adherence</p>
+            <div className="flex items-end justify-between mb-1">
+              <div className="flex items-baseline gap-1">
+                <span className="font-bold leading-none"
+                  style={{
+                    fontSize: '24px',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '-0.02em',
+                    color: stats.phaseRunAdherence >= 85 ? '#2E7D32'
+                         : stats.phaseRunAdherence >= 70 ? '#E65100'
+                         : '#C62828',
+                  }}>
+                  {stats.phaseRunAdherence}
+                </span>
+                <span className="text-xs text-tertiary">%</span>
+              </div>
+              {/* Mini sparkline using inline SVG — shows 4-week adherence trend */}
+              {(() => {
+                const trend = stats.phaseRunAdherenceTrend.filter(v => v !== null);
+                if (trend.length < 2) return null;
+                const max = Math.max(...trend, 100);
+                const w = 56, h = 24;
+                const pts = trend.map((v, i) => {
+                  const x = (i / (trend.length - 1)) * w;
+                  const y = h - (v / max) * h;
+                  return `${x},${y}`;
+                }).join(' ');
+                const color = stats.phaseRunAdherence >= 85 ? '#2E7D32'
+                            : stats.phaseRunAdherence >= 70 ? '#FF9500'
+                            : '#FF3B30';
+                return (
+                  <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+                    <polyline points={pts} fill="none" stroke={color}
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      opacity="0.7" />
+                    {/* dot on last point */}
+                    {trend.length > 0 && (() => {
+                      const last = trend[trend.length - 1];
+                      const lx = w;
+                      const ly = h - (last / max) * h;
+                      return <circle cx={lx} cy={ly} r="2.5" fill={color} />;
+                    })()}
+                  </svg>
+                );
+              })()}
+            </div>
+            <p className="text-[10px] text-tertiary capitalize">
+              {stats.currentPhase} phase
+              {stats.phaseRunsSkipped > 0 && (
+                <span className="ml-1" style={{
+                  color: stats.phaseRunAdherence < 85 ? '#E65100' : '#AEAEB2'
+                }}>
+                  · {stats.phaseRunsSkipped} skipped
+                </span>
+              )}
+            </p>
+          </div>
+        ) : (
+          <div className="hidden md:block bento-quarter" />
+        )}
       </div>
 
       {/* ── Weekly Training Load Chart ── */}
