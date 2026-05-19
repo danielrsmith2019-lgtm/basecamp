@@ -520,21 +520,63 @@ export default function PlansPage() {
         </button>
       </div>
 
-      {/* ── Plan Insights — CHANGED: collapsed by default, persisted ── */}
-      {displayPlan.plan_insights?.length > 0 && (
+      {/* ── Schedule Suggestions — actionable conflicts from user's day assignments ── */}
+      {displayPlan.schedule_suggestions?.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={14} className="text-bc-orange flex-shrink-0" />
+            <span className="text-xs font-semibold text-primary">Schedule Suggestions</span>
+            <span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px]">
+              {displayPlan.schedule_suggestions.filter(s => !dismissedSuggestions.has(s.title)).length} items
+            </span>
+          </div>
+          <div className="space-y-2">
+            {displayPlan.schedule_suggestions
+              .filter(s => !dismissedSuggestions.has(s.title))
+              .map((s, idx) => {
+                const isWarning = s.severity === 'warning';
+                const border = isWarning ? 'border-bc-red/20 bg-bc-red-light/40' :
+                               s.severity === 'suggestion' ? 'border-bc-orange/20 bg-bc-orange-light/40' :
+                               'border-bc-blue/20 bg-bc-blue-light/40';
+                return (
+                  <div key={idx} className={`p-3 rounded-[14px] border ${border}`}>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-xs font-semibold text-primary flex-1">{s.title}</p>
+                      <button
+                        onClick={() => setDismissedSuggestions(prev => new Set([...prev, s.title]))}
+                        className="text-tertiary hover:text-secondary flex-shrink-0 min-w-[24px] min-h-[24px] flex items-center justify-center">
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-secondary leading-relaxed mb-2">{s.explanation}</p>
+                    {s.actionable && s.action && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-tertiary">Suggested:</span>
+                        <span className="text-[10px] font-medium text-primary italic">{s.action}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Plan Insights — Why your plan is built this way ── */}
+      {displayPlan.plan_insights?.filter(i => !i.actionable).length > 0 && (
         <div className="mb-4">
           <button
             onClick={toggleInsights}
             className="flex items-center gap-2 text-xs text-secondary hover:text-primary transition-colors mb-2 min-h-[44px]">
             <Lightbulb size={14} className="text-bc-orange" />
             <span className="font-medium">Why your plan is built this way</span>
-            <span className="text-tertiary">({displayPlan.plan_insights.length} insights)</span>
+            <span className="text-tertiary">({displayPlan.plan_insights.filter(i => !i.actionable).length} insights)</span>
             {insightsCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
           </button>
 
           {!insightsCollapsed && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {displayPlan.plan_insights.map((insight, idx) => {
+              {displayPlan.plan_insights.filter(i => !i.actionable).map((insight, idx) => {
                 const categoryColors = {
                   scheduling:    'border-bc-blue/20 bg-bc-blue-light/40',
                   interference:  'border-bc-red/20 bg-bc-red-light/40',

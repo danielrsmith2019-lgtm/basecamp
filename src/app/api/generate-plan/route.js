@@ -1,3 +1,210 @@
+// ══════════════════════════════════════════════════════════
+// ENFORCE DAY ASSIGNMENTS SERVER-SIDE
+// Even if Claude drifts, this corrects the output to match
+// what the user explicitly selected in the wizard.
+// ══════════════════════════════════════════════════════════
+
+function enforceDayAssignments(plan, input) {
+  const assignments = input.dayAssignments || {};
+  const fullRestDays = new Set(input.fullRestDays || []);
+  if (Object.keys(assignments).length === 0) return plan; // nothing to enforce
+
+  const processWeek = (week) => {
+    const runs     = week.runs     || [];
+    const lifts    = week.lifts    || [];
+    const restDays = week.restDays || [];
+
+    // Build maps of what's currently assigned per day
+    const runDays  = new Set(runs.map(r => r.dayOfWeek));
+    const liftDays = new Set(lifts.map(l => l.dayOfWeek));
+
+    let newRuns  = [...runs];
+    let newLifts = [...lifts];
+
+    for (const [day, type] of Object.entries(assignments)) {
+      if (fullRestDays.has(day)) continue; // never override full rest
+
+      if (type === 'run') {
+        // Remove any lifts on this day
+        newLifts = newLifts.filter(l => l.dayOfWeek !== day);
+        // Make sure there's a run here (if runs exist in the week)
+        // Don't force add — just don't remove
+      }
+      if (type === 'lift') {
+        // Remove any runs on this day
+        newRuns = newRuns.filter(r => r.dayOfWeek !== day);
+        // Don't remove lifts
+      }
+      if (type === 'both') {
+        // Must have both — don't remove either
+        // If missing one, we can't add it without details, so just leave as-is
+        // The prompt enforcement should handle this
+      }
+    }
+
+    // Also enforce: runs must not appear on lift-only days, lifts must not appear on run-only days
+    // (catches any days not in assignments but where Claude put wrong type)
+    // Only enforce for days that HAVE explicit assignments
+    return {
+      ...week,
+      runs:     newRuns,
+      lifts:    newLifts,
+      restDays: week.restDays,
+    };
+  };
+
+  // Apply to direct weeks
+  if (plan.weeks) {
+    plan.weeks = plan.weeks.map(processWeek);
+  }
+  // Apply to phase templates
+  if (plan.phase_templates) {
+    plan.phase_templates = plan.phase_templates.map(pt => ({
+      ...pt,
+      template_week: processWeek(pt.template_week || {}),
+    }));
+  }
+
+  return plan;
+}
+
+
+// ══════════════════════════════════════════════════════════
+// SCHEDULE CONFLICT ANALYSIS
+// Checks the enforced schedule for interference issues and
+// appends specific, actionable insights the user can act on.
+// These appear in "Why your plan is built this way" on the
+// plan page — the user decides whether to adjust.
+// ══════════════════════════════════════════════════════════
+
+const DAY_ORDER = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+function getDayIndex(day) { return DAY_ORDER.indexOf(day); }
+
+function getDayAfter(day) {
+  return DAY_ORDER[(getDayIndex(day) + 1) % 7];
+}
+
+function analyzeScheduleConflicts(plan, input) {
+  const assignments  = input.dayAssignments || {};
+  const longRunDay   = input.longRunDay || 'saturday';
+  const planType     = input.planType || 'hybrid';
+  const suggestions  = [];
+
+  if (planType === 'running' || Object.keys(assignments).length === 0) return suggestions;
+
+  // Get the actual week structure (first non-deload week)
+  const sampleWeek = plan.weeks?.find(w => w.phase !== 'deload' && w.phase !== 'taper') ||
+                     plan.phase_templates?.[0]?.template_week ||
+                     plan.weeks?.[0];
+
+  if (!sampleWeek) return suggestions;
+
+  const liftDays = (sampleWeek.lifts || []).map(l => l.dayOfWeek);
+  const runDays  = (sampleWeek.runs  || []).map(r => r.dayOfWeek);
+
+  // ── Check 1: Lower body lift the day before a hard run or long run ──
+  const LEG_SESSIONS = ['Lower Body', 'Legs', 'Lower', 'Squat', 'Deadlift'];
+
+  for (const lift of (sampleWeek.lifts || [])) {
+    const isLegSession = LEG_SESSIONS.some(k =>
+      (lift.sessionName || '').toLowerCase().includes(k.toLowerCase()) ||
+      (lift.muscleGroups || []).some(g =>
+        ['quads','hamstrings','glutes','calves','legs'].includes(g.toLowerCase())
+      )
+    );
+    if (!isLegSession) continue;
+
+    const dayAfter = getDayAfter(lift.dayOfWeek);
+    const runAfter = (sampleWeek.runs || []).find(r => r.dayOfWeek === dayAfter);
+
+    if (runAfter) {
+      const isHardRun = ['tempo','interval','long_run'].includes(runAfter.runType);
+      const isLongRun = runAfter.dayOfWeek === longRunDay || runAfter.runType === 'long_run';
+
+      if (isLongRun) {
+        suggestions.push({
+          category: 'scheduling',
+          severity: 'warning',
+          title: `⚠ Lower body lift before long run (${cap(lift.dayOfWeek)} → ${cap(dayAfter)})`,
+          explanation: `You've placed your ${lift.sessionName || 'lower body'} session on ${cap(lift.dayOfWeek)}, the day before your long run on ${cap(dayAfter)}. Research (Hickson 1980, Murlasits 2018) shows heavy lower-body compounds like squats and deadlifts create 24-48h of muscular fatigue that directly degrades long run quality. **Suggested fix:** Move ${cap(lift.dayOfWeek)} to an upper body session (push or pull), or swap the lower body lift to the day after your long run instead.`,
+          actionable: true,
+          action: `Move lower body lift to ${cap(getDayAfter(dayAfter))} or make ${cap(lift.dayOfWeek)} upper body only`,
+        });
+      } else if (isHardRun) {
+        suggestions.push({
+          category: 'interference',
+          severity: 'suggestion',
+          title: `Consider rearranging ${cap(lift.dayOfWeek)} lift before ${runAfter.runType} run`,
+          explanation: `Your ${lift.sessionName || 'lower body'} lift on ${cap(lift.dayOfWeek)} precedes a ${runAfter.runType} run on ${cap(dayAfter)}. For easy runs this is fine, but hard runs need fresh legs. **Suggested fix:** Swap the order — run first on ${cap(dayAfter)}, or make the lift an upper body session if you keep the current day order.`,
+          actionable: true,
+          action: `Swap order or make ${cap(lift.dayOfWeek)} lift upper body only`,
+        });
+      }
+    }
+  }
+
+  // ── Check 2: Both run and lift on same day — check ordering recommendation ──
+  const bothDays = Object.entries(assignments)
+    .filter(([_, t]) => t === 'both')
+    .map(([d]) => d);
+
+  for (const day of bothDays) {
+    suggestions.push({
+      category: 'scheduling',
+      severity: 'info',
+      title: `Double session on ${cap(day)} — run first recommended`,
+      explanation: `You've scheduled both a run and lift on ${cap(day)}. Research (Murlasits 2018) consistently shows running before lifting preserves run quality better than the reverse — lifting pre-exhausts the legs and raises cortisol, which impairs endurance. If time allows, separate the sessions by 4-6 hours. If back-to-back, always run first.`,
+      actionable: false,
+      action: null,
+    });
+  }
+
+  // ── Check 3: No rest day between two hard days ──
+  const hardDays = [longRunDay, ...Object.entries(assignments)
+    .filter(([_, t]) => t === 'both').map(([d]) => d)];
+
+  for (let i = 0; i < hardDays.length; i++) {
+    for (let j = i + 1; j < hardDays.length; j++) {
+      const diff = Math.abs(getDayIndex(hardDays[i]) - getDayIndex(hardDays[j]));
+      if (diff === 1 || diff === 6) { // adjacent days
+        suggestions.push({
+          category: 'recovery',
+          severity: 'suggestion',
+          title: `Back-to-back hard days (${cap(hardDays[i])} + ${cap(hardDays[j])})`,
+          explanation: `Your long run on ${cap(longRunDay)} and double session on ${cap(hardDays[j])} are on consecutive days. This stacks fatigue and raises injury risk. **Suggested fix:** Place an easy run or full rest day between them, or move one of the sessions earlier in the week.`,
+          actionable: true,
+          action: `Add recovery day between ${cap(hardDays[i])} and ${cap(hardDays[j])}`,
+        });
+      }
+    }
+  }
+
+  // ── Check 4: Too few rest days for training load ──
+  const restDayCount = (input.fullRestDays || []).length +
+    Object.values(assignments).filter(t => t === 'run' || t === 'lift').length === 0 ? 1 : 0;
+  const trainingDays = (input.availableDays || []).length;
+
+  if (trainingDays >= 6 && (input.fullRestDays || []).length < 2) {
+    suggestions.push({
+      category: 'recovery',
+      severity: 'suggestion',
+      title: 'Consider a second rest day for your training load',
+      explanation: `You're training ${trainingDays} days per week. With only ${(input.fullRestDays || []).length} full rest day, connective tissue recovery may lag behind muscular recovery — tendons and ligaments adapt 2-3x slower than muscles (Magnusson & Kjaer 2003). A second rest or active recovery day, especially mid-week, would reduce overuse injury risk without meaningfully impacting fitness gains.`,
+      actionable: true,
+      action: 'Add a mid-week active recovery or full rest day',
+    });
+  }
+
+  return suggestions;
+}
+
+function cap(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+
 // app/api/generate-plan/route.js
 //
 // Generates science-based training plans via Claude API.
@@ -145,6 +352,14 @@ Generate 5-7 plan_insights specific to this user. Be concrete, reference the sci
 
   plan.generated_at = new Date().toISOString();
   plan.input = input;
+  // Enforce user's day assignments — override any Claude violations
+  enforceDayAssignments(plan, input);
+  // Append schedule conflict suggestions to plan_insights
+  const conflicts = analyzeScheduleConflicts(plan, input);
+  if (conflicts.length > 0) {
+    plan.plan_insights = [...(plan.plan_insights || []), ...conflicts];
+    plan.schedule_suggestions = conflicts; // also expose separately for the UI
+  }
   return Response.json(plan);
 }
 
@@ -203,7 +418,7 @@ Generate 5-7 plan_insights specific to this user. Reference exercise science.`;
 
   const expandedWeeks = expandTemplates(templateData.phase_templates, totalWeeks);
 
-  return Response.json({
+  const expandedPlan = {
     name: templateData.name || 'Training Plan',
     description: templateData.description || '',
     plan_type: planType,
@@ -212,7 +427,17 @@ Generate 5-7 plan_insights specific to this user. Reference exercise science.`;
     weeks: expandedWeeks,
     generated_at: new Date().toISOString(),
     input,
-  });
+  };
+
+  // Enforce user's day assignments — override any Claude violations
+  enforceDayAssignments(expandedPlan, input);
+  // Append schedule conflict suggestions to plan_insights
+  const conflicts = analyzeScheduleConflicts(expandedPlan, input);
+  if (conflicts.length > 0) {
+    expandedPlan.plan_insights = [...(expandedPlan.plan_insights || []), ...conflicts];
+    expandedPlan.schedule_suggestions = conflicts;
+  }
+  return Response.json(expandedPlan);
 }
 
 
@@ -374,13 +599,22 @@ SCIENCE PRINCIPLES — NEVER VIOLATE:
 
 ${planType !== 'lifting' ? `6. LONG RUN on ${longRunDay}. Day before (${dayBefore}): full_rest, active_recovery, or upper body only. Day after: full_rest or active_recovery.` : ''}
 
-SCHEDULE:
+SCHEDULE — USER-DEFINED, NON-NEGOTIABLE:
 - Available days: ${input.availableDays?.join(', ') || 'all days'}
-- Full rest days: ${fullRestDays.join(', ')} — NON-NEGOTIABLE
+- Full rest days: ${fullRestDays.join(', ')} — ABSOLUTE, never put any workout here
 ${planType !== 'lifting' ? `- Runs/week: exactly ${runsPerWeek}` : ''}
 ${planType !== 'running' ? `- Lifts/week: exactly ${liftsPerWeek}` : ''}
 ${planType !== 'lifting' ? `- Long run day: ${longRunDay}` : ''}
 - Max session length: ${input.maxMinutesPerSession || 60} minutes
+${Object.keys(input.dayAssignments || {}).length > 0 ? `
+DAY ASSIGNMENTS — THE USER EXPLICITLY CHOSE THESE — YOU MUST FOLLOW THEM EXACTLY:
+${Object.entries(input.dayAssignments || {}).map(([day, type]) =>
+  `- ${day}: ${type === 'run' ? 'RUN ONLY — no lift sessions on this day' :
+               type === 'lift' ? 'LIFT ONLY — no run sessions on this day' :
+               'BOTH run AND lift — schedule one of each on this day'}`
+).join('\n')}
+Any day NOT listed above that is a training day: AI may assign run or lift based on exercise science.
+VIOLATION of day assignments is not permitted under any circumstances.` : ''}
 
 EQUIPMENT: ${
     input.equipment === 'full_gym'   ? 'Full gym (barbells, dumbbells, cables, machines)' :
