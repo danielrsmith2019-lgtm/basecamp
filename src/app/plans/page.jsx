@@ -145,6 +145,7 @@ export default function PlansPage() {
   const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState(null);
   const [insightsCollapsed, toggleInsights, openInsights] = useInsightsCollapsed();
+  const [dismissedSuggestions, setDismissedSuggestions] = useState(new Set());
 
   useEffect(() => {
     if (!user) return;
