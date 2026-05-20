@@ -1,20 +1,15 @@
 // utils/adaptation.js
 //
 // Adaptive Plan Engine — runs after every logged workout.
-// Compares actual performance vs. plan and generates adaptation notifications.
-//
 // Four rules:
 // 1. Missed Sessions → reduce next week's volume 10%
 // 2. Pace Trending Fast → tighten future pace targets
 // 3. Overexertion → flag high RPE on easy runs
 // 4. Cross-Domain Balance → hold volume if one domain is lagging
-//
-// Each rule returns an adaptation object or null.
 
 // ── Helper: parse pace string "M:SS" to total seconds ──
 function paceToSeconds(pace) {
   if (!pace || typeof pace !== 'string') return null;
-  // Handle range paces like "8:30-9:00" — take the midpoint
   if (pace.includes('-')) {
     const parts = pace.split('-').map(p => paceToSeconds(p.trim()));
     if (parts[0] === null || parts[1] === null) return null;
@@ -43,63 +38,72 @@ function getISOWeek(dateStr) {
   return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-// ── Helper: get the current ISO week key ──
 function getCurrentWeekKey() {
   return getISOWeek(new Date().toLocaleDateString('en-CA'));
 }
 
-// ── Helper: get next week's ISO key ──
 function getNextWeekKey() {
   const d = new Date();
   d.setDate(d.getDate() + 7);
-  return getISOWeek(d.toISOString().split('T')[0]);
+  return getISOWeek(d.toLocaleDateString('en-CA'));
 }
+
+// ── Helper: check localStorage cooldown ──
+// Returns true if this adaptation type is on cooldown (accepted < daysRequired ago)
+function isOnCooldown(type, daysRequired = 7) {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = JSON.parse(localStorage.getItem(`bc-adapt-accepted-${type}`) || 'null');
+    if (!stored) return false;
+    const acceptedDate = new Date(stored.acceptedAt);
+    const daysSince = (Date.now() - acceptedDate.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince < daysRequired;
+  } catch { return false; }
+}
+
+// Called by WorkoutContext when an adaptation is accepted
+export function markAdaptationAccepted(type) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`bc-adapt-accepted-${type}`, JSON.stringify({
+      acceptedAt: new Date().toISOString(),
+    }));
+  } catch {}
+}
+
 
 // ══════════════════════════════════════════════
 // RULE 1: MISSED SESSIONS
-// If 2+ planned workouts were skipped this week,
-// reduce next week's planned mileage and volume by 10%.
 // ══════════════════════════════════════════════
 function checkMissedSessions(workouts) {
   const currentWeek = getCurrentWeekKey();
   const thisWeekWorkouts = workouts.filter(w => getISOWeek(w.date) === currentWeek);
-
-  const planned = thisWeekWorkouts.filter(w => w.status === 'planned' && w.type !== 'rest');
-  const skipped = thisWeekWorkouts.filter(w => w.status === 'skipped');
-
-  // Only count sessions that are in the past (today or earlier)
-  const today = new Date().toLocaleDateString('en-CA');
+  const planned  = thisWeekWorkouts.filter(w => w.status === 'planned' && w.type !== 'rest');
+  const skipped  = thisWeekWorkouts.filter(w => w.status === 'skipped');
+  const today    = new Date().toLocaleDateString('en-CA');
   const missedCount = planned.filter(w => w.date <= today).length + skipped.length;
 
   if (missedCount < 2) return null;
 
-  // Calculate what next week looks like before and after
   const nextWeek = getNextWeekKey();
   const nextWeekWorkouts = workouts.filter(w => getISOWeek(w.date) === nextWeek && w.status === 'planned');
-  const nextWeekRuns = nextWeekWorkouts.filter(w => w.type === 'run');
+  const nextWeekRuns  = nextWeekWorkouts.filter(w => w.type === 'run');
   const nextWeekLifts = nextWeekWorkouts.filter(w => w.type === 'lift');
-
   const currentMileage = nextWeekRuns.reduce((sum, w) => sum + (w.details?.plannedDistance || 0), 0);
   const reducedMileage = Math.round(currentMileage * 0.9 * 10) / 10;
 
   if (currentMileage === 0 && nextWeekLifts.length === 0) return null;
 
   return {
-    id: `missed-${currentWeek}`,
+    id: `missed-${currentWeek}`,  // stable: one per week
     type: 'missed_sessions',
     severity: 'warning',
     title: 'Volume Reduction Recommended',
     description: `You missed ${missedCount} planned sessions this week. To prevent overreaching when you return, next week's volume should be reduced by 10%.`,
     science: 'Returning to full volume after missed sessions increases injury risk. A 10% reduction allows your body to readapt without losing fitness (Schwellnus et al., 2016).',
     changes: {
-      before: {
-        mileage: currentMileage,
-        label: `${currentMileage} mi planned`,
-      },
-      after: {
-        mileage: reducedMileage,
-        label: `${reducedMileage} mi (reduced 10%)`,
-      },
+      before: { mileage: currentMileage, label: `${currentMileage} mi planned` },
+      after:  { mileage: reducedMileage, label: `${reducedMileage} mi (reduced 10%)` },
       affectedWorkoutIds: nextWeekRuns.map(w => w.id),
       reductionFactor: 0.9,
     },
@@ -111,10 +115,14 @@ function checkMissedSessions(workouts) {
 
 // ══════════════════════════════════════════════
 // RULE 2: PACE TRENDING FAST
-// If the last 3 easy runs averaged >15 sec/mile
-// faster than target, tighten future paces by 10 sec.
+// FIX: stable ID keyed to actual pace data, not Date.now()
+// FIX: 14-day cooldown after acceptance to prevent feedback loop
 // ══════════════════════════════════════════════
 function checkPaceTrending(workouts) {
+  // 14-day cooldown — prevents the feedback loop where each 10s adjustment
+  // immediately triggers another suggestion
+  if (isOnCooldown('pace_trending_fast', 14)) return null;
+
   const completedEasyRuns = workouts
     .filter(w =>
       w.type === 'run' &&
@@ -128,8 +136,6 @@ function checkPaceTrending(workouts) {
 
   if (completedEasyRuns.length < 3) return null;
 
-  // Calculate average difference (target - actual)
-  // Positive = running faster than target
   let totalDiffSec = 0;
   let validCount = 0;
 
@@ -146,12 +152,10 @@ function checkPaceTrending(workouts) {
 
   const avgDiffSec = totalDiffSec / validCount;
 
-  // Only fire if averaging >15 seconds faster
-  if (avgDiffSec <= 15) return null;
+  // Only fire if averaging >30 seconds faster (raised from 15 to reduce noise)
+  if (avgDiffSec <= 30) return null;
 
-  const adjustment = 10; // seconds to tighten
-
-  // Find future planned easy runs to show what would change
+  const adjustment = 10;
   const today = new Date().toLocaleDateString('en-CA');
   const futureEasyRuns = workouts.filter(w =>
     w.type === 'run' &&
@@ -163,11 +167,15 @@ function checkPaceTrending(workouts) {
   const sampleRun = futureEasyRuns[0];
   const samplePaceSec = sampleRun ? paceToSeconds(sampleRun.details?.targetPace) : null;
 
+  // Stable ID: keyed to the rounded avg diff and the sample pace
+  // Changes only when the actual pace gap materially changes (>5s shift)
+  const idKey = `${Math.round(avgDiffSec / 5) * 5}-${samplePaceSec || 'na'}`;
+
   return {
-    id: `pace-trend-${Date.now()}`,
+    id: `pace-trend-${idKey}`,  // stable — only changes if pace gap changes
     type: 'pace_trending_fast',
     severity: 'positive',
-    title: 'You\'re Faster Than Your Targets',
+    title: "You're Faster Than Your Targets",
     description: `Your last 3 easy runs averaged ${Math.round(avgDiffSec)} seconds/mile faster than your target pace. Your fitness has improved — we can tighten your targets by ${adjustment} sec/mile.`,
     science: 'Consistent sub-target pacing on easy runs indicates improved aerobic fitness. Recalibrating targets ensures your training zones remain accurate for the polarized distribution model (Seiler, 2010).',
     changes: {
@@ -190,8 +198,7 @@ function checkPaceTrending(workouts) {
 
 // ══════════════════════════════════════════════
 // RULE 3: OVEREXERTION ON EASY RUNS
-// If average RPE on easy runs exceeds 6,
-// suggest slowing down.
+// FIX: stable ID keyed to RPE bucket, not Date.now()
 // ══════════════════════════════════════════════
 function checkOverexertion(workouts) {
   const recentEasyRuns = workouts
@@ -202,7 +209,7 @@ function checkOverexertion(workouts) {
       w.details?.rpe != null
     )
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5); // Look at last 5 easy runs
+    .slice(0, 5);
 
   if (recentEasyRuns.length < 3) return null;
 
@@ -210,22 +217,19 @@ function checkOverexertion(workouts) {
 
   if (avgRpe <= 6) return null;
 
+  // Stable ID: keyed to RPE bucket (changes only when RPE materially changes)
+  const rpeBucket = Math.round(avgRpe * 2) / 2; // rounds to nearest 0.5
+
   return {
-    id: `overexertion-${Date.now()}`,
+    id: `overexertion-rpe-${rpeBucket}`,  // stable
     type: 'overexertion',
     severity: 'warning',
     title: 'Easy Runs Are Too Hard',
     description: `Your average RPE on easy runs is ${avgRpe.toFixed(1)} — it should be 3-5. You're running your easy days too hard, which compromises recovery and defeats the purpose of polarized training.`,
     science: 'Easy runs at RPE 6+ accumulate unnecessary fatigue without additional aerobic benefit. The 80/20 model requires true easy effort (RPE 3-5) on easy days to maximize adaptation from hard sessions (Stöggl & Sperlich, 2015).',
     changes: {
-      before: {
-        rpe: avgRpe.toFixed(1),
-        label: `Average easy run RPE: ${avgRpe.toFixed(1)}`,
-      },
-      after: {
-        rpe: '4-5',
-        label: 'Target easy run RPE: 4-5 (conversational pace)',
-      },
+      before: { rpe: avgRpe.toFixed(1), label: `Average easy run RPE: ${avgRpe.toFixed(1)}` },
+      after:  { rpe: '4-5',             label: 'Target easy run RPE: 4-5 (conversational pace)' },
     },
     status: 'pending',
     createdAt: new Date().toISOString(),
@@ -235,9 +239,6 @@ function checkOverexertion(workouts) {
 
 // ══════════════════════════════════════════════
 // RULE 4: CROSS-DOMAIN BALANCE
-// If one modality is fully completed but the other
-// is largely skipped, hold volume on the completed
-// side to prevent deepening the imbalance.
 // ══════════════════════════════════════════════
 function checkCrossDomainBalance(workouts) {
   const currentWeek = getCurrentWeekKey();
@@ -246,44 +247,37 @@ function checkCrossDomainBalance(workouts) {
     getISOWeek(w.date) === currentWeek && w.date <= today
   );
 
-  const plannedRuns = thisWeekWorkouts.filter(w => w.type === 'run' && (w.status === 'completed' || w.status === 'planned' || w.status === 'skipped'));
-  const plannedLifts = thisWeekWorkouts.filter(w => w.type === 'lift' && (w.status === 'completed' || w.status === 'planned' || w.status === 'skipped'));
+  const plannedRuns  = thisWeekWorkouts.filter(w => w.type === 'run'  && ['completed','planned','skipped'].includes(w.status));
+  const plannedLifts = thisWeekWorkouts.filter(w => w.type === 'lift' && ['completed','planned','skipped'].includes(w.status));
 
   if (plannedRuns.length === 0 || plannedLifts.length === 0) return null;
 
-  const completedRuns = plannedRuns.filter(w => w.status === 'completed');
+  const completedRuns  = plannedRuns.filter(w => w.status === 'completed');
   const completedLifts = plannedLifts.filter(w => w.status === 'completed');
-  const missedRuns = plannedRuns.filter(w => w.status === 'skipped' || (w.status === 'planned' && w.date < today));
-  const missedLifts = plannedLifts.filter(w => w.status === 'skipped' || (w.status === 'planned' && w.date < today));
 
-  const runCompletionRate = completedRuns.length / plannedRuns.length;
+  const runCompletionRate  = completedRuns.length  / plannedRuns.length;
   const liftCompletionRate = completedLifts.length / plannedLifts.length;
 
-  // Fire if one side is >80% complete and the other is <40%
   const imbalanced = (runCompletionRate > 0.8 && liftCompletionRate < 0.4) ||
                      (liftCompletionRate > 0.8 && runCompletionRate < 0.4);
 
   if (!imbalanced) return null;
 
   const strongSide = runCompletionRate > liftCompletionRate ? 'running' : 'lifting';
-  const weakSide = strongSide === 'running' ? 'lifting' : 'running';
+  const weakSide   = strongSide === 'running' ? 'lifting' : 'running';
   const strongRate = Math.round((strongSide === 'running' ? runCompletionRate : liftCompletionRate) * 100);
-  const weakRate = Math.round((weakSide === 'running' ? runCompletionRate : liftCompletionRate) * 100);
+  const weakRate   = Math.round((weakSide   === 'running' ? runCompletionRate : liftCompletionRate) * 100);
 
   return {
-    id: `balance-${currentWeek}`,
+    id: `balance-${currentWeek}`,  // stable: one per week
     type: 'cross_domain_balance',
     severity: 'info',
     title: 'Training Imbalance Detected',
     description: `You completed ${strongRate}% of your ${strongSide} but only ${weakRate}% of your ${weakSide} this week. Next week's ${strongSide} volume will hold steady rather than increase, to avoid deepening the imbalance.`,
-    science: 'Increasing load on one modality while the other lags creates asymmetric fatigue patterns that can mask overtraining signals. Holding volume on the strong side allows the weak side to catch up without adding systemic stress (Hickson, 1980).',
+    science: 'Increasing load on one modality while the other lags creates asymmetric fatigue patterns that can mask overtraining signals (Hickson, 1980).',
     changes: {
-      before: {
-        label: `${strongSide}: ${strongRate}% complete | ${weakSide}: ${weakRate}% complete`,
-      },
-      after: {
-        label: `Next week: ${strongSide} volume holds steady, no increase`,
-      },
+      before: { label: `${strongSide}: ${strongRate}% complete | ${weakSide}: ${weakRate}% complete` },
+      after:  { label: `Next week: ${strongSide} volume holds steady, no increase` },
       holdSide: strongSide,
     },
     status: 'pending',
@@ -296,28 +290,28 @@ function checkCrossDomainBalance(workouts) {
 // MAIN: Run all adaptation rules
 // ══════════════════════════════════════════════
 export function checkAdaptations(workouts) {
-  const adaptations = [
+  return [
     checkMissedSessions(workouts),
     checkPaceTrending(workouts),
     checkOverexertion(workouts),
     checkCrossDomainBalance(workouts),
   ].filter(a => a !== null);
-
-  return adaptations;
 }
 
 
 // ══════════════════════════════════════════════
 // APPLY: Execute an accepted adaptation
-// Returns the list of workout updates to make
 // ══════════════════════════════════════════════
 export function applyAdaptation(adaptation, workouts) {
   const updates = [];
 
+  // Mark cooldown on accept so this adaptation type rests for 14 days
+  markAdaptationAccepted(adaptation.type);
+
   switch (adaptation.type) {
     case 'missed_sessions': {
       const factor = adaptation.changes.reductionFactor || 0.9;
-      const ids = adaptation.changes.affectedWorkoutIds || [];
+      const ids    = adaptation.changes.affectedWorkoutIds || [];
       ids.forEach(id => {
         const w = workouts.find(w => w.id === id);
         if (!w) return;
@@ -356,12 +350,8 @@ export function applyAdaptation(adaptation, workouts) {
     }
 
     case 'overexertion':
-      // This is an advisory — no workout modifications needed
-      break;
-
     case 'cross_domain_balance':
-      // This prevents future increases — handled at plan generation time
-      // No immediate workout modifications
+      // Advisory only — no workout modifications
       break;
   }
 

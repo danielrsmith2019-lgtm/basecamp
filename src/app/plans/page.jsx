@@ -133,7 +133,7 @@ function useInsightsCollapsed() {
 
 export default function PlansPage() {
   const { user } = useAuth();
-  const { refresh } = useWorkouts();
+  const { refresh, workouts: allWorkouts } = useWorkouts();
 
   const [view, setView] = useState('loading');
   const [generatedPlan, setGeneratedPlan] = useState(null);
@@ -145,7 +145,13 @@ export default function PlansPage() {
   const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState(null);
   const [insightsCollapsed, toggleInsights, openInsights] = useInsightsCollapsed();
-  const [dismissedSuggestions, setDismissedSuggestions] = useState(new Set());
+  const [dismissedSuggestions, setDismissedSuggestions] = useState(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = JSON.parse(localStorage.getItem('bc-plan-dismissed-suggestions') || '[]');
+      return new Set(stored);
+    } catch { return new Set(); }
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -423,6 +429,21 @@ export default function PlansPage() {
 
   const displayPlan = view === 'preview' ? generatedPlan : activePlan?.plan_data;
 
+  // ── Workout completion lookup ──
+  // Maps "YYYY-MM-DD-type" → status so grid cells show real completion
+  const workoutStatusMap = useMemo(() => {
+    const map = {};
+    (allWorkouts || []).forEach(w => {
+      const key = `${w.date}-${w.type}`;
+      if (!map[key] || w.status === 'completed') map[key] = w.status;
+    });
+    return map;
+  }, [allWorkouts]);
+
+  function getSessionStatus(date, type) {
+    return workoutStatusMap[`${date}-${type}`] || 'planned';
+  }
+
   if (!displayPlan || !displayPlan.weeks) {
     return (
       <div className="bc-empty py-12">
@@ -522,7 +543,7 @@ export default function PlansPage() {
       </div>
 
       {/* ── Schedule Suggestions — actionable conflicts from user's day assignments ── */}
-      {displayPlan.schedule_suggestions?.length > 0 && (
+      {displayPlan.schedule_suggestions?.filter(s => !dismissedSuggestions.has(s.title)).length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle size={14} className="text-bc-orange flex-shrink-0" />
@@ -544,7 +565,11 @@ export default function PlansPage() {
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <p className="text-xs font-semibold text-primary flex-1">{s.title}</p>
                       <button
-                        onClick={() => setDismissedSuggestions(prev => new Set([...prev, s.title]))}
+                        onClick={() => setDismissedSuggestions(prev => {
+                          const next = new Set([...prev, s.title]);
+                          try { localStorage.setItem('bc-plan-dismissed-suggestions', JSON.stringify([...next])); } catch {}
+                          return next;
+                        })}
                         className="text-tertiary hover:text-secondary flex-shrink-0 min-w-[24px] min-h-[24px] flex items-center justify-center">
                         <X size={12} />
                       </button>
@@ -666,7 +691,14 @@ export default function PlansPage() {
                         return (
                           <div key={day}>
                             {/* Day header */}
-                            <div className={`text-center py-1.5 rounded-t-[8px] mb-0.5 ${isToday ? 'bg-bc-blue' : 'bg-canvas'}`}>
+                            {(() => {
+                              const runStatus  = run  ? getSessionStatus(dayDate.toLocaleDateString('en-CA'), 'run')  : null;
+                              const liftStatus = lift ? getSessionStatus(dayDate.toLocaleDateString('en-CA'), 'lift') : null;
+                              const allDone = (run ? runStatus === 'completed' : true) && (lift ? liftStatus === 'completed' : true) && (run || lift);
+                              const anySkipped = runStatus === 'skipped' || liftStatus === 'skipped';
+                              const headerBg = isToday ? 'bg-bc-blue' : allDone ? 'bg-bc-green-light' : anySkipped ? 'bg-bc-red-light' : 'bg-canvas';
+                              return (
+                            <div className={`text-center py-1.5 rounded-t-[8px] mb-0.5 ${headerBg}`}>
                               <p className={`text-[10px] font-semibold uppercase tracking-wider ${isToday ? 'text-white' : 'text-tertiary'}`}>
                                 {DAY_SHORT[day]}
                               </p>
@@ -674,6 +706,8 @@ export default function PlansPage() {
                                 {dayDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                               </p>
                             </div>
+                            );
+                            })()}
                             {/* Day content */}
                             <div className={`rounded-b-[8px] rounded-t-[2px] p-1.5 min-h-[90px] border ${
                               isRest ? 'bg-rest-bg border-rest-accent/20' :
@@ -700,9 +734,18 @@ export default function PlansPage() {
                                       onChange={e => updateRun(weekIdx, week.runs.indexOf(run), 'distance', Number(e.target.value))}
                                       className="bc-input !py-0.5 !px-1 !text-[9px] w-full" step="0.5" />
                                   ) : (
-                                    <p className="text-[11px] font-bold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                                      {run.distance} mi
-                                    </p>
+                                    <div className="flex items-center gap-1">
+                                      <p className="text-[11px] font-bold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                        {run.distance} mi
+                                      </p>
+                                      {(() => {
+                                        const dayDate = getPlanDayDate(week.weekNumber, run.dayOfWeek);
+                                        const status = getSessionStatus(dayDate.toLocaleDateString('en-CA'), 'run');
+                                        if (status === 'completed') return <span className="text-[8px] font-bold text-bc-green-dark">✓</span>;
+                                        if (status === 'skipped')   return <span className="text-[8px] font-bold text-bc-red">✗</span>;
+                                        return null;
+                                      })()}
+                                    </div>
                                   )}
                                   {run.targetPace && <p className="text-[9px] text-tertiary">{run.targetPace}</p>}
                                 </div>
@@ -719,7 +762,16 @@ export default function PlansPage() {
                                       <span className="text-[9px] font-semibold text-lift-accent truncate">{lift.sessionName || 'Strength'}</span>
                                     )}
                                   </div>
-                                  <p className="text-[9px] text-tertiary">{lift.exercises?.length || 0} ex</p>
+                                  <div className="flex items-center gap-1">
+                                    <p className="text-[9px] text-tertiary">{lift.exercises?.length || 0} ex</p>
+                                    {(() => {
+                                      const dayDate = getPlanDayDate(week.weekNumber, lift.dayOfWeek);
+                                      const status = getSessionStatus(dayDate.toLocaleDateString('en-CA'), 'lift');
+                                      if (status === 'completed') return <span className="text-[8px] font-bold text-bc-green-dark">✓</span>;
+                                      if (status === 'skipped')   return <span className="text-[8px] font-bold text-bc-red">✗</span>;
+                                      return null;
+                                    })()}
+                                  </div>
                                 </div>
                               )}
                               {!isRest && !run && !lift && (
@@ -784,10 +836,19 @@ export default function PlansPage() {
                                       {getRunLabel(run.runType)}
                                     </span>
                                   </div>
-                                  <p className="text-[12px] font-bold text-primary leading-none"
-                                    style={{ fontVariantNumeric: 'tabular-nums' }}>
-                                    {run.distance} <span className="text-[9px] font-normal text-tertiary">mi</span>
-                                  </p>
+                                  <div className="flex items-center gap-1">
+                                    <p className="text-[12px] font-bold text-primary leading-none"
+                                      style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                      {run.distance} <span className="text-[9px] font-normal text-tertiary">mi</span>
+                                    </p>
+                                    {(() => {
+                                      const dayDate = getPlanDayDate(week.weekNumber, run.dayOfWeek);
+                                      const status = getSessionStatus(dayDate.toLocaleDateString('en-CA'), 'run');
+                                      if (status === 'completed') return <span className="text-[9px] font-bold text-bc-green-dark">✓</span>;
+                                      if (status === 'skipped')   return <span className="text-[9px] text-bc-red">✗</span>;
+                                      return null;
+                                    })()}
+                                  </div>
                                   {run.targetPace && (
                                     <p className="text-[9px] text-tertiary mt-0.5">{run.targetPace}</p>
                                   )}
