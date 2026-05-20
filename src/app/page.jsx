@@ -323,7 +323,7 @@ export default function Dashboard() {
           phaseRunAdherence:      adherence,
           phaseRunAdherenceTrend: trend,
           phaseRunsSkipped:       phSkipped,
-          phaseRunsTotal:         phPast,
+          phaseRunsPast:          phPast,  // renamed — phaseRunsTotal is set above as full phase count
         };
       })(),
     };
