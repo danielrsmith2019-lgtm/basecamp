@@ -249,10 +249,11 @@ export default function Dashboard() {
     const phaseRuns  = currentPhase ? runs.filter(w => w.details?.phase === currentPhase) : [];
     const phaseLifts = currentPhase ? lifts.filter(w => w.details?.phase === currentPhase) : [];
     const phaseRunsDone  = phaseRuns.filter(w => w.status === 'completed').length;
-    const phaseRunsTotal = phaseRuns.filter(w => w.status !== 'skipped').length;
+    const phaseRunsTotal = phaseRuns.length; // all runs in phase including future planned
     const phaseLiftsDone  = phaseLifts.filter(w => w.status === 'completed').length;
     const phaseLiftsTotal = phaseLifts.filter(w => w.status !== 'skipped').length;
-    const phaseRunRate  = phaseRunsTotal  > 0 ? Math.round((phaseRunsDone  / phaseRunsTotal)  * 100) : 0;
+    const phaseRunsPast  = phaseRuns.filter(w => w.date <= todayStr && w.status !== 'planned').length;
+    const phaseRunRate   = phaseRunsPast > 0 ? Math.round((phaseRunsDone / phaseRunsPast) * 100) : 100;
     const phaseLiftRate = phaseLiftsTotal > 0 ? Math.round((phaseLiftsDone / phaseLiftsTotal) * 100) : 0;
 
     // ── Week number from plan ──
@@ -724,7 +725,9 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
-                <span className="text-[10px] font-semibold text-run-accent">{stats.phaseRunsDone}/{stats.phaseRunsTotal} runs · {stats.phaseRunRate}%</span>
+                <span className="text-[10px] font-semibold text-run-accent">
+                  {stats.phaseRunsDone}/{stats.phaseRunsTotal} runs · {stats.phaseRunRate}% adherence
+                </span>
               </div>
               <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
                 <div className="h-full rounded-full bg-run-accent/60 transition-[width] duration-700"
