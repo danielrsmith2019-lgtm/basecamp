@@ -726,7 +726,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
                 <span className="text-[10px] font-semibold text-run-accent">
-                  {stats.phaseRunsDone}/{stats.phaseRunsTotal} runs
+                  {stats.phaseRunsDone}/{stats.phaseRunsTotal} runs · {stats.phaseRunsTotal > 0 ? Math.round((stats.phaseRunsDone / stats.phaseRunsTotal) * 100) : 0}%
                 </span>
               </div>
               <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
