@@ -898,14 +898,18 @@ export default function PlansPage() {
                               {lift.exercises?.slice(0, 4).map((ex, i) => (
                                 <div key={i} className="flex items-center justify-between gap-2 px-2 py-1 bg-white/50 rounded-[8px]">
                                   <span className="text-[11px] text-primary truncate flex-1">{ex.name}</span>
-                                  {(ex.sets && ex.reps) && (
-                                    <span className="px-1.5 py-0.5 bg-lift-bg rounded-full border border-lift-accent/20 flex-shrink-0">
-                                      <span className="text-[11px] font-bold text-lift-accent"
-                                        style={{ fontVariantNumeric: 'tabular-nums' }}>
-                                        {ex.sets}×{ex.reps}
+                                  {(() => {
+                                    const setsNum = Array.isArray(ex.sets) ? ex.sets.length : ex.sets;
+                                    const repsVal = Array.isArray(ex.sets) ? (ex.sets[0]?.reps ?? ex.sets[0]?.targetReps ?? ex.reps) : ex.reps;
+                                    return (setsNum && repsVal) ? (
+                                      <span className="px-1.5 py-0.5 bg-lift-bg rounded-full border border-lift-accent/20 flex-shrink-0">
+                                        <span className="text-[11px] font-bold text-lift-accent"
+                                          style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                          {setsNum}×{repsVal}
+                                        </span>
                                       </span>
-                                    </span>
-                                  )}
+                                    ) : null;
+                                  })()}
                                 </div>
                               ))}
                               {lift.exercises?.length > 4 && (
@@ -994,7 +998,7 @@ export default function PlansPage() {
                                 <span className="flex-shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 bg-lift-bg rounded-full border border-lift-accent/20">
                                   <span className="text-[11px] font-bold text-lift-accent"
                                     style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
-                                    {ex.sets}×{ex.reps}
+                                    {Array.isArray(ex.sets) ? ex.sets.length : ex.sets}×{Array.isArray(ex.sets) ? (ex.sets[0]?.reps ?? ex.sets[0]?.targetReps ?? ex.reps ?? '—') : ex.reps}
                                   </span>
                                 </span>
                               </div>
