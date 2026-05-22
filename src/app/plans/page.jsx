@@ -277,7 +277,7 @@ export default function PlansPage() {
       const supabase = createClient();
       const today = new Date().toLocaleDateString('en-CA');
 
-      // Delete only future planned workouts — keep completed history
+      // Delete only FUTURE planned workouts — never touch completed/skipped history
       await supabase
         .from('workouts')
         .delete()
@@ -285,8 +285,9 @@ export default function PlansPage() {
         .eq('status', 'planned')
         .gte('date', today);
 
-      // Re-insert using the fixed local-date planToWorkouts
-      const workoutEntries = planToWorkouts(activePlan.plan_data);
+      // Only generate workouts from today forward — prevents duplicating
+      // past weeks that already have completed/skipped entries
+      const workoutEntries = planToWorkouts(activePlan.plan_data, today);
       if (workoutEntries.length > 0) {
         const created = await addWorkoutsBatch(user.id, workoutEntries);
         if (created.length === 0) console.warn('No workouts created from plan');
@@ -302,23 +303,17 @@ export default function PlansPage() {
     }
   }
 
-  function planToWorkouts(plan) {
+  function planToWorkouts(plan, fromDate = null) {
     const workouts = [];
 
-    // Use local date arithmetic throughout — toISOString() returns UTC which shifts dates
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, 2=Tue...
-
-    // Go BACK to this week's Monday (not forward to next Monday)
-    // Sun(0)->-6, Mon(1)->0, Tue(2)->-1, Wed(3)->-2, Thu(4)->-3, Fri(5)->-4, Sat(6)->-5
+    const dayOfWeek = now.getDay();
     const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
-    // Build a local-date-safe date string helper
     function localDateStr(d) {
-      return d.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+      return d.toLocaleDateString('en-CA');
     }
 
-    // Start from THIS week's Monday at noon (noon avoids DST edge cases)
     const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToMonday, 12, 0, 0);
 
     plan.weeks.forEach((week, weekIdx) => {
@@ -334,8 +329,11 @@ export default function PlansPage() {
         if (dayOffset === -1 || restDayNames.has(run.dayOfWeek)) return;
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
+        const dateStr = localDateStr(date);
+        // Skip dates before fromDate — prevents duplicating past sessions on reactivate
+        if (fromDate && dateStr < fromDate) return;
         workouts.push({
-          date: localDateStr(date), type: 'run', status: 'planned',
+          date: dateStr, type: 'run', status: 'planned',
           details: {
             runType: run.runType || 'easy',
             runDescription: getRunLabel(run.runType),
@@ -354,12 +352,16 @@ export default function PlansPage() {
         if (dayOffset === -1 || restDayNames.has(lift.dayOfWeek)) return;
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
+        const dateStr = localDateStr(date);
+        if (fromDate && dateStr < fromDate) return;
         workouts.push({
-          date: localDateStr(date), type: 'lift', status: 'planned',
+          date: dateStr, type: 'lift', status: 'planned',
           details: {
             sessionName: lift.sessionName || 'Strength Session',
             muscleGroups: lift.muscleGroups || [],
-            exercises: (lift.exercises || []).map(ex => ({ name: ex.name, sets: ex.sets, reps: ex.reps, notes: ex.notes || '' })),
+            exercises: (lift.exercises || []).map(ex => ({
+              name: ex.name, sets: ex.sets, reps: ex.reps, notes: ex.notes || '',
+            })),
             duration: lift.duration,
             weekNumber: week.weekNumber,
             phase: week.phase,
@@ -374,8 +376,10 @@ export default function PlansPage() {
         if (dayOffset === -1) return;
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
+        const dateStr = localDateStr(date);
+        if (fromDate && dateStr < fromDate) return;
         workouts.push({
-          date: localDateStr(date), type: 'rest', status: 'planned',
+          date: dateStr, type: 'rest', status: 'planned',
           details: { restType, weekNumber: week.weekNumber, phase: week.phase },
         });
       });
@@ -510,8 +514,35 @@ export default function PlansPage() {
           )}
           {view === 'active' && (
             <>
+              {/* Manual edit toggle — saves to DB on Done */}
+              <button
+                onClick={async () => {
+                  if (editMode) {
+                    // Save manual edits back to Supabase
+                    try {
+                      const { savePlan } = await import('@/lib/database');
+                      await savePlan(user.id, {
+                        ...activePlan,
+                        plan_data: displayPlan,
+                        name: activePlan.name,
+                        description: activePlan.description,
+                        plan_type: activePlan.plan_type,
+                        is_active: true,
+                        progress: activePlan.progress,
+                      }, activePlan.id);
+                    } catch (e) {
+                      console.error('Failed to save edits:', e);
+                    }
+                  }
+                  setEditMode(!editMode);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors min-h-[44px]
+                  ${editMode ? 'bg-bc-green text-white' : 'bg-canvas border border-border text-secondary hover:text-primary'}`}>
+                {editMode ? <Check size={12} /> : <Pencil size={12} />}
+                {editMode ? 'Save Edits' : 'Edit Plan'}
+              </button>
               <button onClick={handleReactivate} disabled={reactivating}
-                title="Rewrite all planned workout dates using fixed local-date logic"
+                title="Sync planned workout dates forward from today"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas border border-border
                            text-secondary text-xs rounded-[10px] hover:text-primary transition-colors min-h-[44px]
                            disabled:opacity-40">
