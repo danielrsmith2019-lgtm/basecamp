@@ -420,7 +420,7 @@ export default function Dashboard() {
         <div className="p-4 bg-bc-indigo-light/60 rounded-[16px] border border-bc-indigo/10">
           <p className="text-xs font-semibold text-bc-indigo-dark mb-1.5">Why BaseCamp is different</p>
           <p className="text-xs text-bc-indigo-dark/80 leading-relaxed">
-            Most apps only track one thing. BaseCamp understands the interference effect and how your Tuesday leg day affects your Wednesday tempo run. It&apos;s the only app built for athletes who do more than one thing.
+            Most apps only track one thing. BaseCamp understands the interference effect; how your Tuesday leg day affects your Wednesday tempo run. It&apos;s the only app built for athletes who do more than one thing.
           </p>
         </div>
 
