@@ -388,17 +388,7 @@ export default function PlansPage() {
     return plan.weeks.reduce((sum, w) => sum + (w.runs?.length || 0) + (w.lifts?.length || 0), 0);
   }
 
-  // ── Loading ──
-  if (view === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 size={24} className="text-tertiary animate-spin" />
-      </div>
-    );
-  }
-
-  // ── Workout completion lookup ──
-  // Must be before any early returns (Rules of Hooks)
+  // ── Workout completion lookup — MUST be before all early returns ──
   const workoutStatusMap = useMemo(() => {
     const map = {};
     (allWorkouts || []).forEach(w => {
@@ -410,6 +400,15 @@ export default function PlansPage() {
 
   function getSessionStatus(date, type) {
     return workoutStatusMap[`${date}-${type}`] || 'planned';
+  }
+
+  // ── Loading ──
+  if (view === 'loading') {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 size={24} className="text-tertiary animate-spin" />
+      </div>
+    );
   }
 
   // ── Wizard ──
