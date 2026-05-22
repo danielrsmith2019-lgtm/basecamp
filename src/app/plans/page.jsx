@@ -397,6 +397,21 @@ export default function PlansPage() {
     );
   }
 
+  // ── Workout completion lookup ──
+  // Must be before any early returns (Rules of Hooks)
+  const workoutStatusMap = useMemo(() => {
+    const map = {};
+    (allWorkouts || []).forEach(w => {
+      const key = `${w.date}-${w.type}`;
+      if (!map[key] || w.status === 'completed') map[key] = w.status;
+    });
+    return map;
+  }, [allWorkouts]);
+
+  function getSessionStatus(date, type) {
+    return workoutStatusMap[`${date}-${type}`] || 'planned';
+  }
+
   // ── Wizard ──
   if (view === 'wizard') {
     return (
@@ -428,21 +443,6 @@ export default function PlansPage() {
   }
 
   const displayPlan = view === 'preview' ? generatedPlan : activePlan?.plan_data;
-
-  // ── Workout completion lookup ──
-  // Maps "YYYY-MM-DD-type" → status so grid cells show real completion
-  const workoutStatusMap = useMemo(() => {
-    const map = {};
-    (allWorkouts || []).forEach(w => {
-      const key = `${w.date}-${w.type}`;
-      if (!map[key] || w.status === 'completed') map[key] = w.status;
-    });
-    return map;
-  }, [allWorkouts]);
-
-  function getSessionStatus(date, type) {
-    return workoutStatusMap[`${date}-${type}`] || 'planned';
-  }
 
   if (!displayPlan || !displayPlan.weeks) {
     return (
