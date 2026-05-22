@@ -393,7 +393,7 @@ export default function Dashboard() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-primary">Log your first workout</p>
-              <p className="text-xs text-secondary mt-0.5">Run, lift, or cardio — BaseCamp tracks everything in one place</p>
+              <p className="text-xs text-secondary mt-0.5">Run, lift, or cardio. BaseCamp tracks everything in one place</p>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#AEAEB2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6" />
