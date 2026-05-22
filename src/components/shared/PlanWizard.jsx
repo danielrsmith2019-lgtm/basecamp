@@ -735,8 +735,14 @@ export default function PlanWizard({ onComplete, onCancel }) {
         )}
 
         {error && (
-          <div className="mt-4 p-3 bg-bc-red-light border border-bc-red/20 rounded-[14px]">
-            <p className="text-bc-red-dark text-xs">{error}</p>
+          <div className="mt-4 p-4 bg-bc-red-light border border-bc-red/20 rounded-[14px]">
+            <p className="text-sm font-semibold text-bc-red-dark mb-1">Plan generation failed</p>
+            <p className="text-xs text-bc-red-dark/80 mb-3">{error}</p>
+            <button onClick={handleGenerate}
+              className="flex items-center gap-1.5 px-3 py-2 bg-bc-red text-white text-xs
+                         font-semibold rounded-[10px] active:scale-95 transition-all">
+              Try again
+            </button>
           </div>
         )}
 

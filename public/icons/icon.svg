@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="114" fill="#007AFF"/>
+  
+  <!-- Mountain / basecamp symbol -->
+  <!-- Peak -->
+  <polygon points="256,100 160,280 352,280" fill="white" opacity="0.95"/>
+  <!-- Left mountain (smaller) -->
+  <polygon points="150,280 80,380 220,380" fill="white" opacity="0.75"/>
+  <!-- Right mountain (smaller) -->
+  <polygon points="362,280 292,380 432,380" fill="white" opacity="0.75"/>
+  
+  <!-- Base line -->
+  <rect x="80" y="385" width="352" height="12" rx="6" fill="white" opacity="0.5"/>
+  
+  <!-- Small flag at peak -->
+  <rect x="254" y="88" width="4" height="40" fill="white"/>
+  <polygon points="258,88 288,100 258,112" fill="#FF9500"/>
+</svg>

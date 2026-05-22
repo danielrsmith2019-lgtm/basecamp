@@ -357,6 +357,80 @@ export default function Dashboard() {
     );
   }
 
+  // ── First-time user: no workouts yet ──────────────────────
+  if (workouts.length === 0) {
+    return (
+      <div className="max-w-lg mx-auto px-1 py-6">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-[20px] bg-bc-indigo-light flex items-center justify-center mx-auto mb-4">
+            <Sparkles size={28} className="text-bc-indigo" />
+          </div>
+          <h1 className="text-[22px] font-bold text-primary mb-2">Welcome to BaseCamp</h1>
+          <p className="text-sm text-secondary leading-relaxed max-w-sm mx-auto">
+            Your multimodal fitness OS. One app for every run, lift, and cardio session — with AI that understands how they all interact.
+          </p>
+        </div>
+
+        <div className="space-y-3 mb-6">
+          <a href="/plans"
+            className="flex items-center gap-4 p-4 bc-card hover:shadow-md transition-shadow no-underline">
+            <div className="w-12 h-12 rounded-[14px] bg-bc-indigo-light flex items-center justify-center flex-shrink-0">
+              <Sparkles size={22} className="text-bc-indigo" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-primary">Generate your training plan</p>
+              <p className="text-xs text-secondary mt-0.5">AI builds a plan around your schedule, race goal, and experience level</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#AEAEB2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </a>
+
+          <button onClick={() => setLogTarget({ type: 'run', status: 'planned', date: today, details: {} })}
+            className="w-full flex items-center gap-4 p-4 bc-card hover:shadow-md transition-shadow text-left">
+            <div className="w-12 h-12 rounded-[14px] bg-run-bg flex items-center justify-center flex-shrink-0">
+              <RunTypeIcon runType="easy" size={22} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-primary">Log your first workout</p>
+              <p className="text-xs text-secondary mt-0.5">Run, lift, or cardio — BaseCamp tracks everything in one place</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#AEAEB2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+
+          <a href="/goals"
+            className="flex items-center gap-4 p-4 bc-card hover:shadow-md transition-shadow no-underline">
+            <div className="w-12 h-12 rounded-[14px] bg-bc-orange-light flex items-center justify-center flex-shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E65100" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-primary">Set your training goals</p>
+              <p className="text-xs text-secondary mt-0.5">Race targets, weekly mileage, strength milestones</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#AEAEB2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </a>
+        </div>
+
+        <div className="p-4 bg-bc-indigo-light/60 rounded-[16px] border border-bc-indigo/10">
+          <p className="text-xs font-semibold text-bc-indigo-dark mb-1.5">Why BaseCamp is different</p>
+          <p className="text-xs text-bc-indigo-dark/80 leading-relaxed">
+            Most apps only track one thing. BaseCamp understands the interference effect — how your Tuesday leg day affects your Wednesday tempo run. It&apos;s the only app built for athletes who do more than one thing.
+          </p>
+        </div>
+
+        {logTarget && (
+          <LogForm workout={logTarget} onSave={handleSave} onClose={() => setLogTarget(null)} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
 
@@ -605,9 +679,20 @@ export default function Dashboard() {
             ))}
           </div>
         ) : (
-          <div className="bc-empty py-6">
-            <p className="bc-empty-title">No workouts scheduled for today.</p>
-            <p className="bc-empty-text">Rest day or add a session from the log.</p>
+          <div className="py-4">
+            <p className="text-sm text-secondary mb-3">Nothing scheduled today.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setLogTarget({ type: 'run', status: 'planned', date: today, details: {} })}
+                className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-run-bg border border-run-accent/20 active:scale-95 transition-all">
+                <RunTypeIcon runType="easy" size={16} />
+                <span className="text-xs font-semibold text-run-accent">Log a Run</span>
+              </button>
+              <button onClick={() => setLogTarget({ type: 'lift', status: 'planned', date: today, details: {} })}
+                className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-lift-bg border border-lift-accent/20 active:scale-95 transition-all">
+                <LiftSessionIcon sessionName="" size={16} />
+                <span className="text-xs font-semibold text-lift-accent">Log a Lift</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
