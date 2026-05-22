@@ -367,7 +367,7 @@ export default function Dashboard() {
           </div>
           <h1 className="text-[22px] font-bold text-primary mb-2">Welcome to BaseCamp</h1>
           <p className="text-sm text-secondary leading-relaxed max-w-sm mx-auto">
-            Your multimodal fitness OS. One app for every run, lift, and cardio session — with AI that understands how they all interact.
+            Your multimodal fitness OS. One app for every run, lift, and cardio session. All integrated with an AI engine that understands how every aspect of your fitness interacts.
           </p>
         </div>
 
