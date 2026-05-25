@@ -205,8 +205,8 @@ export default function BottomNav() {
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderTop: '0.5px solid rgba(60,60,67,0.12)',
       }}>
-        {/* Icon row — always exactly 64px */}
-        <div style={{ display: 'flex', alignItems: 'stretch', height: '64px' }}>
+        {/* Icon row — always exactly 64px, icons centered */}
+        <div style={{ display: 'flex', alignItems: 'center', height: '64px' }}>
         {PRIMARY_TABS.map((item) => {
           const isActive =
             item.href === '/'
@@ -215,7 +215,7 @@ export default function BottomNav() {
           return (
             <Link key={item.href} href={item.href} onClick={() => setShowMore(false)}
               style={{
-                flex: 1, display: 'flex', flexDirection: 'column',
+                flex: 1, height: '100%', display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: '3px',
                 textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
               }}>
@@ -233,7 +233,7 @@ export default function BottomNav() {
         {/* More button */}
         <button onClick={() => setShowMore(!showMore)}
           style={{
-            flex: 1, display: 'flex', flexDirection: 'column',
+            flex: 1, height: '100%', display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: '3px',
             border: 'none', background: 'transparent', cursor: 'pointer',
             WebkitTapHighlightColor: 'transparent',
