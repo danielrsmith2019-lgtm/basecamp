@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import ExerciseSearch from '@/components/lifting/ExerciseSearch';
+import ExerciseSearch from '@/components/shared/ExerciseSearch';
 import WorkoutTimer, { formatTime, estimateCalories } from '@/components/shared/WorkoutTimer';
 import { comparePaces } from '@/utils/runUtils';
 import { calculateLiftVolume } from '@/data/types';
@@ -397,32 +397,32 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
         </div>
 
         {/* ── Exercise progress dots ── */}
-        <div className="flex items-center gap-1.5 px-4 py-2 flex-shrink-0">
+        <div className="flex items-center gap-1 px-4 py-1.5 flex-shrink-0">
           {exercises.map((e, i) => {
             const exSets = Array.isArray(e.sets) ? e.sets : [];
             const done = exSets.filter(s => s.completed).length;
             const total = exSets.length;
             return (
               <button key={i} onClick={() => setActiveExIdx(i)}
-                className="flex-1 h-1.5 rounded-full transition-all"
+                className="flex-1 h-1 rounded-full transition-all min-h-[20px]"
                 style={{ background: i === activeExIdx ? '#007AFF' : done === total && total > 0 ? '#34C759' : '#E5E5EA' }} />
             );
           })}
         </div>
 
         {/* ── Exercise name + history ── */}
-        <div className="px-4 py-3 flex-shrink-0">
-          <h2 className="text-xl font-bold text-primary">{ex?.name}</h2>
+        <div className="px-4 pt-1 pb-2 flex-shrink-0">
+          <h2 className="text-lg font-bold text-primary leading-tight">{ex?.name}</h2>
           {history && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[11px] text-tertiary">Last time:</span>
-              <span className="text-[11px] font-semibold text-secondary"
-                style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {history.weight} lbs × {history.reps} ({history.date})
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className="text-[11px] text-tertiary">
+                Last: <span className="font-semibold text-secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {history.weight} lbs × {history.reps}
+                </span>
               </span>
               {history.suggestedWeight > history.weight && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-bc-green-light text-bc-green-dark rounded-full font-semibold">
-                  Try {history.suggestedWeight} lbs ↑
+                <span className="text-[10px] px-2 py-0.5 bg-bc-green-light text-bc-green-dark rounded-full font-semibold">
+                  Goal: {history.suggestedWeight} lbs ↑
                 </span>
               )}
             </div>
@@ -446,90 +446,114 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
         )}
 
         {/* ── Sets ── */}
-        <div className="flex-1 overflow-y-auto px-4 space-y-2 pb-4">
+        <div className="flex-1 overflow-y-auto px-4 space-y-2.5 pb-4">
 
-          {/* Column headers */}
-          <div className="flex items-center gap-2 pb-1">
-            <div className="w-8" />
-            <div className="flex-1 text-center bc-caption uppercase tracking-wider">Weight</div>
-            <div className="flex-1 text-center bc-caption uppercase tracking-wider">Reps</div>
-            <div className="w-14 text-center bc-caption uppercase tracking-wider">Done</div>
-          </div>
+          {sets.map((set, si) => {
+            const isNext = !set.completed && si === sets.findIndex(s => !s.completed);
+            return (
+              <div key={si}
+                className={`rounded-[16px] border transition-all ${
+                  set.completed ? 'bg-bc-green-light/50 border-bc-green/20' :
+                  isNext        ? 'bg-white border-bc-blue/40 shadow-sm' :
+                                  'bg-canvas border-transparent'
+                }`}>
+                <div className="flex items-center px-3 py-2.5 gap-3">
 
-          {sets.map((set, si) => (
-            <div key={si} className={`flex items-center gap-2 p-2 rounded-[14px] transition-all ${set.completed ? 'bg-bc-green-light/60' : 'bg-canvas'}`}>
-              {/* Set number */}
-              <div className="w-8 text-center">
-                <span className="text-xs font-semibold text-tertiary">{si + 1}</span>
-              </div>
+                  {/* Set number */}
+                  <div className="w-6 flex-shrink-0 text-center">
+                    <span className={`text-xs font-bold ${isNext ? 'text-bc-blue' : 'text-tertiary'}`}>
+                      {si + 1}
+                    </span>
+                  </div>
 
-              {/* Weight input */}
-              <div className="flex-1">
-                <div className="flex items-center bg-surface border border-border rounded-[10px] overflow-hidden">
-                  <button onClick={() => updateSet(activeExIdx, si, 'weight', Math.max(0, (Number(set.weight) || 0) - 2.5))}
-                    className="w-8 h-10 flex items-center justify-center text-tertiary hover:text-primary flex-shrink-0">
-                    <Minus size={12} />
-                  </button>
-                  <input type="number" value={set.weight ?? ''}
-                    onChange={e => updateSet(activeExIdx, si, 'weight', e.target.value)}
-                    placeholder={set.targetWeight ? String(set.targetWeight) : '0'}
-                    className="flex-1 text-center text-sm font-semibold bg-transparent outline-none min-w-0 py-2"
-                    style={{ fontVariantNumeric: 'tabular-nums' }} />
-                  <button onClick={() => updateSet(activeExIdx, si, 'weight', (Number(set.weight) || 0) + 2.5)}
-                    className="w-8 h-10 flex items-center justify-center text-tertiary hover:text-primary flex-shrink-0">
-                    <Plus size={12} />
+                  {/* Weight */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] text-tertiary uppercase tracking-wide mb-0.5">Weight</p>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'weight', Math.max(0, (Number(set.weight) || 0) - 2.5)); }}
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
+                        <Minus size={12} className="text-secondary" />
+                      </button>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={set.weight ?? ''}
+                        onChange={e => updateSet(activeExIdx, si, 'weight', e.target.value)}
+                        placeholder={set.targetWeight ? String(set.targetWeight) : '—'}
+                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 rounded-[6px] py-1
+                          ${set.completed ? 'text-bc-green-dark' : 'text-primary'}`}
+                        style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums' }}
+                      />
+                      <button
+                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'weight', (Number(set.weight) || 0) + 2.5); }}
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
+                        <Plus size={12} className="text-secondary" />
+                      </button>
+                    </div>
+                    {set.targetWeight && !set.weight && (
+                      <p className="text-[9px] text-center text-bc-green-dark mt-0.5">
+                        ↑ {set.targetWeight} lbs
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Reps */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] text-tertiary uppercase tracking-wide mb-0.5">Reps</p>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'reps', Math.max(0, (Number(set.reps) || 0) - 1)); }}
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
+                        <Minus size={12} className="text-secondary" />
+                      </button>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={set.reps ?? ''}
+                        onChange={e => updateSet(activeExIdx, si, 'reps', e.target.value)}
+                        placeholder={set.targetReps ? String(set.targetReps) : '—'}
+                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 rounded-[6px] py-1
+                          ${set.completed ? 'text-bc-green-dark' : 'text-primary'}`}
+                        style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums' }}
+                      />
+                      <button
+                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'reps', (Number(set.reps) || 0) + 1); }}
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
+                        <Plus size={12} className="text-secondary" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Complete — big tap target */}
+                  <button
+                    onClick={() => completeSet(activeExIdx, si)}
+                    className="w-12 h-12 rounded-[12px] flex items-center justify-center active:scale-90 transition-all flex-shrink-0"
+                    style={{ background: set.completed ? '#34C759' : '#E5E5EA' }}>
+                    <Check size={20} color={set.completed ? '#fff' : '#AEAEB2'} strokeWidth={2.5} />
                   </button>
                 </div>
-                {set.targetWeight && !set.weight && (
-                  <p className="text-[9px] text-center text-bc-green-dark mt-0.5">↑ {set.targetWeight} suggested</p>
-                )}
               </div>
-
-              {/* Reps input */}
-              <div className="flex-1">
-                <div className="flex items-center bg-surface border border-border rounded-[10px] overflow-hidden">
-                  <button onClick={() => updateSet(activeExIdx, si, 'reps', Math.max(0, (Number(set.reps) || 0) - 1))}
-                    className="w-8 h-10 flex items-center justify-center text-tertiary hover:text-primary flex-shrink-0">
-                    <Minus size={12} />
-                  </button>
-                  <input type="number" value={set.reps ?? ''}
-                    onChange={e => updateSet(activeExIdx, si, 'reps', e.target.value)}
-                    placeholder={set.targetReps ? String(set.targetReps) : '0'}
-                    className="flex-1 text-center text-sm font-semibold bg-transparent outline-none min-w-0 py-2"
-                    style={{ fontVariantNumeric: 'tabular-nums' }} />
-                  <button onClick={() => updateSet(activeExIdx, si, 'reps', (Number(set.reps) || 0) + 1)}
-                    className="w-8 h-10 flex items-center justify-center text-tertiary hover:text-primary flex-shrink-0">
-                    <Plus size={12} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Complete button */}
-              <button onClick={() => completeSet(activeExIdx, si)}
-                className="w-14 h-10 rounded-[10px] flex items-center justify-center active:scale-95 transition-all flex-shrink-0"
-                style={{ background: set.completed ? '#34C759' : '#E5E5EA' }}>
-                <Check size={18} color={set.completed ? '#fff' : '#AEAEB2'} strokeWidth={2.5} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Add / remove set */}
           <div className="flex gap-2 pt-1">
             <button onClick={() => addSet(activeExIdx)}
-              className="flex-1 py-2.5 border border-border rounded-[10px] text-xs font-semibold text-secondary hover:text-primary flex items-center justify-center gap-1">
+              className="flex-1 py-2.5 border border-border rounded-[10px] text-xs font-semibold text-secondary active:bg-canvas flex items-center justify-center gap-1">
               <Plus size={12} /> Add Set
             </button>
             {sets.length > 1 && (
               <button onClick={() => removeSet(activeExIdx)}
-                className="px-4 py-2.5 border border-border rounded-[10px] text-xs font-semibold text-tertiary hover:text-bc-red flex items-center justify-center gap-1">
+                className="px-4 py-2.5 border border-border rounded-[10px] text-xs font-semibold text-tertiary active:text-bc-red flex items-center justify-center gap-1">
                 <Minus size={12} /> Remove
               </button>
             )}
           </div>
 
           {/* Rest preset selector */}
-          <div className="pt-2">
-            <p className="bc-caption uppercase tracking-wider mb-1.5">Rest between sets</p>
+          <div className="pt-1 pb-2">
+            <p className="bc-caption uppercase tracking-wider mb-1.5">Rest timer</p>
             <div className="flex gap-2">
               {REST_PRESETS.map(s => (
                 <button key={s} onClick={() => setRestPreset(s)}
@@ -543,7 +567,8 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
         </div>
 
         {/* ── Bottom bar ── */}
-        <div className="border-t border-border px-4 py-3 flex gap-3 flex-shrink-0" style={{ paddingBottom: 'max(16px, calc(8px + env(safe-area-inset-bottom)))' }}>
+        <div className="border-t border-border px-4 pt-3 flex gap-3 flex-shrink-0"
+          style={{ paddingBottom: 'max(16px, calc(12px + env(safe-area-inset-bottom)))' }}>
           {/* Prev / Next exercise */}
           <button disabled={activeExIdx === 0}
             onClick={() => setActiveExIdx(i => i - 1)}
@@ -561,14 +586,17 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
 
           {activeExIdx < totalExercises - 1 ? (
             <button onClick={() => setActiveExIdx(i => i + 1)}
-              className="w-11 h-11 rounded-[10px] bg-canvas border border-border flex items-center justify-center">
-              <ChevronUp size={18} className="text-secondary" />
+              className="flex items-center gap-1.5 px-3 h-11 rounded-[10px] bg-canvas border border-border">
+              <span className="text-xs font-semibold text-secondary truncate max-w-[80px]">
+                {exercises[activeExIdx + 1]?.name?.split(' ')[0] || 'Next'}
+              </span>
+              <ChevronUp size={14} className="text-tertiary flex-shrink-0" />
             </button>
           ) : (
             <button onClick={handleSave}
-              className="px-4 h-11 rounded-[10px] text-xs font-bold text-white flex items-center gap-1"
+              className="px-4 h-11 rounded-[10px] text-xs font-bold text-white flex items-center gap-1.5 active:scale-95"
               style={{ background: '#34C759' }}>
-              <Check size={14} /> Done
+              <Check size={14} /> Finish
             </button>
           )}
         </div>
@@ -713,7 +741,7 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
 
               <div>
                 <label className="bc-caption uppercase tracking-wider block mb-1.5">Add Exercise</label>
-                <ExerciseSearch onSelect={handleAddExercise} placeholder="Search exercises..." />
+                <ExerciseSearch onSelect={handleAddExercise} placeholder="Search exercises..." workoutHistory={allWorkouts} />
               </div>
 
               {exercises.length > 0 && (

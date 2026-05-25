@@ -303,19 +303,32 @@ export default function PlanWizard({ onComplete, onCancel }) {
                       </div>
                     </div>
 
-                    {/* Race date — full width, explicit max-width: 100% prevents overflow */}
+                    {/* Race date */}
                     <div className="p-3 bg-white/60 rounded-[12px] border border-run-accent/30">
                       <label className="bc-caption uppercase tracking-wider block mb-1.5 text-run-accent">
                         Race Day * — appears in your plan calendar
                       </label>
-                      <input
-                        type="date"
-                        value={form.raceDate}
-                        onChange={e => update('raceDate', e.target.value)}
-                        min={new Date().toLocaleDateString('en-CA')}
-                        className="bc-input"
-                        style={{ fontSize: '16px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
-                      />
+                      <div style={{ width: '100%', overflow: 'hidden' }}>
+                        <input
+                          type="date"
+                          value={form.raceDate}
+                          onChange={e => update('raceDate', e.target.value)}
+                          min={new Date().toLocaleDateString('en-CA')}
+                          style={{
+                            fontSize: '16px',
+                            width: '100%',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                            display: 'block',
+                            padding: '10px 12px',
+                            borderRadius: '10px',
+                            border: '1px solid rgba(60,60,67,0.12)',
+                            background: '#fff',
+                            color: '#1C1C1E',
+                            WebkitAppearance: 'none',
+                          }}
+                        />
+                      </div>
                       <p className="bc-caption mt-1">Plan length auto-calculates from today to race day</p>
                     </div>
 

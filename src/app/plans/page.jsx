@@ -308,13 +308,29 @@ export default function PlansPage() {
 
     const now = new Date();
     const dayOfWeek = now.getDay();
-    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
     function localDateStr(d) {
       return d.toLocaleDateString('en-CA');
     }
 
-    const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToMonday, 12, 0, 0);
+    // Start from TODAY — not the most recent Monday
+    // This means week 1 starts on whatever day you activate the plan
+    // Day offsets within each week are relative to the week's start day
+    const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+
+    // Compute how many days from startDate to reach a given dayOfWeek
+    // e.g. startDate=Tuesday(2), target=Thursday(4) → offset=2
+    //      startDate=Tuesday(2), target=Monday(1)   → offset=6 (next week's Monday)
+    const startDow = now.getDay(); // 0=Sun,1=Mon,...6=Sat
+    // Convert JS getDay() (Sun=0) to DAY_ORDER index (Mon=0)
+    const startDayIdx = startDow === 0 ? 6 : startDow - 1;
+
+    function dayOffsetFrom(targetDayName) {
+      const targetIdx = DAY_ORDER.indexOf(targetDayName);
+      if (targetIdx === -1) return -1;
+      const offset = (targetIdx - startDayIdx + 7) % 7;
+      return offset;
+    }
 
     plan.weeks.forEach((week, weekIdx) => {
       const weekStart = new Date(startDate);
@@ -325,12 +341,11 @@ export default function PlansPage() {
       );
 
       (week.runs || []).forEach(run => {
-        const dayOffset = DAY_ORDER.indexOf(run.dayOfWeek);
+        const dayOffset = dayOffsetFrom(run.dayOfWeek);
         if (dayOffset === -1 || restDayNames.has(run.dayOfWeek)) return;
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
         const dateStr = localDateStr(date);
-        // Skip dates before fromDate — prevents duplicating past sessions on reactivate
         if (fromDate && dateStr < fromDate) return;
         workouts.push({
           date: dateStr, type: 'run', status: 'planned',
@@ -348,7 +363,7 @@ export default function PlansPage() {
       });
 
       (week.lifts || []).forEach(lift => {
-        const dayOffset = DAY_ORDER.indexOf(lift.dayOfWeek);
+        const dayOffset = dayOffsetFrom(lift.dayOfWeek);
         if (dayOffset === -1 || restDayNames.has(lift.dayOfWeek)) return;
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);
@@ -372,7 +387,7 @@ export default function PlansPage() {
       (week.restDays || []).forEach(entry => {
         const dayName = typeof entry === 'object' ? entry.dayOfWeek : entry;
         const restType = typeof entry === 'object' ? entry.restType : 'full_rest';
-        const dayOffset = DAY_ORDER.indexOf(dayName);
+        const dayOffset = dayOffsetFrom(dayName);
         if (dayOffset === -1) return;
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + dayOffset);

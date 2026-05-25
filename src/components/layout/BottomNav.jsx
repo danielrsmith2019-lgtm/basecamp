@@ -200,13 +200,13 @@ export default function BottomNav() {
       {/* Nav bar */}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-        display: 'flex', alignItems: 'stretch',
-        height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        display: 'flex', flexDirection: 'column',
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderTop: '0.5px solid rgba(60,60,67,0.12)',
       }}>
+        {/* Icon row — always exactly 64px */}
+        <div style={{ display: 'flex', alignItems: 'stretch', height: '64px' }}>
         {PRIMARY_TABS.map((item) => {
           const isActive =
             item.href === '/'
@@ -250,6 +250,9 @@ export default function BottomNav() {
             More
           </span>
         </button>
+        </div>
+        {/* Safe area dead zone — extends background without shifting icons */}
+        <div style={{ height: 'env(safe-area-inset-bottom, 0px)', flexShrink: 0 }} />
       </nav>
     </>
   );
