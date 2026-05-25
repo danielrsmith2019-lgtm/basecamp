@@ -200,13 +200,13 @@ export default function BottomNav() {
       {/* Nav bar */}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-        display: 'flex', flexDirection: 'column',
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderTop: '0.5px solid rgba(60,60,67,0.12)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
-        {/* Icon row — always exactly 64px, icons centered */}
-        <div style={{ display: 'flex', alignItems: 'center', height: '64px' }}>
+        {/* Icon row — strict 64px, never affected by safe area */}
+        <div style={{ display: 'flex', alignItems: 'stretch', height: '64px' }}>
         {PRIMARY_TABS.map((item) => {
           const isActive =
             item.href === '/'
@@ -215,7 +215,7 @@ export default function BottomNav() {
           return (
             <Link key={item.href} href={item.href} onClick={() => setShowMore(false)}
               style={{
-                flex: 1, height: '100%', display: 'flex', flexDirection: 'column',
+                flex: 1, display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: '3px',
                 textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
               }}>
@@ -233,7 +233,7 @@ export default function BottomNav() {
         {/* More button */}
         <button onClick={() => setShowMore(!showMore)}
           style={{
-            flex: 1, height: '100%', display: 'flex', flexDirection: 'column',
+            flex: 1, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: '3px',
             border: 'none', background: 'transparent', cursor: 'pointer',
             WebkitTapHighlightColor: 'transparent',
@@ -251,8 +251,6 @@ export default function BottomNav() {
           </span>
         </button>
         </div>
-        {/* Safe area dead zone — extends background without shifting icons */}
-        <div style={{ height: 'env(safe-area-inset-bottom, 0px)', flexShrink: 0 }} />
       </nav>
     </>
   );
