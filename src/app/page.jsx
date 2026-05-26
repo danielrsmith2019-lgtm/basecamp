@@ -859,7 +859,7 @@ export default function Dashboard() {
       </div>
       <div className="bento-grid mb-6">
 
-        {/* ── Run Completion — self-contained with week nav + daily detail ── */}
+        {/* ── Run Card — tap dots to see daily detail, swipe to change week ── */}
         {(() => {
           const wk = stats.weeklyHistory?.[runWeekIndex];
           if (!wk) return null;
@@ -867,145 +867,128 @@ export default function Dashboard() {
           const maxMiles = Math.max(...(wk.dailyMiles || []).map(d => d.value), 0.1);
 
           return (
-            <div className="bc-card bento-hero overflow-hidden">
-              {/* ── Week nav header ── */}
-              <div className="flex items-center justify-between px-4 pt-3 pb-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-primary">{wk.label}</span>
-                  <span className="text-[9px] text-tertiary">{wk.dateRange}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => { setRunWeekIndex(i => Math.max(0,i-1)); setRunExpanded(false); }}
-                    disabled={runWeekIndex === 0}
-                    className="w-6 h-6 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-                  </button>
+            <div className="bc-card p-4 bento-hero overflow-hidden"
+              onTouchStart={e => { e._touchStartX = e.touches[0].clientX; }}
+              onTouchEnd={e => {
+                const dx = e.changedTouches[0].clientX - (e._touchStartX || 0);
+                if (Math.abs(dx) < 40) return;
+                if (dx < 0) setRunWeekIndex(i => Math.min(3, i + 1));
+                else setRunWeekIndex(i => Math.max(0, i - 1));
+                setRunExpanded(false);
+              }}>
+
+              {/* Label row — week name + swipe hint dots */}
+              <div className="flex items-center justify-between mb-3">
+                <p className="bc-caption uppercase tracking-wider">
+                  {isCurrent ? 'This Week · Runs' : `${wk.label} · Runs`}
+                </p>
+                {/* Pagination dots — minimal, no arrows */}
+                <div className="flex items-center gap-1">
                   {stats.weeklyHistory.map((_, i) => (
                     <button key={i} onClick={() => { setRunWeekIndex(i); setRunExpanded(false); }}
                       className="rounded-full transition-all"
-                      style={{ width: i === runWeekIndex ? 12 : 5, height: 5,
-                        background: i === runWeekIndex ? '#34C759' : '#D1D1D6' }} />
+                      style={{
+                        width: i === runWeekIndex ? 14 : 5, height: 5,
+                        background: i === runWeekIndex ? '#34C759' : '#E5E5EA',
+                      }} />
                   ))}
-                  <button onClick={() => { setRunWeekIndex(i => Math.min(3,i+1)); setRunExpanded(false); }}
-                    disabled={runWeekIndex === 3}
-                    className="w-6 h-6 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </button>
                 </div>
               </div>
 
-              {/* ── Main content ── */}
-              <div className="px-4 pt-2 pb-3">
-                {/* Day dots */}
-                <div className="flex items-center gap-1 mb-3">
-                  {wk.runDots.map((day, i) => (
-                    <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
-                      <div className="w-full h-1.5 rounded-full transition-all"
-                        style={{
-                          backgroundColor: day.completed ? '#2E7D32' : day.skipped ? '#FFEBEE' : day.planned ? '#A5D6A7' : day.isToday ? '#E8F5E9' : '#F2F2F7',
-                          opacity: day.isFuture && !day.planned ? 0.35 : 1,
-                        }} />
-                      <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#2E7D32' : '#AEAEB2' }}>{day.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Hero numbers */}
-                <div className="flex items-end justify-between mb-3">
-                  <div>
-                    <p className="bc-caption uppercase tracking-wider mb-1">Runs</p>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-bold text-run-accent"
-                        style={{ fontSize: '28px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                        {wk.runsDone}
-                      </span>
-                      <span className="text-sm text-tertiary">/ {wk.runsPlanned}</span>
-                    </div>
-                    {wk.runAdherence !== null && !isCurrent && (
-                      <span className="text-[10px] font-semibold mt-0.5 block"
-                        style={{ color: wk.runAdherence >= 85 ? '#2E7D32' : wk.runAdherence >= 70 ? '#E65100' : '#C62828' }}>
-                        {wk.runAdherence}% adherence
-                      </span>
-                    )}
-                  </div>
-                  {wk.miles > 0 && (
-                    <div className="text-right">
-                      <p className="bc-caption uppercase tracking-wider mb-1">Miles</p>
-                      <div className="flex items-baseline gap-0.5 justify-end">
-                        <span className="font-bold text-primary"
-                          style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                          {wk.miles}
-                        </span>
-                        {isCurrent && stats.thisWeekPlannedMiles > 0 && (
-                          <span className="text-xs text-tertiary">/{stats.thisWeekPlannedMiles} mi</span>
-                        )}
+              {/* Tap to toggle: day dots ↔ bar chart */}
+              <button className="w-full mb-3" onClick={() => setRunExpanded(v => !v)}>
+                {!runExpanded ? (
+                  /* Day dot tracker */
+                  <div className="flex items-center gap-1">
+                    {wk.runDots.map((day, i) => (
+                      <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
+                        <div className="w-full h-1.5 rounded-full transition-all"
+                          style={{
+                            backgroundColor: day.completed ? '#2E7D32' : day.skipped ? '#FFEBEE' : day.planned ? '#A5D6A7' : day.isToday ? '#E8F5E9' : '#F2F2F7',
+                            opacity: day.isFuture && !day.planned ? 0.35 : 1,
+                          }} />
+                        <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#2E7D32' : '#AEAEB2' }}>{day.label}</span>
                       </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Phase bar */}
-                {isCurrent && stats.currentPhase && stats.phaseRunsTotal > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
-                      <span className="text-[10px] font-semibold text-run-accent">
-                        {stats.phaseRunsDone}/{stats.phaseRunsTotal} runs · {Math.round((stats.phaseRunsDone / stats.phaseRunsTotal) * 100)}%
-                      </span>
-                    </div>
-                    <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-run-accent/60 transition-[width] duration-700"
-                        style={{ width: `${Math.round((stats.phaseRunsDone / stats.phaseRunsTotal) * 100)}%` }} />
-                    </div>
+                    ))}
                   </div>
-                )}
-                {!isCurrent && wk.runsPlanned > 0 && (
-                  <div>
-                    <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-[width] duration-700"
-                        style={{
-                          width: `${Math.round((wk.runsDone / wk.runsPlanned) * 100)}%`,
-                          background: wk.runsDone === wk.runsPlanned ? '#2E7D32' : wk.runsDone / wk.runsPlanned >= 0.7 ? '#FF9500' : '#FF3B30',
-                        }} />
-                    </div>
-                    <p className="text-[10px] text-tertiary mt-1">{Math.round((wk.runsDone / wk.runsPlanned) * 100)}% completion</p>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Expand toggle ── */}
-              <button onClick={() => setRunExpanded(v => !v)}
-                className="w-full flex items-center justify-center gap-1 py-2 border-t border-border bg-canvas/50 text-[10px] font-medium text-tertiary hover:text-secondary transition-colors">
-                {runExpanded ? 'Hide' : 'Miles by day'}
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                  style={{ transform: runExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-
-              {/* ── Daily miles bar chart ── */}
-              {runExpanded && (
-                <div className="px-4 py-3 border-t border-border bg-canvas/30">
-                  <div className="flex items-end gap-1.5" style={{ height: 72 }}>
+                ) : (
+                  /* Daily miles bar chart — same height as dots */
+                  <div className="flex items-end gap-1" style={{ height: 36 }}>
                     {wk.dailyMiles.map((d, i) => {
-                      const pct = maxMiles > 0 ? d.value / maxMiles : 0;
+                      const pct = d.value / maxMiles;
                       const isToday = wk.runDots[i]?.isToday;
                       return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <span className="text-[8px] text-tertiary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {d.value > 0 ? d.value : ''}
-                          </span>
-                          <div className="w-full rounded-t-[3px] transition-all duration-500 self-end"
+                        <div key={i} className="flex-1 flex flex-col items-end justify-end gap-1">
+                          <div className="w-full rounded-t-[3px] transition-all duration-300"
                             style={{
-                              height: Math.max(pct * 44, d.value > 0 ? 3 : 0),
+                              height: Math.max(pct * 24, d.value > 0 ? 3 : 0),
                               background: isToday ? '#2E7D32' : d.value > 0 ? '#A5D6A7' : 'transparent',
                             }} />
-                          <span className="text-[8px] font-medium" style={{ color: isToday ? '#2E7D32' : '#AEAEB2' }}>
-                            {d.day}
+                          <span className="text-[8px] font-medium self-center" style={{ color: isToday ? '#2E7D32' : '#AEAEB2' }}>
+                            {d.value > 0 ? d.value : d.label}
                           </span>
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </button>
+
+              {/* Hero numbers */}
+              <div className="flex items-end justify-between mb-3">
+                <div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-bold text-run-accent"
+                      style={{ fontSize: '28px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                      {wk.runsDone}
+                    </span>
+                    <span className="text-sm text-tertiary">/ {wk.runsPlanned}</span>
+                  </div>
+                  {!isCurrent && wk.runAdherence !== null && (
+                    <span className="text-[10px] font-semibold mt-0.5 block"
+                      style={{ color: wk.runAdherence >= 85 ? '#2E7D32' : wk.runAdherence >= 70 ? '#E65100' : '#C62828' }}>
+                      {wk.runAdherence}% adherence
+                    </span>
+                  )}
+                </div>
+                {wk.miles > 0 && (
+                  <div className="text-right">
+                    <div className="flex items-baseline gap-0.5 justify-end">
+                      <span className="font-bold text-primary"
+                        style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                        {wk.miles}
+                      </span>
+                      <span className="text-xs text-tertiary">
+                        {isCurrent && stats.thisWeekPlannedMiles > 0 ? `/${stats.thisWeekPlannedMiles} mi` : ' mi'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Phase / completion bar */}
+              {isCurrent && stats.currentPhase && stats.phaseRunsTotal > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
+                    <span className="text-[10px] font-semibold text-run-accent">
+                      {stats.phaseRunsDone}/{stats.phaseRunsTotal} runs · {Math.round((stats.phaseRunsDone / stats.phaseRunsTotal) * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-run-accent/60 transition-[width] duration-700"
+                      style={{ width: `${Math.round((stats.phaseRunsDone / stats.phaseRunsTotal) * 100)}%` }} />
+                  </div>
+                </div>
+              )}
+              {!isCurrent && wk.runsPlanned > 0 && (
+                <div>
+                  <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-[width] duration-700"
+                      style={{
+                        width: `${Math.round((wk.runsDone / wk.runsPlanned) * 100)}%`,
+                        background: wk.runsDone === wk.runsPlanned ? '#2E7D32' : wk.runsDone / wk.runsPlanned >= 0.7 ? '#FF9500' : '#FF3B30',
+                      }} />
                   </div>
                 </div>
               )}
@@ -1013,7 +996,7 @@ export default function Dashboard() {
           );
         })()}
 
-        {/* ── Lift Completion — self-contained with week nav + daily detail ── */}
+        {/* ── Lift Card — tap dots to see daily detail, swipe to change week ── */}
         {(() => {
           const wk = stats.weeklyHistory?.[liftWeekIndex];
           if (!wk) return null;
@@ -1021,135 +1004,117 @@ export default function Dashboard() {
           const maxVol = Math.max(...(wk.dailyVolume || []).map(d => d.value), 1);
 
           return (
-            <div className="bc-card bento-half overflow-hidden">
-              {/* ── Week nav header ── */}
-              <div className="flex items-center justify-between px-4 pt-3 pb-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-primary">{wk.label}</span>
-                  <span className="text-[9px] text-tertiary">{wk.dateRange}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => { setLiftWeekIndex(i => Math.max(0,i-1)); setLiftExpanded(false); }}
-                    disabled={liftWeekIndex === 0}
-                    className="w-6 h-6 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-                  </button>
+            <div className="bc-card p-4 bento-half overflow-hidden"
+              onTouchStart={e => { e._touchStartX = e.touches[0].clientX; }}
+              onTouchEnd={e => {
+                const dx = e.changedTouches[0].clientX - (e._touchStartX || 0);
+                if (Math.abs(dx) < 40) return;
+                if (dx < 0) setLiftWeekIndex(i => Math.min(3, i + 1));
+                else setLiftWeekIndex(i => Math.max(0, i - 1));
+                setLiftExpanded(false);
+              }}>
+
+              {/* Label row */}
+              <div className="flex items-center justify-between mb-3">
+                <p className="bc-caption uppercase tracking-wider">
+                  {isCurrent ? 'This Week · Lifts' : `${wk.label} · Lifts`}
+                </p>
+                <div className="flex items-center gap-1">
                   {stats.weeklyHistory.map((_, i) => (
                     <button key={i} onClick={() => { setLiftWeekIndex(i); setLiftExpanded(false); }}
                       className="rounded-full transition-all"
-                      style={{ width: i === liftWeekIndex ? 12 : 5, height: 5,
-                        background: i === liftWeekIndex ? '#007AFF' : '#D1D1D6' }} />
+                      style={{
+                        width: i === liftWeekIndex ? 14 : 5, height: 5,
+                        background: i === liftWeekIndex ? '#007AFF' : '#E5E5EA',
+                      }} />
                   ))}
-                  <button onClick={() => { setLiftWeekIndex(i => Math.min(3,i+1)); setLiftExpanded(false); }}
-                    disabled={liftWeekIndex === 3}
-                    className="w-6 h-6 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </button>
                 </div>
               </div>
 
-              {/* ── Main content ── */}
-              <div className="px-4 pt-2 pb-3">
-                <div className="flex items-center gap-1 mb-3">
-                  {wk.liftDots.map((day, i) => (
-                    <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
-                      <div className="w-full h-1.5 rounded-full transition-all"
-                        style={{
-                          backgroundColor: day.completed ? '#1565C0' : day.skipped ? '#FFEBEE' : day.planned ? '#90CAF9' : day.isToday ? '#E3F2FD' : '#F2F2F7',
-                          opacity: day.isFuture && !day.planned ? 0.35 : 1,
-                        }} />
-                      <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#1565C0' : '#AEAEB2' }}>{day.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-end justify-between mb-3">
-                  <div>
-                    <p className="bc-caption uppercase tracking-wider mb-1">Lifts</p>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-bold text-lift-accent"
-                        style={{ fontSize: '28px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                        {wk.liftsDone}
-                      </span>
-                      <span className="text-sm text-tertiary">/ {wk.liftsPlanned}</span>
-                    </div>
-                  </div>
-                  {wk.volume > 0 && (
-                    <div className="text-right">
-                      <p className="bc-caption uppercase tracking-wider mb-1">Volume</p>
-                      <div className="flex items-baseline gap-0.5 justify-end">
-                        <span className="font-bold text-primary"
-                          style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                          {(wk.volume / 1000).toFixed(1)}k
-                        </span>
-                        <span className="text-xs text-tertiary">lbs</span>
+              {/* Tap to toggle: day dots ↔ volume bars */}
+              <button className="w-full mb-3" onClick={() => setLiftExpanded(v => !v)}>
+                {!liftExpanded ? (
+                  <div className="flex items-center gap-1">
+                    {wk.liftDots.map((day, i) => (
+                      <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
+                        <div className="w-full h-1.5 rounded-full transition-all"
+                          style={{
+                            backgroundColor: day.completed ? '#1565C0' : day.skipped ? '#FFEBEE' : day.planned ? '#90CAF9' : day.isToday ? '#E3F2FD' : '#F2F2F7',
+                            opacity: day.isFuture && !day.planned ? 0.35 : 1,
+                          }} />
+                        <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#1565C0' : '#AEAEB2' }}>{day.label}</span>
                       </div>
-                    </div>
-                  )}
-                </div>
-
-                {isCurrent && stats.currentPhase && stats.phaseLiftsTotal > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
-                      <span className="text-[10px] font-semibold text-lift-accent">
-                        {stats.phaseLiftsDone}/{stats.phaseLiftsTotal} lifts · {stats.phaseLiftRate}%
-                      </span>
-                    </div>
-                    <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-lift-accent/60 transition-[width] duration-700"
-                        style={{ width: `${stats.phaseLiftRate}%` }} />
-                    </div>
+                    ))}
                   </div>
-                )}
-                {!isCurrent && wk.liftsPlanned > 0 && (
-                  <div>
-                    <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-[width] duration-700"
-                        style={{
-                          width: `${Math.round((wk.liftsDone / wk.liftsPlanned) * 100)}%`,
-                          background: wk.liftsDone === wk.liftsPlanned ? '#1565C0' : wk.liftsDone / wk.liftsPlanned >= 0.7 ? '#FF9500' : '#FF3B30',
-                        }} />
-                    </div>
-                    <p className="text-[10px] text-tertiary mt-1">{Math.round((wk.liftsDone / wk.liftsPlanned) * 100)}% completion</p>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Expand toggle ── */}
-              <button onClick={() => setLiftExpanded(v => !v)}
-                className="w-full flex items-center justify-center gap-1 py-2 border-t border-border bg-canvas/50 text-[10px] font-medium text-tertiary hover:text-secondary transition-colors">
-                {liftExpanded ? 'Hide' : 'Volume by day'}
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                  style={{ transform: liftExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-
-              {/* ── Daily volume bar chart ── */}
-              {liftExpanded && (
-                <div className="px-4 py-3 border-t border-border bg-canvas/30">
-                  <div className="flex items-end gap-1.5" style={{ height: 72 }}>
+                ) : (
+                  <div className="flex items-end gap-1" style={{ height: 36 }}>
                     {wk.dailyVolume.map((d, i) => {
-                      const pct = maxVol > 0 ? d.value / maxVol : 0;
+                      const pct = d.value / maxVol;
                       const isToday = wk.liftDots[i]?.isToday;
-                      const label = d.value >= 1000 ? `${(d.value/1000).toFixed(1)}k` : d.value > 0 ? String(d.value) : '';
+                      const label = d.value >= 1000 ? `${(d.value/1000).toFixed(1)}k` : d.value > 0 ? String(d.value) : wk.liftDots[i]?.label;
                       return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <span className="text-[8px] text-tertiary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {label}
-                          </span>
-                          <div className="w-full rounded-t-[3px] transition-all duration-500"
+                        <div key={i} className="flex-1 flex flex-col items-end justify-end gap-1">
+                          <div className="w-full rounded-t-[3px] transition-all duration-300"
                             style={{
-                              height: Math.max(pct * 44, d.value > 0 ? 3 : 0),
+                              height: Math.max(pct * 24, d.value > 0 ? 3 : 0),
                               background: isToday ? '#1565C0' : d.value > 0 ? '#90CAF9' : 'transparent',
                             }} />
-                          <span className="text-[8px] font-medium" style={{ color: isToday ? '#1565C0' : '#AEAEB2' }}>
-                            {wk.dailyMiles[i].day}
+                          <span className="text-[8px] font-medium self-center" style={{ color: isToday ? '#1565C0' : '#AEAEB2' }}>
+                            {d.value > 0 ? label : wk.liftDots[i]?.label}
                           </span>
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </button>
+
+              {/* Hero numbers */}
+              <div className="flex items-end justify-between mb-3">
+                <div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-bold text-lift-accent"
+                      style={{ fontSize: '28px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                      {wk.liftsDone}
+                    </span>
+                    <span className="text-sm text-tertiary">/ {wk.liftsPlanned}</span>
+                  </div>
+                </div>
+                {wk.volume > 0 && (
+                  <div className="text-right">
+                    <div className="flex items-baseline gap-0.5 justify-end">
+                      <span className="font-bold text-primary"
+                        style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                        {(wk.volume / 1000).toFixed(1)}k
+                      </span>
+                      <span className="text-xs text-tertiary"> lbs</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {isCurrent && stats.currentPhase && stats.phaseLiftsTotal > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
+                    <span className="text-[10px] font-semibold text-lift-accent">
+                      {stats.phaseLiftsDone}/{stats.phaseLiftsTotal} lifts · {stats.phaseLiftRate}%
+                    </span>
+                  </div>
+                  <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-lift-accent/60 transition-[width] duration-700"
+                      style={{ width: `${stats.phaseLiftRate}%` }} />
+                  </div>
+                </div>
+              )}
+              {!isCurrent && wk.liftsPlanned > 0 && (
+                <div>
+                  <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-[width] duration-700"
+                      style={{
+                        width: `${Math.round((wk.liftsDone / wk.liftsPlanned) * 100)}%`,
+                        background: wk.liftsDone === wk.liftsPlanned ? '#1565C0' : wk.liftsDone / wk.liftsPlanned >= 0.7 ? '#FF9500' : '#FF3B30',
+                      }} />
                   </div>
                 </div>
               )}
@@ -1157,7 +1122,7 @@ export default function Dashboard() {
           );
         })()}
 
-        <div className="bento-third"><TrainingLoadCard load={trainingLoad} /></div>
+                <div className="bento-third"><TrainingLoadCard load={trainingLoad} /></div>
 
         {/* ── Weekly Miles ── */}
         <div className="bc-card p-4 bento-quarter">
