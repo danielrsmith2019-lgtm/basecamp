@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [chartWeekOffset, setChartWeekOffset] = useState(0); // 0=this week, 1=last week, 2=2w ago, 3=3w ago
   const [runExpanded,   setRunExpanded]   = useState(false);
   const [liftExpanded,  setLiftExpanded]  = useState(false);
+  const [kpiToggle,     setKpiToggle]     = useState('both'); // 'both' | 'runs' | 'lifts'
   // Persist dismissed insight IDs in localStorage, keyed by date
   // so they reset naturally the next day
   const [dismissedInsights, setDismissedInsights] = useState(() => {
@@ -1160,93 +1161,34 @@ export default function Dashboard() {
 
 
 
-        {/* ── Weekly Miles — labeled bar chart ── */}
+        {/* ── Weekly Miles ── */}
         <div className="bc-card p-4 bento-quarter">
-          <div className="flex items-center justify-between mb-2">
-            <p className="bc-caption uppercase tracking-wider">Weekly Miles</p>
-            <span className="font-bold text-primary"
-              style={{ fontSize: '16px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', lineHeight: 1 }}>
-              {stats.currentWeekMileage}
-              <span className="text-[10px] font-normal text-tertiary ml-0.5">mi</span>
-            </span>
+          <p className="bc-caption uppercase tracking-wider mb-2">Weekly Miles</p>
+          <div className="flex items-end justify-between mb-1">
+            <div className="flex items-baseline gap-1">
+              <span className="font-bold text-primary"
+                style={{ fontSize: '24px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {stats.currentWeekMileage}
+              </span>
+              <span className="text-xs text-tertiary">mi</span>
+            </div>
           </div>
-          {(() => {
-            const data = stats.weeklyMileageData || [0,0,0,0];
-            const labels = ['3w','2w','1w','Now'];
-            const max = Math.max(...data, 0.1);
-            return (
-              <div className="flex items-end gap-1.5" style={{ height: 44 }}>
-                {data.map((v, i) => {
-                  const pct = v / max;
-                  const isCurrent = i === 3;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
-                      {v > 0 && (
-                        <span className="text-[8px] leading-none"
-                          style={{ color: isCurrent ? '#2E7D32' : '#AEAEB2', fontVariantNumeric: 'tabular-nums' }}>
-                          {v}
-                        </span>
-                      )}
-                      <div className="w-full rounded-t-[3px] transition-all duration-300"
-                        style={{
-                          height: Math.max(pct * 28, v > 0 ? 3 : 2),
-                          background: isCurrent ? '#34C759' : '#A5D6A7',
-                          opacity: isCurrent ? 1 : 0.6,
-                        }} />
-                      <span className="text-[8px] font-medium" style={{ color: isCurrent ? '#2E7D32' : '#AEAEB2' }}>
-                        {labels[i]}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+          <p className="text-[10px] text-tertiary">this week</p>
         </div>
 
-        {/* ── Weekly Volume — labeled bar chart ── */}
+        {/* ── Weekly Volume ── */}
         <div className="bc-card p-4 bento-quarter">
-          <div className="flex items-center justify-between mb-2">
-            <p className="bc-caption uppercase tracking-wider">Weekly Volume</p>
-            <span className="font-bold text-primary"
-              style={{ fontSize: '16px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', lineHeight: 1 }}>
-              {stats.currentWeekVolume > 0 ? (stats.currentWeekVolume / 1000).toFixed(1) + 'k' : '0'}
-              <span className="text-[10px] font-normal text-tertiary ml-0.5">lbs</span>
-            </span>
+          <p className="bc-caption uppercase tracking-wider mb-2">Weekly Volume</p>
+          <div className="flex items-end justify-between mb-1">
+            <div className="flex items-baseline gap-1">
+              <span className="font-bold text-primary"
+                style={{ fontSize: '24px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {stats.currentWeekVolume > 0 ? (stats.currentWeekVolume / 1000).toFixed(1) + 'k' : '0'}
+              </span>
+              <span className="text-xs text-tertiary">lbs</span>
+            </div>
           </div>
-          {(() => {
-            const data = stats.weeklyVolumeData || [0,0,0,0];
-            const labels = ['3w','2w','1w','Now'];
-            const max = Math.max(...data, 1);
-            return (
-              <div className="flex items-end gap-1.5" style={{ height: 44 }}>
-                {data.map((v, i) => {
-                  const pct = v / max;
-                  const isCurrent = i === 3;
-                  const label = v >= 1000 ? `${(v/1000).toFixed(1)}k` : v > 0 ? String(v) : '';
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
-                      {v > 0 && (
-                        <span className="text-[8px] leading-none"
-                          style={{ color: isCurrent ? '#1565C0' : '#AEAEB2', fontVariantNumeric: 'tabular-nums' }}>
-                          {label}
-                        </span>
-                      )}
-                      <div className="w-full rounded-t-[3px] transition-all duration-300"
-                        style={{
-                          height: Math.max(pct * 28, v > 0 ? 3 : 2),
-                          background: isCurrent ? '#007AFF' : '#90CAF9',
-                          opacity: isCurrent ? 1 : 0.6,
-                        }} />
-                      <span className="text-[8px] font-medium" style={{ color: isCurrent ? '#1565C0' : '#AEAEB2' }}>
-                        {labels[i]}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+          <p className="text-[10px] text-tertiary">this week</p>
         </div>
 
         {/* ── Streak ── */}
@@ -1332,84 +1274,165 @@ export default function Dashboard() {
 
 
 
-      {/* ── Weekly Training Load Chart ── */}
+      {/* ── Weekly Training Load ── unified toggle card ── */}
       {(() => {
-        const WEEK_LABELS = ['3 weeks ago','2 weeks ago','Last week','This week'];
+        const WEEK_LABELS = ['3 weeks ago', '2 weeks ago', 'Last week', 'This week'];
         const weekLabel = WEEK_LABELS[3 - chartWeekOffset];
-        // Totals for selected week
-        const totalMiles = weeklyChartData.reduce((s, d) => s + (d.runMiles || 0), 0).toFixed(1);
-        const totalVol   = weeklyChartData.reduce((s, d) => s + (d.liftScore || 0), 0).toFixed(1);
+        const data = weeklyChartData; // 7 days of {day, runMiles, liftScore}
+
+        const totalMiles  = parseFloat(data.reduce((s,d) => s + (d.runMiles  || 0), 0).toFixed(1));
+        const totalVolK   = parseFloat(data.reduce((s,d) => s + (d.liftScore || 0), 0).toFixed(1));
+
+        // Prior week for trend
+        const priorData   = buildWeeklyChartData(workouts, chartWeekOffset + 1);
+        const priorMiles  = parseFloat(priorData.reduce((s,d) => s + (d.runMiles  || 0), 0).toFixed(1));
+        const priorVolK   = parseFloat(priorData.reduce((s,d) => s + (d.liftScore || 0), 0).toFixed(1));
+
+        const milesTrend  = priorMiles > 0 ? Math.round(((totalMiles  - priorMiles) / priorMiles) * 100) : null;
+        const volTrend    = priorVolK  > 0 ? Math.round(((totalVolK   - priorVolK)  / priorVolK)  * 100) : null;
+
+        // Combined load for "both" view
+        const loadData    = data.map(d => ({ day: d.day, value: (d.runMiles || 0) * 10 + (d.liftScore || 0) }));
+        const priorLoad   = priorData.map(d => (d.runMiles || 0) * 10 + (d.liftScore || 0));
+        const totalLoad   = Math.round(loadData.reduce((s,d) => s + d.value, 0));
+        const priorLoadTotal = Math.round(priorLoad.reduce((s,v) => s + v, 0));
+        const loadTrend   = priorLoadTotal > 0 ? Math.round(((totalLoad - priorLoadTotal) / priorLoadTotal) * 100) : null;
+
+        // Which data to chart
+        const chartData = kpiToggle === 'runs'
+          ? data.map(d => ({ day: d.day, value: d.runMiles || 0,  label: d.runMiles > 0 ? `${d.runMiles}` : '' }))
+          : kpiToggle === 'lifts'
+          ? data.map(d => ({ day: d.day, value: d.liftScore || 0, label: d.liftScore > 0 ? `${d.liftScore}k` : '' }))
+          : loadData.map(d => ({ day: d.day, value: d.value, label: d.value > 0 ? String(Math.round(d.value)) : '' }));
+
+        const chartMax  = Math.max(...chartData.map(d => d.value), 0.1);
+        const barColor  = kpiToggle === 'runs' ? '#34C759' : kpiToggle === 'lifts' ? '#007AFF' : '#AF52DE';
+        const barLight  = kpiToggle === 'runs' ? '#A5D6A7' : kpiToggle === 'lifts' ? '#90CAF9' : '#E1BEE7';
+
+        const trendVal  = kpiToggle === 'runs' ? milesTrend : kpiToggle === 'lifts' ? volTrend : loadTrend;
+        const trendColor = trendVal === null ? '#8E8E93' : trendVal > 0 ? '#FF9500' : trendVal < 0 ? '#007AFF' : '#34C759';
+        const trendIcon  = trendVal === null ? '—' : trendVal > 0 ? '↑' : trendVal < 0 ? '↓' : '→';
+
         return (
           <>
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <p className="bc-caption uppercase tracking-wider">Weekly Training Load</p>
-                {chartWeekOffset > 0 && (
-                  <span className="text-[10px] text-tertiary">{weekLabel}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
+              {/* Week nav */}
+              <div className="flex items-center gap-1.5">
                 <button onClick={() => setChartWeekOffset(o => Math.min(3, o + 1))}
                   disabled={chartWeekOffset === 3}
-                  className="w-7 h-7 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90 transition-all"
+                  className="w-7 h-7 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90"
                   style={{ color: '#AEAEB2' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
+                <div>
+                  <p className="bc-caption uppercase tracking-wider leading-none">Training Load</p>
+                  {chartWeekOffset > 0 && <p className="text-[9px] text-tertiary mt-0.5">{weekLabel}</p>}
+                </div>
                 <button onClick={() => setChartWeekOffset(o => Math.max(0, o - 1))}
                   disabled={chartWeekOffset === 0}
-                  className="w-7 h-7 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90 transition-all"
+                  className="w-7 h-7 rounded-full bg-canvas border border-border flex items-center justify-center disabled:opacity-25 active:scale-90"
                   style={{ color: '#AEAEB2' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
               </div>
+              {/* Toggle */}
+              <div className="flex items-center gap-0.5 p-0.5 bg-canvas rounded-[10px] border border-border">
+                {[['both','All'],['runs','Runs'],['lifts','Lifts']].map(([key, label]) => (
+                  <button key={key} onClick={() => setKpiToggle(key)}
+                    className="px-2.5 py-1 rounded-[8px] text-[10px] font-semibold transition-all"
+                    style={{
+                      background: kpiToggle === key ? barColor : 'transparent',
+                      color: kpiToggle === key ? '#fff' : '#8E8E93',
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
+
             <div className="bc-card p-4 mb-6">
-              {/* Totals row */}
-              <div className="flex items-center gap-4 mb-4">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#34C759' }} />
-                  <span className="text-xs font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {totalMiles} mi
-                  </span>
-                  <span className="text-[10px] text-tertiary">total runs</span>
+              {/* Insight row */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xl font-bold text-primary" style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
+                    {kpiToggle === 'runs'
+                      ? `${totalMiles} mi`
+                      : kpiToggle === 'lifts'
+                      ? `${totalVolK}k lbs`
+                      : `${totalLoad} pts`}
+                  </p>
+                  <p className="text-[10px] text-tertiary mt-0.5">
+                    {kpiToggle === 'runs' ? 'total miles' : kpiToggle === 'lifts' ? 'total volume' : 'combined load'}
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#007AFF' }} />
-                  <span className="text-xs font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {totalVol}k lbs
-                  </span>
-                  <span className="text-[10px] text-tertiary">total volume</span>
+                <div className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <span className="text-base font-bold" style={{ color: trendColor, fontVariantNumeric: 'tabular-nums' }}>
+                      {trendIcon}{trendVal !== null ? `${Math.abs(trendVal)}%` : ''}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-tertiary">vs prior week</p>
                 </div>
               </div>
-              <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height={192} minWidth={200}>
-                  <BarChart data={weeklyChartData} barGap={2}>
-                    <XAxis dataKey="day" axisLine={false} tickLine={false}
-                      tick={{ fill: '#8E8E93', fontSize: 11, fontFamily: 'var(--font-dm-sans)' }} />
-                    <YAxis hide />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#FFFFFF', border: '0.5px solid rgba(60,60,67,0.12)', borderRadius: '14px', fontSize: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-                      cursor={{ fill: 'rgba(0,122,255,0.06)' }}
-                      formatter={(value, name) => [
-                        name === 'Run (mi)' ? `${value} mi` : `${value}k lbs`,
-                        name
-                      ]}
-                    />
-                    <Bar dataKey="runMiles" name="Run (mi)" stackId="stack" radius={[0,0,4,4]}>
-                      {weeklyChartData.map((_, i) => <Cell key={i} fill="#34C759" fillOpacity={0.85} />)}
-                    </Bar>
-                    <Bar dataKey="liftScore" name="Lift (vol k)" stackId="stack" radius={[4,4,0,0]}>
-                      {weeklyChartData.map((_, i) => <Cell key={i} fill="#007AFF" fillOpacity={0.85} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+
+              {/* Bar chart */}
+              <div className="flex items-end gap-1.5" style={{ height: 80 }}>
+                {chartData.map((d, i) => {
+                  const pct = chartMax > 0 ? d.value / chartMax : 0;
+                  const isToday = (() => {
+                    const todayStr = new Date().toLocaleDateString('en-CA');
+                    return weeklyChartData[i]?.date === todayStr;
+                  })();
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
+                      {d.value > 0 && (
+                        <span className="text-[8px] leading-none text-tertiary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {d.label}
+                        </span>
+                      )}
+                      <div className="w-full rounded-t-[4px] transition-all duration-300"
+                        style={{
+                          height: Math.max(pct * 56, d.value > 0 ? 3 : 2),
+                          background: isToday ? barColor : d.value > 0 ? barLight : '#F2F2F7',
+                          opacity: isToday ? 1 : d.value > 0 ? 0.75 : 0.3,
+                        }} />
+                      <span className="text-[8px] font-medium" style={{ color: isToday ? barColor : '#AEAEB2' }}>
+                        {d.day}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Sub-totals for 'both' view */}
+              {kpiToggle === 'both' && (
+                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-sm" style={{ background: '#34C759' }} />
+                    <span className="text-[10px] font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>{totalMiles} mi</span>
+                    {milesTrend !== null && (
+                      <span className="text-[9px]" style={{ color: milesTrend > 0 ? '#FF9500' : milesTrend < 0 ? '#007AFF' : '#34C759' }}>
+                        {milesTrend > 0 ? '↑' : milesTrend < 0 ? '↓' : '→'}{Math.abs(milesTrend)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-sm" style={{ background: '#007AFF' }} />
+                    <span className="text-[10px] font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>{totalVolK}k lbs</span>
+                    {volTrend !== null && (
+                      <span className="text-[9px]" style={{ color: volTrend > 0 ? '#FF9500' : volTrend < 0 ? '#007AFF' : '#34C759' }}>
+                        {volTrend > 0 ? '↑' : volTrend < 0 ? '↓' : '→'}{Math.abs(volTrend)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         );
       })()}
 
-      {/* ── Recent Activity ── */}
+            {/* ── Recent Activity ── */}
       <p className="bc-caption uppercase tracking-wider mb-3">Recent Activity</p>
       <div className="space-y-2 mb-6">
         {recentActivity.map(w => (
@@ -1477,7 +1500,7 @@ function getWeeklyData(workouts, getValue) {
     else if (diffDays < 21) weeks[1] += getValue(w);
     else if (diffDays < 28) weeks[0] += getValue(w);
   });
-  return weeks;
+  return weeks.map(v => Math.round(v * 10) / 10);
 }
 
 function calculateStreak(workouts) {
