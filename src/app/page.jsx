@@ -877,26 +877,18 @@ export default function Dashboard() {
                 setRunExpanded(false);
               }}>
 
-              {/* Label row — week name + swipe hint dots */}
+              {/* Label — just the week name, swipe is the interaction */}
               <div className="flex items-center justify-between mb-3">
                 <p className="bc-caption uppercase tracking-wider">
                   {isCurrent ? 'This Week · Runs' : `${wk.label} · Runs`}
                 </p>
-                {/* Pagination dots — minimal, no arrows */}
-                <div className="flex items-center gap-1">
-                  {stats.weeklyHistory.map((_, i) => (
-                    <button key={i} onClick={() => { setRunWeekIndex(i); setRunExpanded(false); }}
-                      className="rounded-full transition-all"
-                      style={{
-                        width: i === runWeekIndex ? 14 : 5, height: 5,
-                        background: i === runWeekIndex ? '#34C759' : '#E5E5EA',
-                      }} />
-                  ))}
-                </div>
+                {!isCurrent && (
+                  <span className="text-[10px] text-tertiary">{wk.dateRange}</span>
+                )}
               </div>
 
-              {/* Tap to toggle: day dots ↔ bar chart */}
-              <button className="w-full mb-3" onClick={() => setRunExpanded(v => !v)}>
+              {/* Tap dot tracker to toggle daily bar chart */}
+              <button className="w-full mb-3 active:opacity-70 transition-opacity" onClick={() => setRunExpanded(v => !v)}>
                 {!runExpanded ? (
                   /* Day dot tracker */
                   <div className="flex items-center gap-1">
@@ -1014,25 +1006,18 @@ export default function Dashboard() {
                 setLiftExpanded(false);
               }}>
 
-              {/* Label row */}
+              {/* Label — just the week name */}
               <div className="flex items-center justify-between mb-3">
                 <p className="bc-caption uppercase tracking-wider">
                   {isCurrent ? 'This Week · Lifts' : `${wk.label} · Lifts`}
                 </p>
-                <div className="flex items-center gap-1">
-                  {stats.weeklyHistory.map((_, i) => (
-                    <button key={i} onClick={() => { setLiftWeekIndex(i); setLiftExpanded(false); }}
-                      className="rounded-full transition-all"
-                      style={{
-                        width: i === liftWeekIndex ? 14 : 5, height: 5,
-                        background: i === liftWeekIndex ? '#007AFF' : '#E5E5EA',
-                      }} />
-                  ))}
-                </div>
+                {!isCurrent && (
+                  <span className="text-[10px] text-tertiary">{wk.dateRange}</span>
+                )}
               </div>
 
-              {/* Tap to toggle: day dots ↔ volume bars */}
-              <button className="w-full mb-3" onClick={() => setLiftExpanded(v => !v)}>
+              {/* Tap dot tracker to toggle daily bar chart */}
+              <button className="w-full mb-3 active:opacity-70 transition-opacity" onClick={() => setLiftExpanded(v => !v)}>
                 {!liftExpanded ? (
                   <div className="flex items-center gap-1">
                     {wk.liftDots.map((day, i) => (
