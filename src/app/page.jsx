@@ -1406,25 +1406,30 @@ export default function Dashboard() {
 
               {/* Sub-totals for 'both' view */}
               {kpiToggle === 'both' && (
-                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-sm" style={{ background: '#34C759' }} />
-                    <span className="text-[10px] font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>{totalMiles} mi</span>
-                    {milesTrend !== null && (
-                      <span className="text-[9px]" style={{ color: milesTrend > 0 ? '#FF9500' : milesTrend < 0 ? '#007AFF' : '#34C759' }}>
-                        {milesTrend > 0 ? '↑' : milesTrend < 0 ? '↓' : '→'}{Math.abs(milesTrend)}%
-                      </span>
-                    )}
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-sm" style={{ background: '#34C759' }} />
+                      <span className="text-[10px] font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>{totalMiles} mi</span>
+                      {milesTrend !== null && (
+                        <span className="text-[9px]" style={{ color: milesTrend > 0 ? '#FF9500' : milesTrend < 0 ? '#007AFF' : '#34C759' }}>
+                          {milesTrend > 0 ? '↑' : milesTrend < 0 ? '↓' : '→'}{Math.abs(milesTrend)}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-sm" style={{ background: '#007AFF' }} />
+                      <span className="text-[10px] font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>{totalVolK}k lbs</span>
+                      {volTrend !== null && (
+                        <span className="text-[9px]" style={{ color: volTrend > 0 ? '#FF9500' : volTrend < 0 ? '#007AFF' : '#34C759' }}>
+                          {volTrend > 0 ? '↑' : volTrend < 0 ? '↓' : '→'}{Math.abs(volTrend)}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-sm" style={{ background: '#007AFF' }} />
-                    <span className="text-[10px] font-semibold text-primary" style={{ fontVariantNumeric: 'tabular-nums' }}>{totalVolK}k lbs</span>
-                    {volTrend !== null && (
-                      <span className="text-[9px]" style={{ color: volTrend > 0 ? '#FF9500' : volTrend < 0 ? '#007AFF' : '#34C759' }}>
-                        {volTrend > 0 ? '↑' : volTrend < 0 ? '↓' : '→'}{Math.abs(volTrend)}%
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-[9px] text-tertiary">
+                    {totalMiles} mi × 10 + {totalVolK}k lbs ÷ 100 = <span className="font-semibold text-secondary">{totalLoad} pts</span>
+                  </p>
                 </div>
               )}
             </div>
