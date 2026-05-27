@@ -867,24 +867,41 @@ export default function Dashboard() {
           const maxMiles = Math.max(...(wk.dailyMiles || []).map(d => d.value), 0.1);
 
           return (
-            <div className="bc-card p-4 bento-hero overflow-hidden"
-              onTouchStart={e => { e._touchStartX = e.touches[0].clientX; }}
-              onTouchEnd={e => {
-                const dx = e.changedTouches[0].clientX - (e._touchStartX || 0);
-                if (Math.abs(dx) < 40) return;
-                if (dx < 0) setRunWeekIndex(i => Math.min(3, i + 1));
-                else setRunWeekIndex(i => Math.max(0, i - 1));
-                setRunExpanded(false);
-              }}>
+            <div className="bc-card p-4 bento-hero overflow-hidden">
 
-              {/* Label — just the week name, swipe is the interaction */}
+              {/* Label row with edge arrows */}
               <div className="flex items-center justify-between mb-3">
-                <p className="bc-caption uppercase tracking-wider">
-                  {isCurrent ? 'This Week · Runs' : `${wk.label} · Runs`}
-                </p>
-                {!isCurrent && (
-                  <span className="text-[10px] text-tertiary">{wk.dateRange}</span>
-                )}
+                {/* Left arrow — previous week */}
+                <button
+                  onClick={() => { setRunWeekIndex(i => Math.max(0, i - 1)); setRunExpanded(false); }}
+                  disabled={runWeekIndex === 0}
+                  className="w-6 h-6 -ml-1 flex items-center justify-center rounded-full transition-opacity disabled:opacity-0"
+                  style={{ color: '#AEAEB2' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                  </svg>
+                </button>
+
+                {/* Center: label + date */}
+                <div className="flex-1 text-center">
+                  <p className="bc-caption uppercase tracking-wider">
+                    {isCurrent ? 'This Week · Runs' : `${wk.label} · Runs`}
+                  </p>
+                  {!isCurrent && (
+                    <p className="text-[9px] text-tertiary mt-0.5">{wk.dateRange}</p>
+                  )}
+                </div>
+
+                {/* Right arrow — next week */}
+                <button
+                  onClick={() => { setRunWeekIndex(i => Math.min(3, i + 1)); setRunExpanded(false); }}
+                  disabled={runWeekIndex === 3}
+                  className="w-6 h-6 -mr-1 flex items-center justify-center rounded-full transition-opacity disabled:opacity-0"
+                  style={{ color: '#AEAEB2' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
               </div>
 
               {/* Tap dot tracker to toggle daily bar chart */}
@@ -996,24 +1013,38 @@ export default function Dashboard() {
           const maxVol = Math.max(...(wk.dailyVolume || []).map(d => d.value), 1);
 
           return (
-            <div className="bc-card p-4 bento-half overflow-hidden"
-              onTouchStart={e => { e._touchStartX = e.touches[0].clientX; }}
-              onTouchEnd={e => {
-                const dx = e.changedTouches[0].clientX - (e._touchStartX || 0);
-                if (Math.abs(dx) < 40) return;
-                if (dx < 0) setLiftWeekIndex(i => Math.min(3, i + 1));
-                else setLiftWeekIndex(i => Math.max(0, i - 1));
-                setLiftExpanded(false);
-              }}>
+            <div className="bc-card p-4 bento-half overflow-hidden">
 
-              {/* Label — just the week name */}
+              {/* Label row with edge arrows */}
               <div className="flex items-center justify-between mb-3">
-                <p className="bc-caption uppercase tracking-wider">
-                  {isCurrent ? 'This Week · Lifts' : `${wk.label} · Lifts`}
-                </p>
-                {!isCurrent && (
-                  <span className="text-[10px] text-tertiary">{wk.dateRange}</span>
-                )}
+                <button
+                  onClick={() => { setLiftWeekIndex(i => Math.max(0, i - 1)); setLiftExpanded(false); }}
+                  disabled={liftWeekIndex === 0}
+                  className="w-6 h-6 -ml-1 flex items-center justify-center rounded-full transition-opacity disabled:opacity-0"
+                  style={{ color: '#AEAEB2' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                  </svg>
+                </button>
+
+                <div className="flex-1 text-center">
+                  <p className="bc-caption uppercase tracking-wider">
+                    {isCurrent ? 'This Week · Lifts' : `${wk.label} · Lifts`}
+                  </p>
+                  {!isCurrent && (
+                    <p className="text-[9px] text-tertiary mt-0.5">{wk.dateRange}</p>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => { setLiftWeekIndex(i => Math.min(3, i + 1)); setLiftExpanded(false); }}
+                  disabled={liftWeekIndex === 3}
+                  className="w-6 h-6 -mr-1 flex items-center justify-center rounded-full transition-opacity disabled:opacity-0"
+                  style={{ color: '#AEAEB2' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
               </div>
 
               {/* Tap dot tracker to toggle daily bar chart */}
