@@ -1299,7 +1299,7 @@ export default function Dashboard() {
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
                 <div>
-                  <p className="bc-caption uppercase tracking-wider leading-none">Training Load</p>
+                  <p className="bc-caption uppercase tracking-wider leading-none">Training Load Trends</p>
                   {chartWeekOffset > 0 && <p className="text-[9px] text-tertiary mt-0.5">{weekLabel}</p>}
                 </div>
                 <button onClick={() => setChartWeekOffset(o => Math.max(0, o - 1))}
