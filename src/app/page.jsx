@@ -1161,35 +1161,9 @@ export default function Dashboard() {
 
 
 
-        {/* ── Weekly Miles ── */}
-        <div className="bc-card p-4 bento-quarter">
-          <p className="bc-caption uppercase tracking-wider mb-2">Weekly Miles</p>
-          <div className="flex items-end justify-between mb-1">
-            <div className="flex items-baseline gap-1">
-              <span className="font-bold text-primary"
-                style={{ fontSize: '24px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                {stats.currentWeekMileage}
-              </span>
-              <span className="text-xs text-tertiary">mi</span>
-            </div>
-          </div>
-          <p className="text-[10px] text-tertiary">this week</p>
-        </div>
 
-        {/* ── Weekly Volume ── */}
-        <div className="bc-card p-4 bento-quarter">
-          <p className="bc-caption uppercase tracking-wider mb-2">Weekly Volume</p>
-          <div className="flex items-end justify-between mb-1">
-            <div className="flex items-baseline gap-1">
-              <span className="font-bold text-primary"
-                style={{ fontSize: '24px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                {stats.currentWeekVolume > 0 ? (stats.currentWeekVolume / 1000).toFixed(1) + 'k' : '0'}
-              </span>
-              <span className="text-xs text-tertiary">lbs</span>
-            </div>
-          </div>
-          <p className="text-[10px] text-tertiary">this week</p>
-        </div>
+
+
 
         {/* ── Streak ── */}
         <div className="bc-card p-4 bento-quarter">
