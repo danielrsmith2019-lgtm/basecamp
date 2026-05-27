@@ -39,8 +39,9 @@ export default function Dashboard() {
 
   const [logTarget, setLogTarget]                 = useState(null);
   const [justLogged, setJustLogged]               = useState(null);
-  const [runWeekIndex,  setRunWeekIndex]  = useState(3); // 3=current week
+  const [runWeekIndex,  setRunWeekIndex]  = useState(3);
   const [liftWeekIndex, setLiftWeekIndex] = useState(3);
+  const [loadWeekIndex, setLoadWeekIndex] = useState(3);
   const [runExpanded,   setRunExpanded]   = useState(false);
   const [liftExpanded,  setLiftExpanded]  = useState(false);
   // Persist dismissed insight IDs in localStorage, keyed by date
@@ -904,48 +905,49 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Day dot tracker — always visible, tap to show/hide bars below */}
-              <div className="mb-2">
-                <button className="w-full active:opacity-70 transition-opacity" onClick={() => setRunExpanded(v => !v)}>
-                  <div className="flex items-center gap-1">
-                    {wk.runDots.map((day, i) => (
-                      <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
-                        <div className="w-full h-1.5 rounded-full transition-all"
+              {/* Day tracker — tap to expand bars growing from dots */}
+              <button className="w-full mb-3 active:opacity-60 transition-opacity"
+                onClick={() => setRunExpanded(v => !v)}>
+                <div className="flex items-end gap-1"
+                  style={{ height: runExpanded ? 56 : 28 , transition: 'height 0.25s ease' }}>
+                  {wk.runDots.map((day, i) => {
+                    const miles = wk.dailyMiles[i]?.value || 0;
+                    const pct   = maxMiles > 0 ? miles / maxMiles : 0;
+                    const dotColor = day.completed ? '#2E7D32' : day.skipped ? '#FFCDD2' : day.planned ? '#A5D6A7' : day.isToday ? '#E8F5E9' : '#F2F2F7';
+                    const barColor = day.isToday ? '#2E7D32' : miles > 0 ? '#A5D6A7' : 'transparent';
+                    // Bar height: when collapsed just the dot (6px), expanded grows up
+                    const barH = runExpanded
+                      ? Math.max(pct * 40, miles > 0 ? 6 : 4)
+                      : 6;
+                    return (
+                      <div key={i} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1">
+                        {/* Value label — only visible when expanded and has value */}
+                        <span className="text-[8px] leading-none transition-opacity"
                           style={{
-                            backgroundColor: day.completed ? '#2E7D32' : day.skipped ? '#FFEBEE' : day.planned ? '#A5D6A7' : day.isToday ? '#E8F5E9' : '#F2F2F7',
+                            fontVariantNumeric: 'tabular-nums',
+                            color: day.isToday ? '#2E7D32' : '#AEAEB2',
+                            opacity: runExpanded && miles > 0 ? 1 : 0,
+                            height: runExpanded ? 'auto' : 0,
+                          }}>
+                          {miles > 0 ? miles : ''}
+                        </span>
+                        {/* Bar — collapses to dot height when closed */}
+                        <div className="w-full rounded-t-[3px] transition-all duration-300"
+                          style={{
+                            height: barH,
+                            background: barH === 6 ? dotColor : barColor,
                             opacity: day.isFuture && !day.planned ? 0.35 : 1,
                           }} />
-                        <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#2E7D32' : '#AEAEB2' }}>{day.label}</span>
+                        {/* Day label */}
+                        <span className="text-[8px] font-medium"
+                          style={{ color: day.isToday ? '#2E7D32' : '#AEAEB2' }}>
+                          {day.label}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </button>
-
-                {/* Daily miles bars — slide in below the dots when expanded */}
-                {runExpanded && (
-                  <div className="flex items-end gap-1 mt-2" style={{ height: 40 }}>
-                    {wk.dailyMiles.map((d, i) => {
-                      const pct = maxMiles > 0 ? d.value / maxMiles : 0;
-                      const isToday = wk.runDots[i]?.isToday;
-                      return (
-                        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
-                          {d.value > 0 && (
-                            <span className="text-[8px] text-tertiary leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                              {d.value}
-                            </span>
-                          )}
-                          <div className="w-full rounded-t-[3px] transition-all duration-300"
-                            style={{
-                              height: Math.max(pct * 28, d.value > 0 ? 3 : 0),
-                              background: isToday ? '#2E7D32' : d.value > 0 ? '#A5D6A7' : '#F2F2F7',
-                              opacity: d.value > 0 ? 1 : 0.3,
-                            }} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              </button>
 
               {/* Hero numbers */}
               <div className="flex items-end justify-between mb-3">
@@ -979,8 +981,8 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Phase / completion bar */}
-              {isCurrent && stats.currentPhase && stats.phaseRunsTotal > 0 && (
+              {/* Phase bar — current week only. Past weeks show week completion bar instead */}
+              {isCurrent && stats.currentPhase && stats.phaseRunsTotal > 0 ? (
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
@@ -993,9 +995,15 @@ export default function Dashboard() {
                       style={{ width: `${Math.round((stats.phaseRunsDone / stats.phaseRunsTotal) * 100)}%` }} />
                   </div>
                 </div>
-              )}
-              {!isCurrent && wk.runsPlanned > 0 && (
+              ) : !isCurrent && wk.runsPlanned > 0 ? (
                 <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-tertiary">Week completion</span>
+                    <span className="text-[10px] font-semibold"
+                      style={{ color: wk.runsDone === wk.runsPlanned ? '#2E7D32' : wk.runsDone / wk.runsPlanned >= 0.7 ? '#FF9500' : '#FF3B30' }}>
+                      {wk.runsDone}/{wk.runsPlanned} runs · {Math.round((wk.runsDone / wk.runsPlanned) * 100)}%
+                    </span>
+                  </div>
                   <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-[width] duration-700"
                       style={{
@@ -1004,7 +1012,7 @@ export default function Dashboard() {
                       }} />
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })()}
@@ -1051,49 +1059,46 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Day dot tracker — always visible, tap to show/hide bars below */}
-              <div className="mb-2">
-                <button className="w-full active:opacity-70 transition-opacity" onClick={() => setLiftExpanded(v => !v)}>
-                  <div className="flex items-center gap-1">
-                    {wk.liftDots.map((day, i) => (
-                      <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
-                        <div className="w-full h-1.5 rounded-full transition-all"
+              {/* Day tracker — tap to expand bars growing from dots */}
+              <button className="w-full mb-3 active:opacity-60 transition-opacity"
+                onClick={() => setLiftExpanded(v => !v)}>
+                <div className="flex items-end gap-1"
+                  style={{ height: liftExpanded ? 56 : 28, transition: 'height 0.25s ease' }}>
+                  {wk.liftDots.map((day, i) => {
+                    const vol   = wk.dailyVolume[i]?.value || 0;
+                    const pct   = maxVol > 0 ? vol / maxVol : 0;
+                    const dotColor = day.completed ? '#1565C0' : day.skipped ? '#FFCDD2' : day.planned ? '#90CAF9' : day.isToday ? '#E3F2FD' : '#F2F2F7';
+                    const barColor = day.isToday ? '#1565C0' : vol > 0 ? '#90CAF9' : 'transparent';
+                    const barH = liftExpanded
+                      ? Math.max(pct * 40, vol > 0 ? 6 : 4)
+                      : 6;
+                    const label = vol >= 1000 ? `${(vol/1000).toFixed(1)}k` : vol > 0 ? String(vol) : '';
+                    return (
+                      <div key={i} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1">
+                        <span className="text-[8px] leading-none transition-opacity"
                           style={{
-                            backgroundColor: day.completed ? '#1565C0' : day.skipped ? '#FFEBEE' : day.planned ? '#90CAF9' : day.isToday ? '#E3F2FD' : '#F2F2F7',
+                            fontVariantNumeric: 'tabular-nums',
+                            color: day.isToday ? '#1565C0' : '#AEAEB2',
+                            opacity: liftExpanded && vol > 0 ? 1 : 0,
+                            height: liftExpanded ? 'auto' : 0,
+                          }}>
+                          {label}
+                        </span>
+                        <div className="w-full rounded-t-[3px] transition-all duration-300"
+                          style={{
+                            height: barH,
+                            background: barH === 6 ? dotColor : barColor,
                             opacity: day.isFuture && !day.planned ? 0.35 : 1,
                           }} />
-                        <span className="text-[8px] font-medium" style={{ color: day.isToday ? '#1565C0' : '#AEAEB2' }}>{day.label}</span>
+                        <span className="text-[8px] font-medium"
+                          style={{ color: day.isToday ? '#1565C0' : '#AEAEB2' }}>
+                          {day.label}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </button>
-
-                {/* Daily volume bars — appear below dots when expanded */}
-                {liftExpanded && (
-                  <div className="flex items-end gap-1 mt-2" style={{ height: 40 }}>
-                    {wk.dailyVolume.map((d, i) => {
-                      const pct = maxVol > 0 ? d.value / maxVol : 0;
-                      const isToday = wk.liftDots[i]?.isToday;
-                      const label = d.value >= 1000 ? `${(d.value/1000).toFixed(1)}k` : d.value > 0 ? String(d.value) : '';
-                      return (
-                        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
-                          {d.value > 0 && (
-                            <span className="text-[8px] text-tertiary leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                              {label}
-                            </span>
-                          )}
-                          <div className="w-full rounded-t-[3px] transition-all duration-300"
-                            style={{
-                              height: Math.max(pct * 28, d.value > 0 ? 3 : 0),
-                              background: isToday ? '#1565C0' : d.value > 0 ? '#90CAF9' : '#F2F2F7',
-                              opacity: d.value > 0 ? 1 : 0.3,
-                            }} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              </button>
 
               {/* Hero numbers */}
               <div className="flex items-end justify-between mb-3">
@@ -1119,7 +1124,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {isCurrent && stats.currentPhase && stats.phaseLiftsTotal > 0 && (
+              {isCurrent && stats.currentPhase && stats.phaseLiftsTotal > 0 ? (
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-tertiary capitalize">{stats.currentPhase} phase</span>
@@ -1132,9 +1137,15 @@ export default function Dashboard() {
                       style={{ width: `${stats.phaseLiftRate}%` }} />
                   </div>
                 </div>
-              )}
-              {!isCurrent && wk.liftsPlanned > 0 && (
+              ) : !isCurrent && wk.liftsPlanned > 0 ? (
                 <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-tertiary">Week completion</span>
+                    <span className="text-[10px] font-semibold"
+                      style={{ color: wk.liftsDone === wk.liftsPlanned ? '#1565C0' : wk.liftsDone / wk.liftsPlanned >= 0.7 ? '#FF9500' : '#FF3B30' }}>
+                      {wk.liftsDone}/{wk.liftsPlanned} lifts · {Math.round((wk.liftsDone / wk.liftsPlanned) * 100)}%
+                    </span>
+                  </div>
                   <div className="h-1 w-full bg-canvas rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-[width] duration-700"
                       style={{
@@ -1143,12 +1154,84 @@ export default function Dashboard() {
                       }} />
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })()}
 
-                <div className="bento-third"><TrainingLoadCard load={trainingLoad} /></div>
+                {/* ── Training Load — with week navigation ── */}
+        {(() => {
+          const LOAD_WEEKS = ['3w ago','2w ago','Last week','This week'];
+          const weekLoad   = trainingLoad?.weeks?.[loadWeekIndex] ?? 0;
+          const prevLoad   = trainingLoad?.weeks?.[loadWeekIndex - 1] ?? 0;
+          const changePct  = prevLoad > 0 ? Math.round(((weekLoad - prevLoad) / prevLoad) * 100) : 0;
+          const isCurrentWk = loadWeekIndex === 3;
+          const trendColor = changePct > 10 ? '#FF9500' : changePct < -10 ? '#007AFF' : '#34C759';
+          const trendIcon  = changePct > 10 ? '↑' : changePct < -10 ? '↓' : '→';
+
+          return (
+            <div className="bc-card p-4 bento-third">
+              {/* Label row with arrows */}
+              <div className="flex items-center justify-between mb-2">
+                <button onClick={() => setLoadWeekIndex(i => Math.max(0, i - 1))}
+                  disabled={loadWeekIndex === 0}
+                  className="w-6 h-6 -ml-1 flex items-center justify-center disabled:opacity-0"
+                  style={{ color: '#AEAEB2' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                  </svg>
+                </button>
+                <p className="bc-caption uppercase tracking-wider flex-1 text-center">
+                  Training Load{!isCurrentWk ? ` · ${LOAD_WEEKS[loadWeekIndex]}` : ''}
+                </p>
+                <button onClick={() => setLoadWeekIndex(i => Math.min(3, i + 1))}
+                  disabled={loadWeekIndex === 3}
+                  className="w-6 h-6 -mr-1 flex items-center justify-center disabled:opacity-0"
+                  style={{ color: '#AEAEB2' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex items-end justify-between mb-2">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-primary"
+                    style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
+                    {weekLoad}
+                  </span>
+                  <span className="text-xs text-tertiary">pts</span>
+                </div>
+                {/* Mini bar chart — 4 weeks, highlight selected */}
+                <div className="flex items-end gap-1" style={{ height: 28 }}>
+                  {(trainingLoad?.weeks || [0,0,0,0]).map((w, i) => {
+                    const maxW = Math.max(...(trainingLoad?.weeks || [1]), 1);
+                    const h = Math.max((w / maxW) * 22, w > 0 ? 3 : 1);
+                    return (
+                      <div key={i}
+                        className="w-3 rounded-t-[2px] transition-all duration-300"
+                        style={{
+                          height: h,
+                          background: i === loadWeekIndex ? trendColor : '#E5E5EA',
+                          opacity: i === loadWeekIndex ? 1 : 0.5,
+                        }} />
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold" style={{ color: trendColor, fontVariantNumeric: 'tabular-nums' }}>
+                  {trendIcon} {changePct > 0 ? '+' : ''}{changePct}%
+                </span>
+                <span className="text-xs text-tertiary">
+                  vs {loadWeekIndex > 0 ? LOAD_WEEKS[loadWeekIndex - 1] : '—'}
+                </span>
+              </div>
+              <p className="bc-caption mt-1">Run miles × 10 + lift vol / 100</p>
+            </div>
+          );
+        })()}
 
         {/* ── Weekly Miles ── */}
         <div className="bc-card p-4 bento-quarter">
