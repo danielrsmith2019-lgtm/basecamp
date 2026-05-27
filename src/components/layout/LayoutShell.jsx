@@ -29,7 +29,11 @@ function ShellContent({ children }) {
     <>
       <Header workouts={workouts} />
       <Navigation />
-      <main className="pt-14 md:pl-56 pb-20 md:pb-0 min-h-screen bg-canvas">
+      <main className="pt-14 md:pl-56 md:pb-0 bg-canvas"
+        style={{
+          minHeight: '100dvh',
+          paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px) + 16px)',
+        }}>
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
           {children}
         </div>

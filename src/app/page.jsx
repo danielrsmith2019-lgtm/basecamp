@@ -904,10 +904,9 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Tap dot tracker to toggle daily bar chart */}
-              <button className="w-full mb-3 active:opacity-70 transition-opacity" onClick={() => setRunExpanded(v => !v)}>
-                {!runExpanded ? (
-                  /* Day dot tracker */
+              {/* Day dot tracker — always visible, tap to show/hide bars below */}
+              <div className="mb-2">
+                <button className="w-full active:opacity-70 transition-opacity" onClick={() => setRunExpanded(v => !v)}>
                   <div className="flex items-center gap-1">
                     {wk.runDots.map((day, i) => (
                       <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
@@ -920,28 +919,33 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  /* Daily miles bar chart — same height as dots */
-                  <div className="flex items-end gap-1" style={{ height: 36 }}>
+                </button>
+
+                {/* Daily miles bars — slide in below the dots when expanded */}
+                {runExpanded && (
+                  <div className="flex items-end gap-1 mt-2" style={{ height: 40 }}>
                     {wk.dailyMiles.map((d, i) => {
-                      const pct = d.value / maxMiles;
+                      const pct = maxMiles > 0 ? d.value / maxMiles : 0;
                       const isToday = wk.runDots[i]?.isToday;
                       return (
-                        <div key={i} className="flex-1 flex flex-col items-end justify-end gap-1">
+                        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                          {d.value > 0 && (
+                            <span className="text-[8px] text-tertiary leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                              {d.value}
+                            </span>
+                          )}
                           <div className="w-full rounded-t-[3px] transition-all duration-300"
                             style={{
-                              height: Math.max(pct * 24, d.value > 0 ? 3 : 0),
-                              background: isToday ? '#2E7D32' : d.value > 0 ? '#A5D6A7' : 'transparent',
+                              height: Math.max(pct * 28, d.value > 0 ? 3 : 0),
+                              background: isToday ? '#2E7D32' : d.value > 0 ? '#A5D6A7' : '#F2F2F7',
+                              opacity: d.value > 0 ? 1 : 0.3,
                             }} />
-                          <span className="text-[8px] font-medium self-center" style={{ color: isToday ? '#2E7D32' : '#AEAEB2' }}>
-                            {d.value > 0 ? d.value : d.label}
-                          </span>
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </button>
+              </div>
 
               {/* Hero numbers */}
               <div className="flex items-end justify-between mb-3">
@@ -1047,9 +1051,9 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Tap dot tracker to toggle daily bar chart */}
-              <button className="w-full mb-3 active:opacity-70 transition-opacity" onClick={() => setLiftExpanded(v => !v)}>
-                {!liftExpanded ? (
+              {/* Day dot tracker — always visible, tap to show/hide bars below */}
+              <div className="mb-2">
+                <button className="w-full active:opacity-70 transition-opacity" onClick={() => setLiftExpanded(v => !v)}>
                   <div className="flex items-center gap-1">
                     {wk.liftDots.map((day, i) => (
                       <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
@@ -1062,28 +1066,34 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="flex items-end gap-1" style={{ height: 36 }}>
+                </button>
+
+                {/* Daily volume bars — appear below dots when expanded */}
+                {liftExpanded && (
+                  <div className="flex items-end gap-1 mt-2" style={{ height: 40 }}>
                     {wk.dailyVolume.map((d, i) => {
-                      const pct = d.value / maxVol;
+                      const pct = maxVol > 0 ? d.value / maxVol : 0;
                       const isToday = wk.liftDots[i]?.isToday;
-                      const label = d.value >= 1000 ? `${(d.value/1000).toFixed(1)}k` : d.value > 0 ? String(d.value) : wk.liftDots[i]?.label;
+                      const label = d.value >= 1000 ? `${(d.value/1000).toFixed(1)}k` : d.value > 0 ? String(d.value) : '';
                       return (
-                        <div key={i} className="flex-1 flex flex-col items-end justify-end gap-1">
+                        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                          {d.value > 0 && (
+                            <span className="text-[8px] text-tertiary leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                              {label}
+                            </span>
+                          )}
                           <div className="w-full rounded-t-[3px] transition-all duration-300"
                             style={{
-                              height: Math.max(pct * 24, d.value > 0 ? 3 : 0),
-                              background: isToday ? '#1565C0' : d.value > 0 ? '#90CAF9' : 'transparent',
+                              height: Math.max(pct * 28, d.value > 0 ? 3 : 0),
+                              background: isToday ? '#1565C0' : d.value > 0 ? '#90CAF9' : '#F2F2F7',
+                              opacity: d.value > 0 ? 1 : 0.3,
                             }} />
-                          <span className="text-[8px] font-medium self-center" style={{ color: isToday ? '#1565C0' : '#AEAEB2' }}>
-                            {d.value > 0 ? label : wk.liftDots[i]?.label}
-                          </span>
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </button>
+              </div>
 
               {/* Hero numbers */}
               <div className="flex items-end justify-between mb-3">

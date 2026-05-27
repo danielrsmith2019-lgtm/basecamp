@@ -120,9 +120,6 @@ export default function BottomNav() {
 
   return (
     <>
-      {/* Page content spacer */}
-      <div style={{ height: 'calc(64px + env(safe-area-inset-bottom, 0px))' }} />
-
       {/* Backdrop */}
       {showMore && (
         <div
