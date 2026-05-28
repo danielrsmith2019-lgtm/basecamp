@@ -68,33 +68,6 @@ const PRIMARY_TABS = [
   },
 ];
 
-const MORE_ITEMS = [
-  {
-    label: 'Goals',
-    href: '/goals',
-    description: 'Track your training goals',
-    Icon: Target,
-    color: '#AF52DE',
-    bg: '#F3E5F5',
-  },
-  {
-    label: 'Records',
-    href: '/records',
-    description: 'Personal bests & PRs',
-    Icon: Trophy,
-    color: '#FF9500',
-    bg: '#FFF3E0',
-  },
-  {
-    label: 'Settings',
-    href: '/settings',
-    description: 'Profile & preferences',
-    Icon: Settings,
-    color: '#8E8E93',
-    bg: '#F2F2F7',
-  },
-];
-
 export default function BottomNav() {
   const pathname = usePathname();
   const isMobile = useIsMobile();
