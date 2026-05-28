@@ -39,11 +39,11 @@ const IMPACT = {
 export function analyzeSkips(workouts) {
   if (!workouts || workouts.length === 0) return [];
 
-  const today     = new Date().toLocaleDateString('en-CA');
-  const skipped   = workouts.filter(w =>
+  const today = new Date().toLocaleDateString('en-CA');
+  const skipped = workouts.filter(w =>
     w.status === 'skipped' &&
-    w.date   <= today &&
-    w.type   !== 'rest'
+    w.date < today &&     // strictly past — today's sessions are never "skipped" yet
+    w.type !== 'rest'
   );
 
   if (skipped.length === 0) return [];
@@ -54,9 +54,19 @@ export function analyzeSkips(workouts) {
   // Build phase maps for context
   const phaseMaps = buildPhaseMaps(workouts);
 
+  // Deduplicate: one insight per (date, type) — prevents duplicate cards
+  // when a workout has multiple DB rows (e.g. planned row + skipped row)
+  const seenKeys = new Set();
+  const dedupedSkips = skipped.filter(w => {
+    const key = `${w.date}-${w.type}`;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
+
   const insights = [];
 
-  for (const skip of skipped) {
+  for (const skip of dedupedSkips) {
     const impact  = computeImpact(skip, workouts, phaseMaps);
     const rescue  = findRescueSlot(skip, workouts, scheduleByDate, today);
     const insight = buildInsight(skip, impact, rescue);

@@ -191,6 +191,49 @@ export function WorkoutProvider({ children }) {
     }
   }, []);
 
+  // ── Reschedule a skipped workout to a new date ──
+  // Used by SkipInsightCard "Move it" action.
+  // Strategy: delete the old row and create a new planned row on the new date.
+  // This avoids any ambiguity about whether dbUpdateWorkout supports date changes.
+  const rescheduleWorkout = useCallback(async (workoutId, newDate) => {
+    if (!user) return false;
+    try {
+      const existing = workouts.find(w => w.id === workoutId);
+      if (!existing) return false;
+
+      // Delete the old skipped row
+      const deleted = await dbDeleteWorkout(workoutId);
+      if (!deleted) return false;
+
+      // Create a new planned row on the rescue date
+      const newWorkout = await dbAddWorkout(user.id, {
+        date:   newDate,
+        type:   existing.type,
+        status: 'planned',
+        details: {
+          ...(existing.details || {}),
+          rescheduledFrom: existing.date,
+          rescheduledAt:   new Date().toISOString(),
+        },
+        notes: existing.notes || null,
+      });
+
+      if (!newWorkout) return false;
+
+      // Update local state: remove old, add new
+      setWorkouts(prev => [
+        ...prev.filter(w => w.id !== workoutId),
+        newWorkout,
+      ]);
+      runAdaptations();
+      return true;
+    } catch (err) {
+      console.error('Reschedule failed:', err);
+      setError('Failed to reschedule workout.');
+      return false;
+    }
+  }, [user, workouts, runAdaptations]);
+
   // ── Clear the PR celebration ──
   const clearNewPR = useCallback(() => setNewPR(null), []);
 
@@ -238,6 +281,7 @@ export function WorkoutProvider({ children }) {
     addNewWorkout,
     saveWorkout,
     removeWorkout,
+    rescheduleWorkout,
     clearNewPR,
     clearError,
     refreshWorkouts,
@@ -245,7 +289,7 @@ export function WorkoutProvider({ children }) {
     rejectAdaptation,
     resetToSampleData,
     refresh: refreshWorkouts, // alias used by plans page
-  }), [workouts, prs, newPR, isLoaded, error, adaptations, addNewWorkout, saveWorkout, removeWorkout, clearNewPR, clearError, refreshWorkouts, acceptAdaptation, rejectAdaptation, resetToSampleData]);
+  }), [workouts, prs, newPR, isLoaded, error, adaptations, addNewWorkout, saveWorkout, removeWorkout, rescheduleWorkout, clearNewPR, clearError, refreshWorkouts, acceptAdaptation, rejectAdaptation, resetToSampleData]);
 
   return (
     <WorkoutContext.Provider value={value}>

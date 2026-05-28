@@ -81,7 +81,8 @@ function checkMissedSessions(workouts) {
   const planned  = thisWeekWorkouts.filter(w => w.status === 'planned' && w.type !== 'rest');
   const skipped  = thisWeekWorkouts.filter(w => w.status === 'skipped');
   const today    = new Date().toLocaleDateString('en-CA');
-  const missedCount = planned.filter(w => w.date <= today).length + skipped.length;
+  // Only count sessions that are strictly in the past — not today's session
+  const missedCount = planned.filter(w => w.date < today).length + skipped.length;
 
   if (missedCount < 2) return null;
 

@@ -29,7 +29,7 @@ function getLocalToday() {
 }
 
 export default function Dashboard() {
-  const { workouts, prs, saveWorkout, isLoaded, adaptations, acceptAdaptation, rejectAdaptation } = useWorkouts();
+  const { workouts, prs, saveWorkout, rescheduleWorkout, isLoaded, adaptations, acceptAdaptation, rejectAdaptation } = useWorkouts();
   const { user } = useAuth();
 
   const [logTarget, setLogTarget]     = useState(null);
@@ -131,11 +131,22 @@ export default function Dashboard() {
   async function handleRescue(insight) {
     const rescue = insight.action?.rescue;
     const skip   = insight.action?.skipWorkout;
-    if (!rescue || !skip) return;
-    await saveWorkout({ ...skip, id: undefined, date: rescue.date, status: 'planned' });
+    if (!rescue || !skip?.id) return;
+
+    // Update the existing skipped workout row — move it to the new date
+    // This keeps a single DB row, avoids duplicate skip insights
+    const success = await rescheduleWorkout(skip.id, rescue.date);
+    if (!success) return;
+
+    // Dismiss the insight now that it's been acted on
     setDismissedSkips(prev => {
       const next = new Set([...prev, insight.id]);
-      try { localStorage.setItem('bc-dismissed-skips', JSON.stringify({ date: new Date().toLocaleDateString('en-CA'), ids: [...next] })); } catch {}
+      try {
+        localStorage.setItem('bc-dismissed-skips', JSON.stringify({
+          date: new Date().toLocaleDateString('en-CA'),
+          ids: [...next],
+        }));
+      } catch {}
       return next;
     });
   }
