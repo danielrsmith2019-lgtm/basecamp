@@ -557,34 +557,18 @@ export default function Dashboard() {
           <p className="text-[10px] text-tertiary">in a row</p>
         </div>
 
-        {/* Run Adherence — number full width, sparkline below */}
+        {/* Run Adherence */}
         {stats.phaseRunAdherence!==null?(
-          <div className="bc-card p-4 bento-quarter overflow-hidden">
+          <div className="bc-card p-4 bento-quarter">
             <p className="bc-caption uppercase tracking-wider mb-2">Run Adherence</p>
-            {/* Hero number — full row, no competition with sparkline */}
-            <div className="flex items-baseline gap-1 mb-2">
+            <div className="flex items-baseline gap-1 mb-1">
               <span className="font-bold leading-none"
-                style={{fontSize:'24px',fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',
+                style={{fontSize:'28px',fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',
                   color:stats.phaseRunAdherence>=85?'#2E7D32':stats.phaseRunAdherence>=70?'#E65100':'#C62828'}}>
                 {stats.phaseRunAdherence}
               </span>
-              <span className="text-xs text-tertiary">%</span>
+              <span className="text-sm text-tertiary">%</span>
             </div>
-            {/* Sparkline — full width below number */}
-            {(()=>{
-              const trend=stats.phaseRunAdherenceTrend.filter(v=>v!==null);
-              if(trend.length<2) return null;
-              const max=Math.max(...trend,100);
-              const h=16;
-              const pts=trend.map((v,i)=>`${(i/(trend.length-1))*100},${h-(v/max)*h}`).join(' ');
-              const color=stats.phaseRunAdherence>=85?'#2E7D32':stats.phaseRunAdherence>=70?'#FF9500':'#FF3B30';
-              return (
-                <svg width="100%" height={h} viewBox={`0 0 100 ${h}`} preserveAspectRatio="none" className="mb-1.5">
-                  <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5"
-                    strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
-                </svg>
-              );
-            })()}
             <p className="text-[10px] text-tertiary capitalize">
               {stats.currentPhase} phase
               {stats.phaseRunsSkipped>0&&(
