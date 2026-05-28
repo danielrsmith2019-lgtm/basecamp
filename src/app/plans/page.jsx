@@ -813,12 +813,10 @@ export default function PlansPage() {
               <MessageSquare size={14} className="text-bc-indigo flex-shrink-0"/> Edit with AI
             </button>
             {view==='active' && (<>
-              <button onClick={async()=>{
-                if(editMode){try{const{savePlan:sp}=await import('@/lib/database');await sp(user.id,{...activePlan,plan_data:displayPlan,is_active:true},activePlan.id);}catch(e){console.error(e);}}
-                setEditMode(!editMode); setPlanMenuOpen(false);
-              }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
+              <button onClick={()=>{ setEditMode(!editMode); setPlanMenuOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
                 <Pencil size={14} className="text-secondary flex-shrink-0"/>
-                {editMode?'Save manual edits':'Edit manually'}
+                {editMode?'Done editing':'Edit manually'}
               </button>
               <button onClick={()=>{handleReactivate();setPlanMenuOpen(false);}} disabled={reactivating}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left disabled:opacity-40">
