@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { savePlan, getActivePlan, addWorkoutsBatch } from '@/lib/database';
 import { useWorkouts } from '@/lib/WorkoutContext';
@@ -58,12 +58,14 @@ function useInsightsCollapsed() {
 
 export default function PlansPage() {
   const { user } = useAuth();
-  const { refresh, workouts: allWorkouts, saveWorkout, isLoaded } = useWorkouts();
+  const { refresh, workouts: allWorkouts, saveWorkout, rescheduleWorkout, isLoaded } = useWorkouts();
 
   const [view,           setView]           = useState('loading');
   const [generatedPlan,  setGeneratedPlan]  = useState(null);
   const [activePlan,     setActivePlan]     = useState(null);
   const [editMode,       setEditMode]       = useState(false);
+  const [savingEdits,    setSavingEdits]    = useState(false);
+  const [editingSession, setEditingSession] = useState(null); // { workoutId, field, value }
   const [showAIEditor,   setShowAIEditor]   = useState(false);
   const [logTarget,      setLogTarget]      = useState(null);
   const [expandedWeeks,  setExpandedWeeks]  = useState(() => new Set([1, 2]));
@@ -94,6 +96,55 @@ export default function PlansPage() {
     }
     load();
   }, [user]);
+
+  // Save an inline edit to a planned workout row
+  async function saveSessionEdit(workoutId, detailUpdates) {
+    const existing = allWorkouts.find(w => w.id === workoutId);
+    if (!existing) return;
+    setSavingEdits(true);
+    try {
+      await saveWorkout({
+        ...existing,
+        details: { ...existing.details, ...detailUpdates },
+      });
+    } finally {
+      setSavingEdits(false);
+      setEditingSession(null);
+    }
+  }
+
+  // Reschedule a planned session to a new date.
+  // If the old date becomes empty after the move, add a rest row there.
+  async function rescheduleSession(workoutId, oldDate, newDate) {
+    if (oldDate === newDate) return;
+    setSavingEdits(true);
+    try {
+      // Move the workout
+      const success = await rescheduleWorkout(workoutId, newDate);
+      if (!success) return;
+
+      // Check if old date is now empty (no other sessions)
+      // Give context a moment to update, then check
+      await new Promise(r => setTimeout(r, 100));
+      const remaining = allWorkouts.filter(w =>
+        w.date === oldDate && w.id !== workoutId && w.type !== 'rest'
+      );
+      if (remaining.length === 0) {
+        // Find weekNumber/phase from the moved workout
+        const moved = allWorkouts.find(w => w.id === workoutId);
+        const wn = moved?.details?.weekNumber;
+        const ph = moved?.details?.phase;
+        // Add a rest row on the now-empty day
+        await saveWorkout({
+          date: oldDate, type: 'rest', status: 'planned',
+          details: { restType:'full_rest', weekNumber:wn, phase:ph },
+        });
+      }
+      refresh?.();
+    } finally {
+      setSavingEdits(false);
+    }
+  }
 
   function toggleWeek(n) { setExpandedWeeks(p => { const s=new Set(p); s.has(n)?s.delete(n):s.add(n); return s; }); }
   function expandAll(plan) { setExpandedWeeks(new Set(plan.weeks.map(w=>w.weekNumber))); }
@@ -584,7 +635,7 @@ export default function PlansPage() {
               </div>
             </div>
 
-            {/* ── Session detail cards — grouped by date, from DB rows ── */}
+            {/* ── Session detail cards — view mode ── */}
             {!editMode && (
               <div className="mt-4 space-y-3">
                 {weekDates.map(dateStr => {
@@ -592,119 +643,116 @@ export default function PlansPage() {
                   const run  = sessions.run;
                   const lift = sessions.lift;
                   if (!run && !lift) return null;
-
                   const d = new Date(dateStr + 'T12:00:00');
                   const dayName = DAY_FROM_JS[d.getDay()];
                   const isToday = dateStr === TODAY_STR;
                   const isPast  = dateStr < TODAY_STR;
-
-                  // Past days: compact summary only
                   if (isPast) return null;
-
                   const rs = run?.status  || null;
                   const ls = lift?.status || null;
-
                   return (
                     <div key={dateStr} className={`rounded-[16px] border overflow-hidden ${isToday?'border-bc-blue/40':'border-border'}`}>
-                      {/* Day header */}
                       <div className={`flex items-center justify-between px-4 py-2 ${isToday?'bg-bc-blue':'bg-canvas/50'}`}>
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs font-bold uppercase ${isToday?'text-white':'text-primary'}`}>
-                            {DAY_SHORT[dayName] || d.toLocaleDateString('en-US',{weekday:'short'})}
-                          </span>
-                          <span className={`text-[10px] ${isToday?'text-white/80':'text-tertiary'}`}>
-                            {d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
-                          </span>
+                          <span className={`text-xs font-bold uppercase ${isToday?'text-white':'text-primary'}`}>{DAY_SHORT[dayName]||d.toLocaleDateString('en-US',{weekday:'short'})}</span>
+                          <span className={`text-[10px] ${isToday?'text-white/80':'text-tertiary'}`}>{d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
                           {isToday && <span className="text-[10px] font-semibold text-white/90">· Today</span>}
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {rs==='completed' && <span className="text-[10px] text-white bg-bc-green/80 px-1.5 py-0.5 rounded-full font-semibold">Run ✓</span>}
-                          {rs==='skipped'   && <span className="text-[10px] text-bc-red-dark bg-bc-red-light px-1.5 py-0.5 rounded-full font-semibold">Run ✗</span>}
-                          {ls==='completed' && <span className="text-[10px] text-white bg-bc-blue/80 px-1.5 py-0.5 rounded-full font-semibold">Lift ✓</span>}
-                          {ls==='skipped'   && <span className="text-[10px] text-bc-red-dark bg-bc-red-light px-1.5 py-0.5 rounded-full font-semibold">Lift ✗</span>}
+                          {rs==='completed'&&<span className="text-[10px] text-white bg-bc-green/80 px-1.5 py-0.5 rounded-full font-semibold">Run ✓</span>}
+                          {rs==='skipped'  &&<span className="text-[10px] text-bc-red-dark bg-bc-red-light px-1.5 py-0.5 rounded-full font-semibold">Run ✗</span>}
+                          {ls==='completed'&&<span className="text-[10px] text-white bg-bc-blue/80 px-1.5 py-0.5 rounded-full font-semibold">Lift ✓</span>}
+                          {ls==='skipped'  &&<span className="text-[10px] text-bc-red-dark bg-bc-red-light px-1.5 py-0.5 rounded-full font-semibold">Lift ✗</span>}
                         </div>
                       </div>
-
-                      {/* Run session */}
                       {run && (
                         <div className={`px-4 py-3 ${lift?'border-b border-border/50':''} ${rs==='completed'?'bg-bc-green-light/30':rs==='skipped'?'opacity-50':'bg-run-bg/30'}`}>
                           <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-2">
                               <div className="w-1 self-stretch rounded-full bg-run-accent flex-shrink-0 min-h-[16px]"/>
-                              <span className="text-[10px] font-bold uppercase tracking-wide text-run-accent">
-                                {getRunLabel(run.details?.runType)}
-                              </span>
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-run-accent">{getRunLabel(run.details?.runType)}</span>
                             </div>
-                            <button
-                              onClick={() => (rs==='completed'||rs==='skipped') ? setSelectedWorkout(run) : setLogTarget(run)}
-                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${
-                                rs==='completed' ? 'bg-bc-green-light text-bc-green-dark' :
-                                rs==='skipped'   ? 'bg-bc-red-light text-bc-red-dark' :
-                                'bg-bc-blue text-white'
-                              }`}>
-                              {rs==='completed' ? '✓ Done' : rs==='skipped' ? 'View' : 'Log It'}
+                            <button onClick={()=>(rs==='completed'||rs==='skipped')?setSelectedWorkout(run):setLogTarget(run)}
+                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${rs==='completed'?'bg-bc-green-light text-bc-green-dark':rs==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
+                              {rs==='completed'?'✓ Done':rs==='skipped'?'View':'Log It'}
                             </button>
                           </div>
                           <div className="flex items-center gap-3 pl-3">
-                            <span className="text-base font-bold text-primary" style={{fontVariantNumeric:'tabular-nums'}}>
-                              {run.details?.plannedDistance}<span className="text-xs font-normal text-tertiary"> mi</span>
-                            </span>
-                            {run.details?.targetPace && <span className="text-[10px] text-secondary">@ {run.details.targetPace}/mi</span>}
-                            {run.details?.duration && <span className="text-[10px] text-tertiary">{run.details.duration} min</span>}
+                            <span className="text-base font-bold text-primary" style={{fontVariantNumeric:'tabular-nums'}}>{run.details?.plannedDistance}<span className="text-xs font-normal text-tertiary"> mi</span></span>
+                            {run.details?.targetPace&&<span className="text-[10px] text-secondary">@ {run.details.targetPace}/mi</span>}
+                            {run.details?.duration&&<span className="text-[10px] text-tertiary">{run.details.duration} min</span>}
                           </div>
-                          {run.details?.notes && <p className="text-[10px] text-secondary italic mt-1 pl-3">{run.details.notes}</p>}
+                          {run.details?.notes&&<p className="text-[10px] text-secondary italic mt-1 pl-3">{run.details.notes}</p>}
                         </div>
                       )}
-
-                      {/* Lift session */}
                       {lift && (
                         <div className={`px-4 py-3 ${ls==='completed'?'bg-bc-blue-light/20':ls==='skipped'?'opacity-50':'bg-lift-bg/30'}`}>
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <div className="w-1 self-stretch rounded-full bg-lift-accent flex-shrink-0 min-h-[16px]"/>
-                              <div>
-                                <span className="text-xs font-bold text-lift-accent">{lift.details?.sessionName}</span>
-                                {lift.details?.duration && <span className="text-[10px] text-tertiary ml-2">{lift.details.duration} min</span>}
-                              </div>
+                              <div><span className="text-xs font-bold text-lift-accent">{lift.details?.sessionName}</span>{lift.details?.duration&&<span className="text-[10px] text-tertiary ml-2">{lift.details.duration} min</span>}</div>
                             </div>
-                            <button
-                              onClick={() => (ls==='completed'||ls==='skipped') ? setSelectedWorkout(lift) : setLogTarget(lift)}
-                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${
-                                ls==='completed' ? 'bg-bc-green-light text-bc-green-dark' :
-                                ls==='skipped'   ? 'bg-bc-red-light text-bc-red-dark' :
-                                'bg-bc-blue text-white'
-                              }`}>
-                              {ls==='completed' ? '✓ Done' : ls==='skipped' ? 'View' : 'Log It'}
+                            <button onClick={()=>(ls==='completed'||ls==='skipped')?setSelectedWorkout(lift):setLogTarget(lift)}
+                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${ls==='completed'?'bg-bc-green-light text-bc-green-dark':ls==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
+                              {ls==='completed'?'✓ Done':ls==='skipped'?'View':'Log It'}
                             </button>
                           </div>
-                          {lift.details?.exercises?.length > 0 && (
+                          {lift.details?.exercises?.length>0&&(
                             <div className="pl-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
-                              {lift.details.exercises.map((ex, eI) => {
-                                const sn = Array.isArray(ex.sets) ? ex.sets.length : ex.sets;
-                                const rv = Array.isArray(ex.sets) ? (ex.sets[0]?.reps ?? ex.sets[0]?.targetReps ?? ex.reps) : ex.reps;
-                                return (
-                                  <div key={eI} className="flex items-center justify-between gap-2 px-2 py-1 bg-white/50 rounded-[8px]">
-                                    <span className="text-[11px] text-primary truncate flex-1">{ex.name}</span>
-                                    {sn && rv && (
-                                      <span className="flex-shrink-0 px-1.5 py-0.5 bg-lift-bg rounded-full border border-lift-accent/20">
-                                        <span className="text-[11px] font-bold text-lift-accent" style={{fontVariantNumeric:'tabular-nums'}}>{sn}×{rv}</span>
-                                      </span>
-                                    )}
-                                  </div>
-                                );
+                              {lift.details.exercises.map((ex,eI)=>{
+                                const sn=Array.isArray(ex.sets)?ex.sets.length:ex.sets;
+                                const rv=Array.isArray(ex.sets)?(ex.sets[0]?.reps??ex.sets[0]?.targetReps??ex.reps):ex.reps;
+                                return(<div key={eI} className="flex items-center justify-between gap-2 px-2 py-1 bg-white/50 rounded-[8px]">
+                                  <span className="text-[11px] text-primary truncate flex-1">{ex.name}</span>
+                                  {sn&&rv&&<span className="flex-shrink-0 px-1.5 py-0.5 bg-lift-bg rounded-full border border-lift-accent/20"><span className="text-[11px] font-bold text-lift-accent" style={{fontVariantNumeric:'tabular-nums'}}>{sn}×{rv}</span></span>}
+                                </div>);
                               })}
                             </div>
                           )}
-                          {lift.details?.muscleGroups?.length > 0 && (
-                            <div className="pl-3 flex gap-1 mt-1.5 flex-wrap">
-                              {lift.details.muscleGroups.slice(0,3).map(mg => (
-                                <span key={mg} className="text-[9px] px-1.5 py-0.5 bg-lift-bg border border-lift-accent/20 rounded-full text-lift-accent">{mg}</span>
-                              ))}
-                            </div>
-                          )}
+                          {lift.details?.muscleGroups?.length>0&&<div className="pl-3 flex gap-1 mt-1.5 flex-wrap">{lift.details.muscleGroups.slice(0,3).map(mg=><span key={mg} className="text-[9px] px-1.5 py-0.5 bg-lift-bg border border-lift-accent/20 rounded-full text-lift-accent">{mg}</span>)}</div>}
                         </div>
                       )}
                     </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── Session edit cards — edit mode ── */}
+            {editMode && (
+              <div className="mt-4 space-y-3">
+                {savingEdits && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-bc-blue-light/40 rounded-[10px]">
+                    <Loader2 size={12} className="animate-spin text-bc-blue"/>
+                    <span className="text-[11px] text-bc-blue-dark">Saving changes…</span>
+                  </div>
+                )}
+                {weekDates.map(dateStr => {
+                  const sessions = dateSessionMap[dateStr] || {};
+                  const run  = sessions.run;
+                  const lift = sessions.lift;
+                  if (!run && !lift) return null;
+
+                  // Only edit planned sessions — completed/skipped are locked
+                  const runEditable  = run  && run.status  === 'planned' && !!run.id;
+                  const liftEditable = lift && lift.status === 'planned' && !!lift.id;
+                  if (!runEditable && !liftEditable) return null;
+
+                  const d = new Date(dateStr + 'T12:00:00');
+                  const dayName = DAY_FROM_JS[d.getDay()];
+
+                  return (
+                    <EditSessionCard
+                      key={dateStr}
+                      dateStr={dateStr}
+                      dayName={dayName}
+                      run={runEditable ? run : null}
+                      lift={liftEditable ? lift : null}
+                      weekDates={weekDates}
+                      onSaveRun={(id, updates) => saveSessionEdit(id, updates)}
+                      onSaveLift={(id, updates) => saveSessionEdit(id, updates)}
+                      onReschedule={(id, oldDate, newDate) => rescheduleSession(id, oldDate, newDate)}
+                    />
                   );
                 })}
               </div>
@@ -911,6 +959,198 @@ export default function PlansPage() {
       )}
       {showNewLogForm && <LogForm workout={null} onSave={w=>{saveWorkout(w);refresh?.();setShowNewLogForm(false);}} onClose={()=>setShowNewLogForm(false)}/>}
       <WorkoutDetailModal workout={selectedWorkout} onClose={()=>setSelectedWorkout(null)} onSave={w=>{saveWorkout(w);setSelectedWorkout(null);}}/>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// EditSessionCard — inline editor for a single day's sessions
+// Edits: run distance, target pace | lift session name, sets/reps
+// Date: reschedule to any other day in the same week
+// ══════════════════════════════════════════════════════════════
+function EditSessionCard({ dateStr, dayName, run, lift, weekDates, onSaveRun, onSaveLift, onReschedule }) {
+  const d = new Date(dateStr + 'T12:00:00');
+
+  // Local state for the run fields
+  const [runDist,  setRunDist]  = React.useState(String(run?.details?.plannedDistance || ''));
+  const [runPace,  setRunPace]  = React.useState(run?.details?.targetPace || '');
+  const [runType,  setRunType]  = React.useState(run?.details?.runType || 'easy');
+
+  // Local state for the lift fields
+  const [liftName, setLiftName] = React.useState(lift?.details?.sessionName || '');
+  const [exercises, setExercises] = React.useState(() =>
+    (lift?.details?.exercises || []).map(ex => ({
+      name: ex.name,
+      sets: String(Array.isArray(ex.sets) ? ex.sets.length : (ex.sets || '')),
+      reps: String(Array.isArray(ex.sets) ? (ex.sets[0]?.reps ?? ex.sets[0]?.targetReps ?? ex.reps ?? '') : (ex.reps || '')),
+    }))
+  );
+
+  // Date picker state
+  const [newDate, setNewDate] = React.useState(dateStr);
+  const [dirty,   setDirty]   = React.useState(false);
+
+  function markDirty() { setDirty(true); }
+
+  async function handleSave() {
+    // Save run edits
+    if (run) {
+      const dist = parseFloat(runDist);
+      await onSaveRun(run.id, {
+        runType,
+        plannedDistance: isNaN(dist) ? run.details.plannedDistance : dist,
+        targetPace: runPace || run.details.targetPace,
+      });
+    }
+    // Save lift edits
+    if (lift) {
+      const updatedExercises = exercises.map(ex => ({
+        name: ex.name,
+        sets: parseInt(ex.sets) || 0,
+        reps: ex.reps,
+      }));
+      await onSaveLift(lift.id, {
+        sessionName: liftName,
+        exercises: updatedExercises,
+      });
+    }
+    // Reschedule if date changed
+    if (newDate !== dateStr) {
+      const workoutToMove = run || lift;
+      if (workoutToMove) await onReschedule(workoutToMove.id, dateStr, newDate);
+      // If both run and lift, move the second one too
+      if (run && lift && newDate !== dateStr) await onReschedule(lift.id, dateStr, newDate);
+    }
+    setDirty(false);
+  }
+
+  const RUN_TYPE_OPTIONS = [
+    {value:'easy',label:'Easy Run'},{value:'long_run',label:'Long Run'},
+    {value:'tempo',label:'Tempo'},{value:'interval',label:'Intervals'},
+    {value:'recovery',label:'Recovery'},{value:'fartlek',label:'Fartlek'},
+  ];
+
+  const DAY_SHORT_LOCAL = {monday:'Mon',tuesday:'Tue',wednesday:'Wed',thursday:'Thu',friday:'Fri',saturday:'Sat',sunday:'Sun'};
+  const DAY_FROM_JS_LOCAL = {0:'sunday',1:'monday',2:'tuesday',3:'wednesday',4:'thursday',5:'friday',6:'saturday'};
+
+  return (
+    <div className="rounded-[16px] border-2 border-bc-indigo/30 bg-bc-indigo-light/20 overflow-hidden">
+      {/* Header with date picker */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-bc-indigo-light/40 border-b border-bc-indigo/20">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-bc-indigo uppercase">
+            {DAY_SHORT_LOCAL[dayName] || d.toLocaleDateString('en-US',{weekday:'short'})}
+          </span>
+          <span className="text-[10px] text-bc-indigo/70">
+            {d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+          </span>
+        </div>
+        {/* Date reschedule picker */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-bc-indigo/70">Move to:</span>
+          <select
+            value={newDate}
+            onChange={e => { setNewDate(e.target.value); markDirty(); }}
+            className="text-[10px] font-semibold text-bc-indigo bg-white border border-bc-indigo/30 rounded-[6px] px-1.5 py-0.5 min-h-[28px]">
+            {weekDates.map(ds => {
+              const wd = new Date(ds + 'T12:00:00');
+              const wdayName = DAY_FROM_JS_LOCAL[wd.getDay()];
+              return (
+                <option key={ds} value={ds}>
+                  {DAY_SHORT_LOCAL[wdayName] || wd.toLocaleDateString('en-US',{weekday:'short'})} {wd.toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      </div>
+
+      {/* Run editor */}
+      {run && (
+        <div className="px-4 py-3 bg-run-bg/40 border-b border-bc-indigo/10">
+          <p className="text-[10px] font-bold text-run-accent uppercase tracking-wide mb-2">Run</p>
+          <div className="grid grid-cols-3 gap-2">
+            {/* Run type */}
+            <div>
+              <label className="text-[9px] text-tertiary block mb-1">Type</label>
+              <select value={runType} onChange={e=>{setRunType(e.target.value);markDirty();}}
+                className="bc-input !py-1 !px-2 !text-[11px] w-full">
+                {RUN_TYPE_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            {/* Distance */}
+            <div>
+              <label className="text-[9px] text-tertiary block mb-1">Distance (mi)</label>
+              <input type="number" value={runDist} step="0.1" min="0"
+                onChange={e=>{setRunDist(e.target.value);markDirty();}}
+                className="bc-input !py-1 !px-2 !text-[11px] w-full"
+                placeholder="0.0"/>
+            </div>
+            {/* Pace */}
+            <div>
+              <label className="text-[9px] text-tertiary block mb-1">Target Pace</label>
+              <input type="text" value={runPace}
+                onChange={e=>{setRunPace(e.target.value);markDirty();}}
+                className="bc-input !py-1 !px-2 !text-[11px] w-full font-mono"
+                placeholder="M:SS"/>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lift editor */}
+      {lift && (
+        <div className="px-4 py-3 bg-lift-bg/40">
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-[10px] font-bold text-lift-accent uppercase tracking-wide">Lift</p>
+            <input type="text" value={liftName}
+              onChange={e=>{setLiftName(e.target.value);markDirty();}}
+              className="bc-input !py-0.5 !px-2 !text-[11px] flex-1"
+              placeholder="Session name"/>
+          </div>
+          <div className="space-y-1.5">
+            {exercises.map((ex, i) => (
+              <div key={i} className="flex items-center gap-2">
+                {/* Exercise name */}
+                <input type="text" value={ex.name}
+                  onChange={e=>{const next=[...exercises];next[i]={...next[i],name:e.target.value};setExercises(next);markDirty();}}
+                  className="bc-input !py-1 !px-2 !text-[11px] flex-1"
+                  placeholder="Exercise"/>
+                {/* Sets */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <input type="number" value={ex.sets} min="1" max="20"
+                    onChange={e=>{const next=[...exercises];next[i]={...next[i],sets:e.target.value};setExercises(next);markDirty();}}
+                    className="bc-input !py-1 !px-1.5 !text-[11px] w-10 text-center"/>
+                  <span className="text-[10px] text-tertiary">×</span>
+                  {/* Reps */}
+                  <input type="text" value={ex.reps}
+                    onChange={e=>{const next=[...exercises];next[i]={...next[i],reps:e.target.value};setExercises(next);markDirty();}}
+                    className="bc-input !py-1 !px-1.5 !text-[11px] w-12 text-center"
+                    placeholder="reps"/>
+                </div>
+              </div>
+            ))}
+            {/* Add exercise */}
+            <button onClick={()=>{setExercises([...exercises,{name:'',sets:'3',reps:'10'}]);markDirty();}}
+              className="text-[10px] text-lift-accent hover:text-lift-accent/70 transition-colors mt-1">
+              + Add exercise
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Save button */}
+      <div className="flex justify-end px-4 py-2.5 bg-bc-indigo-light/40 border-t border-bc-indigo/20">
+        {dirty ? (
+          <button onClick={handleSave}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-bc-indigo text-white text-[11px] font-semibold rounded-[8px] active:scale-95 transition-all">
+            <Check size={11}/> Save changes
+          </button>
+        ) : (
+          <span className="text-[10px] text-bc-indigo/60">No changes</span>
+        )}
+      </div>
     </div>
   );
 }
