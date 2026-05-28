@@ -11,17 +11,16 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Home, Calendar, ClipboardList, Sparkles,
+  Home, Calendar, ClipboardList,
   Trophy, Target, Settings, Salad,
   MoreHorizontal, X,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/',          label: 'Home',      icon: Home          },
-  { href: '/schedule',  label: 'Schedule',  icon: Calendar      },
+  { href: '/plans',     label: 'Plan',      icon: Calendar      },
   { href: '/log',       label: 'Log',       icon: ClipboardList },
   { href: '/nutrition', label: 'Nutrition', icon: Salad         },
-  { href: '/plans',     label: 'Plans',     icon: Sparkles      },
   { href: '/records',   label: 'Records',   icon: Trophy        },
   { href: '/goals',     label: 'Goals',     icon: Target        },
   { href: '/settings',  label: 'Settings',  icon: Settings      },
@@ -30,14 +29,13 @@ const NAV_ITEMS = [
 // Primary tabs shown in the bottom bar (4 max + More button)
 const PRIMARY_MOBILE = [
   { href: '/',          label: 'Home',      icon: Home          },
-  { href: '/schedule',  label: 'Schedule',  icon: Calendar      },
+  { href: '/plans',     label: 'Plan',      icon: Calendar      },
   { href: '/log',       label: 'Log',       icon: ClipboardList },
   { href: '/nutrition', label: 'Nutrition', icon: Salad         },
 ];
 
 // Secondary items shown inside the "More" sheet
 const SECONDARY_MOBILE = [
-  { href: '/plans',    label: 'Plans',    icon: Sparkles },
   { href: '/records',  label: 'Records',  icon: Trophy   },
   { href: '/goals',    label: 'Goals',    icon: Target   },
   { href: '/settings', label: 'Settings', icon: Settings },
@@ -173,8 +171,8 @@ export default function Navigation() {
               </button>
             </div>
 
-            {/* Secondary nav items */}
-            <div className="px-3 pb-4 grid grid-cols-4 gap-2">
+            {/* Secondary nav items — 3 cols now that Plans moved to primary */}
+            <div className="px-3 pb-4 grid grid-cols-3 gap-2">
               {SECONDARY_MOBILE.map(item => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
