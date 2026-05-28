@@ -20,8 +20,8 @@ const PRIMARY_TABS = [
     ),
   },
   {
-    label: 'Schedule',
-    href: '/schedule',
+    label: 'Plan',
+    href: '/plans',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
         stroke={active ? '#007AFF' : '#AEAEB2'} strokeWidth="2"
