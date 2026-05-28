@@ -212,8 +212,8 @@ export function WorkoutProvider({ children }) {
         status: 'planned',
         details: {
           ...(existing.details || {}),
-          rescheduledFrom: existing.date,
-          rescheduledAt:   new Date().toISOString(),
+          // Keep all original plan details (weekNumber, phase, runType etc)
+          // so dashboard weekNumber filter correctly identifies this session
         },
         notes: existing.notes || null,
       });

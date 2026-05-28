@@ -194,7 +194,19 @@ export default function Dashboard() {
     const thisWeekLifts = completedLifts.filter(w=>w.date>=mondayStr&&w.date<=sundayStr);
     const thisWeekMiles = thisWeekRuns.reduce((s,w)=>s+(w.details.actualDistance||0),0);
     const thisWeekVol   = thisWeekLifts.reduce((s,w)=>s+(w.details.totalVolume||0),0);
-    const thisWeekPlannedRuns  = runs.filter(w=>w.date>=mondayStr&&w.date<=sundayStr&&w.status!=='skipped');
+    // Current plan week number — from workouts in this calendar week
+    const currentWeekNumber = thisWeekWorkouts.find(w=>w.details?.weekNumber)?.details?.weekNumber || null;
+    
+    // Planned miles: runs in this calendar week that aren't skipped
+    // If we have a week number, also exclude any runs from a DIFFERENT week number
+    // (catches orphaned duplicate rows from old reschedules that landed in this week)
+    const thisWeekPlannedRuns = runs.filter(w => {
+      if (w.date < mondayStr || w.date > sundayStr) return false;
+      if (w.status === 'skipped') return false;
+      // If this run has a weekNumber that doesn't match current week, it's an orphan
+      if (currentWeekNumber && w.details?.weekNumber && w.details.weekNumber !== currentWeekNumber) return false;
+      return true;
+    });
     const thisWeekPlannedMiles = thisWeekPlannedRuns.reduce((s,w)=>s+(w.details.plannedDistance||0),0);
 
     const thisWeekWorkouts = workouts.filter(w=>w.date>=mondayStr&&w.date<=sundayStr);
