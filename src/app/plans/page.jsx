@@ -405,8 +405,14 @@ export default function PlansPage() {
     const rs=run?getStatus(actualRunDate,'run'):null;
                   const actualLiftDate=lift?getActualDate(week.weekNumber,'lift',day,ds):ds;
     const ls=lift?getStatus(actualLiftDate,'lift'):null;
+                  const loggedRunCell  = (rs==='completed'||rs==='skipped') ? allWorkouts.find(w=>w.date===actualRunDate &&w.type==='run') : null;
+                  const loggedLiftCell = (ls==='completed'||ls==='skipped') ? allWorkouts.find(w=>w.date===actualLiftDate&&w.type==='lift'): null;
+                  const cellClickable  = !!(loggedRunCell||loggedLiftCell);
                   return(
-                    <div key={day} className="flex-shrink-0 flex flex-col" style={{width:isEmpty?44:(run&&lift)?120:108}}>
+                    <div key={day} className="flex-shrink-0 flex flex-col"
+                      onClick={cellClickable ? ()=>setSelectedWorkout(loggedRunCell||loggedLiftCell) : undefined}
+                      role={cellClickable?'button':undefined}
+                      style={{width:isEmpty?44:(run&&lift)?120:108, cursor:cellClickable?'pointer':'default'}}>
                       <div className={`flex flex-col items-center py-1.5 rounded-t-[10px] mb-0.5 ${isToday?'bg-bc-blue':'bg-canvas'}`}>
                         <span className={`text-[10px] font-bold uppercase ${isToday?'text-white':'text-tertiary'}`}>{DAY_SHORT[day]}</span>
                         <span className={`text-[9px] ${isToday?'text-white/80':'text-tertiary'}`}>{dd.toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</span>
@@ -453,13 +459,30 @@ export default function PlansPage() {
                   const runSt  = run  ? getStatus(getActualDate(week.weekNumber,'run', day,ds),'run')  : null;
                   const liftSt = lift ? getStatus(getActualDate(week.weekNumber,'lift',day,ds),'lift') : null;
                   if(isPast && isCurWk) {
+                    // Find the actual logged workouts for this day to open in detail modal
+                    const loggedRun  = allWorkouts.find(w => w.date===actualRunDate  && w.type==='run'  && (w.status==='completed'||w.status==='skipped'));
+                    const loggedLift = allWorkouts.find(w => w.date===actualLiftDate && w.type==='lift' && (w.status==='completed'||w.status==='skipped'));
                     return(
-                      <div key={day} className="flex items-center gap-3 px-3 py-2 rounded-[12px] border border-border/50 bg-canvas/50 opacity-70">
-                        <span className="text-[10px] font-bold text-tertiary uppercase w-8">{DAY_SHORT[day]}</span>
-                        <span className="text-[10px] text-tertiary">{dd.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
-                        <div className="flex items-center gap-1.5 ml-auto">
-                          {run  && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${runSt==='completed'?'bg-bc-green-light text-bc-green-dark':runSt==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-canvas text-tertiary'}`}>{runSt==='completed'?'Run ✓':runSt==='skipped'?'Run ✗':'Run'}</span>}
-                          {lift && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${liftSt==='completed'?'bg-bc-green-light text-bc-green-dark':liftSt==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-canvas text-tertiary'}`}>{liftSt==='completed'?'Lift ✓':liftSt==='skipped'?'Lift ✗':'Lift'}</span>}
+                      <div key={day} className="rounded-[12px] border border-border/50 bg-canvas/50 overflow-hidden">
+                        <div className="flex items-center gap-3 px-3 py-2 opacity-70">
+                          <span className="text-[10px] font-bold text-tertiary uppercase w-8">{DAY_SHORT[day]}</span>
+                          <span className="text-[10px] text-tertiary">{dd.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            {run && (
+                              <button
+                                onClick={()=>loggedRun ? setSelectedWorkout(loggedRun) : null}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition-opacity ${loggedRun?'active:opacity-70 cursor-pointer':'cursor-default'} ${runSt==='completed'?'bg-bc-green-light text-bc-green-dark':runSt==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-canvas text-tertiary'}`}>
+                                {runSt==='completed'?'Run ✓':runSt==='skipped'?'Run ✗':'Run –'}
+                              </button>
+                            )}
+                            {lift && (
+                              <button
+                                onClick={()=>loggedLift ? setSelectedWorkout(loggedLift) : null}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition-opacity ${loggedLift?'active:opacity-70 cursor-pointer':'cursor-default'} ${liftSt==='completed'?'bg-bc-green-light text-bc-green-dark':liftSt==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-canvas text-tertiary'}`}>
+                                {liftSt==='completed'?'Lift ✓':liftSt==='skipped'?'Lift ✗':'Lift –'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -488,10 +511,15 @@ export default function PlansPage() {
                               <div className="w-1 self-stretch rounded-full bg-run-accent flex-shrink-0 min-h-[16px]"/>
                               <span className="text-[10px] font-bold uppercase tracking-wide text-run-accent">{getRunLabel(run.runType)}</span>
                             </div>
-                            <button onClick={()=>setLogTarget({type:'run',status:rs==='completed'?'completed':'planned',date:actualRunDate||ds,details:{runType:run.runType,plannedDistance:run.distance,targetPace:run.targetPace||'',duration:run.duration,notes:run.notes||'',weekNumber:week.weekNumber,phase:week.phase}})}
-                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${rs==='completed'?'bg-bc-green-light text-bc-green-dark':rs==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
-                              {rs==='completed'?'✓ Done':rs==='skipped'?'✗ Skipped':'Log It'}
-                            </button>
+                            {(() => {
+                              const loggedRun = (rs==='completed'||rs==='skipped') ? allWorkouts.find(w=>w.date===actualRunDate&&w.type==='run') : null;
+                              return (
+                                <button onClick={()=>loggedRun ? setSelectedWorkout(loggedRun) : setLogTarget({type:'run',status:'planned',date:actualRunDate||ds,details:{runType:run.runType,plannedDistance:run.distance,targetPace:run.targetPace||'',duration:run.duration,notes:run.notes||'',weekNumber:week.weekNumber,phase:week.phase}})}
+                                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${rs==='completed'?'bg-bc-green-light text-bc-green-dark':rs==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
+                                  {rs==='completed'?'✓ Done':rs==='skipped'?'View':'Log It'}
+                                </button>
+                              );
+                            })()}
                           </div>
                           <div className="flex items-center gap-3 pl-3">
                             <span className="text-base font-bold text-primary" style={{fontVariantNumeric:'tabular-nums'}}>{run.distance}<span className="text-xs font-normal text-tertiary"> mi</span></span>
@@ -509,10 +537,15 @@ export default function PlansPage() {
                               <div className="w-1 self-stretch rounded-full bg-lift-accent flex-shrink-0 min-h-[16px]"/>
                               <div><span className="text-xs font-bold text-lift-accent">{lift.sessionName}</span>{lift.duration&&<span className="text-[10px] text-tertiary ml-2">{lift.duration} min</span>}</div>
                             </div>
-                            <button onClick={()=>setLogTarget({type:'lift',status:ls==='completed'?'completed':'planned',date:actualLiftDate||ds,details:{sessionName:lift.sessionName,muscleGroups:lift.muscleGroups||[],exercises:(lift.exercises||[]).map(ex=>({name:ex.name,sets:ex.sets,reps:ex.reps})),duration:lift.duration,weekNumber:week.weekNumber,phase:week.phase}})}
-                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${ls==='completed'?'bg-bc-green-light text-bc-green-dark':ls==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
-                              {ls==='completed'?'✓ Done':ls==='skipped'?'✗ Skipped':'Log It'}
-                            </button>
+                            {(() => {
+                              const loggedLift = (ls==='completed'||ls==='skipped') ? allWorkouts.find(w=>w.date===actualLiftDate&&w.type==='lift') : null;
+                              return (
+                                <button onClick={()=>loggedLift ? setSelectedWorkout(loggedLift) : setLogTarget({type:'lift',status:'planned',date:actualLiftDate||ds,details:{sessionName:lift.sessionName,muscleGroups:lift.muscleGroups||[],exercises:(lift.exercises||[]).map(ex=>({name:ex.name,sets:ex.sets,reps:ex.reps})),duration:lift.duration,weekNumber:week.weekNumber,phase:week.phase}})}
+                                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${ls==='completed'?'bg-bc-green-light text-bc-green-dark':ls==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
+                                  {ls==='completed'?'✓ Done':ls==='skipped'?'View':'Log It'}
+                                </button>
+                              );
+                            })()}
                           </div>
                           {lift.exercises?.length>0&&(
                             <div className="pl-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
@@ -639,7 +672,7 @@ export default function PlansPage() {
             {/* Row 1: name + status + action menu toggle */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <h2 className="text-[15px] font-bold text-primary truncate">{displayPlan.name||'Training Plan'}</h2>
+                <h2 className="text-[15px] font-bold text-primary leading-snug">{displayPlan.name||'Training Plan'}</h2>
                 {view==='active'
                   ? <span className="bc-pill bg-bc-green-light text-bc-green-dark text-[10px] flex-shrink-0">Active</span>
                   : <span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px] flex-shrink-0">Preview</span>}
