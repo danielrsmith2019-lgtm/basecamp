@@ -219,27 +219,26 @@ export default function PlansPage() {
   },[allWorkouts]);
   function getStatus(dateStr,type){return workoutStatusMap[`${dateStr}-${type}`]||'planned';}
 
-  // ── Auto-expand current week when plan loads ──
-  useEffect(() => {
-    if (!displayPlan?.weeks || view !== 'active') return;
-    // Find which week number contains today
-    const week1Start = planStartDate;
-    if (!week1Start) return;
-    const base = new Date(week1Start + 'T12:00:00');
-    const todayDate = new Date(TODAY_STR + 'T12:00:00');
-    const diffDays = Math.floor((todayDate - base) / (1000 * 60 * 60 * 24));
-    const currentWeekNum = Math.max(1, Math.ceil((diffDays + 1) / 7));
-    setExpandedWeeks(prev => {
-      const next = new Set(prev);
-      next.add(currentWeekNum);
-      return next;
-    });
-    // Scroll to current week after render
-    setTimeout(() => {
-      const el = document.getElementById(`week-${currentWeekNum}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 150);
-  }, [planStartDate, view]);
+  // ── Derive plan start date from actual workout data ──
+  // Find the earliest workout with weekNumber=1 — this is the real anchor
+  // regardless of when the user activated the plan or what day it is today.
+  // Also detects if a generated (preview) plan has never been activated yet.
+  const planStartDate = useMemo(() => {
+    if (view === 'preview') {
+      // New plan being previewed — start from today
+      return new Date().toLocaleDateString('en-CA');
+    }
+    // Find earliest week-1 workout in the actual DB
+    const week1Workouts = (allWorkouts || [])
+      .filter(w => w.details?.weekNumber === 1)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (week1Workouts.length > 0) return week1Workouts[0].date;
+    // Fallback: current Monday
+    const now = new Date();
+    const dow = now.getDay();
+    const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (dow===0?-6:1-dow), 12, 0, 0);
+    return mon.toLocaleDateString('en-CA');
+  }, [allWorkouts, view]);
 
   // ── Actual date map: where each plan session really lives after date edits ──
   // Key: "{weekNumber}-{type}-{originalDayOfWeek}" → actual current date in DB
@@ -267,26 +266,24 @@ export default function PlansPage() {
     return actual || computedDateStr;
   }
 
-  // ── Derive plan start date from actual workout data ──
-  // Find the earliest workout with weekNumber=1 — this is the real anchor
-  // regardless of when the user activated the plan or what day it is today.
-  // Also detects if a generated (preview) plan has never been activated yet.
-  const planStartDate = useMemo(() => {
-    if (view === 'preview') {
-      // New plan being previewed — start from today
-      return new Date().toLocaleDateString('en-CA');
-    }
-    // Find earliest week-1 workout in the actual DB
-    const week1Workouts = (allWorkouts || [])
-      .filter(w => w.details?.weekNumber === 1)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (week1Workouts.length > 0) return week1Workouts[0].date;
-    // Fallback: current Monday
-    const now = new Date();
-    const dow = now.getDay();
-    const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (dow===0?-6:1-dow), 12, 0, 0);
-    return mon.toLocaleDateString('en-CA');
-  }, [allWorkouts, view]);
+  // ── Auto-expand current week — placed AFTER planStartDate and displayPlan are declared ──
+  useEffect(() => {
+    if (!activePlan?.plan_data?.weeks || view !== 'active' || !planStartDate) return;
+    const base = new Date(planStartDate + 'T12:00:00');
+    const todayDate = new Date(TODAY_STR + 'T12:00:00');
+    const diffDays = Math.floor((todayDate - base) / (1000 * 60 * 60 * 24));
+    const currentWeekNum = Math.max(1, Math.ceil((diffDays + 1) / 7));
+    setExpandedWeeks(prev => {
+      const next = new Set(prev);
+      next.add(currentWeekNum);
+      return next;
+    });
+    setTimeout(() => {
+      const el = document.getElementById(`week-${currentWeekNum}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+  }, [planStartDate, view, activePlan?.plan_data]);
+
 
   // ── History data ──
   const { pastDates, weekGroups } = useMemo(()=>{
