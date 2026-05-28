@@ -30,11 +30,8 @@ const PRIMARY_TABS = [
         <line x1="16" y1="2" x2="16" y2="6" />
         <line x1="8" y1="2" x2="8" y2="6" />
         <line x1="3" y1="10" x2="21" y2="10" />
-        <line x1="8" y1="14" x2="8" y2="14" strokeWidth="2.5" strokeLinecap="round" />
-        <line x1="12" y1="14" x2="12" y2="14" strokeWidth="2.5" strokeLinecap="round" />
-        <line x1="16" y1="14" x2="16" y2="14" strokeWidth="2.5" strokeLinecap="round" />
-        <line x1="8" y1="18" x2="8" y2="18" strokeWidth="2.5" strokeLinecap="round" />
-        <line x1="12" y1="18" x2="12" y2="18" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="7" y1="15" x2="17" y2="15" />
+        <line x1="7" y1="19" x2="13" y2="19" />
       </svg>
     ),
   },
@@ -55,32 +52,23 @@ const PRIMARY_TABS = [
     ),
   },
   {
-    label: 'Plan',
-    href: '/plans',
+    label: 'Nutrition',
+    href: '/nutrition',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
         stroke={active ? '#007AFF' : '#AEAEB2'} strokeWidth="2"
         strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-        <line x1="7" y1="15" x2="17" y2="15" />
-        <line x1="7" y1="19" x2="13" y2="19" />
+        <path d="M18 8h1a4 4 0 010 8h-1" />
+        <path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" />
+        <line x1="6" y1="1" x2="6" y2="4" />
+        <line x1="10" y1="1" x2="10" y2="4" />
+        <line x1="14" y1="1" x2="14" y2="4" />
       </svg>
     ),
   },
 ];
 
 const MORE_ITEMS = [
-  {
-    label: 'Nutrition',
-    href: '/nutrition',
-    description: 'Log food & track macros',
-    Icon: UtensilsCrossed,
-    color: '#34C759',
-    bg: '#E8F5E9',
-  },
   {
     label: 'Goals',
     href: '/goals',

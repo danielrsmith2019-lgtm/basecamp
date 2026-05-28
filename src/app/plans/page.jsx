@@ -99,11 +99,13 @@ export default function PlansPage() {
   const [editMode,      setEditMode]      = useState(false);
   const [showAIEditor,  setShowAIEditor]  = useState(false);
   const [logTarget,     setLogTarget]     = useState(null);
-  const [expandedWeeks, setExpandedWeeks] = useState(new Set([1,2]));
+  // Auto-expand the current week (plus week 1 for context on new plans)
+  const [expandedWeeks, setExpandedWeeks] = useState(() => new Set([1, 2]));
   const [activating,    setActivating]    = useState(false);
   const [reactivating,  setReactivating]  = useState(false);
   const [error,         setError]         = useState(null);
   const [insightsCollapsed, toggleInsights, openInsights] = useInsightsCollapsed();
+  const [planMenuOpen, setPlanMenuOpen] = useState(false);
   const [dismissedSuggestions, setDismissedSuggestions] = useState(() => {
     if (typeof window==='undefined') return new Set();
     try { return new Set(JSON.parse(localStorage.getItem('bc-plan-dismissed-suggestions')||'[]')); } catch { return new Set(); }
@@ -119,8 +121,12 @@ export default function PlansPage() {
     if (!user) return;
     async function load() {
       const plan = await getActivePlan(user.id);
-      if (plan) { setActivePlan(plan); setView('active'); }
-      else { setView('empty'); }
+      if (plan) {
+        setActivePlan(plan);
+        setView('active');
+        // Auto-expand current week based on today's date vs plan weeks
+        // We'll refine this in the planStartDate useMemo, but set a reasonable default
+      } else { setView('empty'); }
     }
     load();
   }, [user]);
@@ -212,6 +218,28 @@ export default function PlansPage() {
     return m;
   },[allWorkouts]);
   function getStatus(dateStr,type){return workoutStatusMap[`${dateStr}-${type}`]||'planned';}
+
+  // ── Auto-expand current week when plan loads ──
+  useEffect(() => {
+    if (!displayPlan?.weeks || view !== 'active') return;
+    // Find which week number contains today
+    const week1Start = planStartDate;
+    if (!week1Start) return;
+    const base = new Date(week1Start + 'T12:00:00');
+    const todayDate = new Date(TODAY_STR + 'T12:00:00');
+    const diffDays = Math.floor((todayDate - base) / (1000 * 60 * 60 * 24));
+    const currentWeekNum = Math.max(1, Math.ceil((diffDays + 1) / 7));
+    setExpandedWeeks(prev => {
+      const next = new Set(prev);
+      next.add(currentWeekNum);
+      return next;
+    });
+    // Scroll to current week after render
+    setTimeout(() => {
+      const el = document.getElementById(`week-${currentWeekNum}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+  }, [planStartDate, view]);
 
   // ── Actual date map: where each plan session really lives after date edits ──
   // Key: "{weekNumber}-{type}-{originalDayOfWeek}" → actual current date in DB
@@ -372,73 +400,85 @@ export default function PlansPage() {
       ══════════════════════════════════════ */}
       {pageTab==='plan' && (
         <>
-          {/* Preview banner — warns user this is not their active schedule */}
-          {view==='preview' && (
-            <div className="flex items-start gap-3 p-3 mb-4 bg-bc-orange-light border border-bc-orange/20 rounded-[14px]">
-              <AlertTriangle size={16} className="text-bc-orange flex-shrink-0 mt-0.5"/>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-bc-orange-dark">This plan hasn&apos;t been activated yet</p>
-                <p className="text-[11px] text-bc-orange-dark/80 mt-0.5">
-                  Your current schedule is unaffected. Tap <strong>Activate</strong> to replace it with this plan.
-                </p>
+          {/* ── Compact plan header ── */}
+          <div className="mb-4">
+            {/* Row 1: name + status + action menu toggle */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <h2 className="text-[15px] font-bold text-primary truncate">{displayPlan.name||'Training Plan'}</h2>
+                {view==='active'
+                  ? <span className="bc-pill bg-bc-green-light text-bc-green-dark text-[10px] flex-shrink-0">Active</span>
+                  : <span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px] flex-shrink-0">Preview</span>}
+              </div>
+              {/* Inline action buttons — compact */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {view==='preview' && (
+                  <button onClick={handleActivate} disabled={activating}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-bc-indigo text-white text-[11px] font-semibold rounded-[8px] disabled:opacity-50 active:scale-95 min-h-[36px]">
+                    {activating?<Loader2 size={10} className="animate-spin"/>:<Play size={10}/>}
+                    {activating?'…':'Activate'}
+                  </button>
+                )}
+                {/* ··· overflow menu */}
+                <button onClick={()=>setPlanMenuOpen(v=>!v)}
+                  className="w-8 h-8 rounded-full bg-canvas border border-border flex items-center justify-center text-tertiary hover:text-primary">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>
+                  </svg>
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Plan header */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-5">
-            <div>
-              <h2 className="text-[17px] font-semibold text-primary">{displayPlan.name||'Training Plan'}</h2>
-              {displayPlan.description && <p className="text-sm text-secondary mt-1 max-w-lg">{displayPlan.description}</p>}
-              <div className="flex items-center gap-3 mt-2 flex-wrap">
-                <span className="bc-caption">{displayPlan.total_weeks||displayPlan.weeks.length} weeks</span>
-                <span className="bc-caption">·</span>
-                <span className="bc-caption">{countSessions(displayPlan)} sessions</span>
-                {view==='active'&&<><span className="bc-caption">·</span><span className="bc-pill bg-bc-green-light text-bc-green-dark text-[10px]">Active</span></>}
+            {/* Row 2: meta */}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className="text-[10px] text-tertiary">{displayPlan.total_weeks||displayPlan.weeks.length} wks</span>
+              <span className="text-[10px] text-tertiary">·</span>
+              <span className="text-[10px] text-tertiary">{countSessions(displayPlan)} sessions</span>
+              {displayPlan.weeks?.[0]?.phase && (
+                <><span className="text-[10px] text-tertiary">·</span>
+                <span className="text-[10px] text-tertiary capitalize">{displayPlan.weeks[0].phase} → {displayPlan.weeks[displayPlan.weeks.length-1]?.phase}</span></>
+              )}
+            </div>
+
+            {/* Overflow menu dropdown */}
+            {planMenuOpen && (
+              <div className="mt-2 p-2 bg-white border border-border rounded-[14px] shadow-lg space-y-1">
+                <button onClick={()=>{setShowAIEditor(true);setPlanMenuOpen(false);}}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
+                  <MessageSquare size={14} className="text-bc-indigo flex-shrink-0"/> Edit with AI
+                </button>
+                {view==='active' && (<>
+                  <button onClick={async()=>{
+                    if(editMode){try{const{savePlan:sp}=await import('@/lib/database');await sp(user.id,{...activePlan,plan_data:displayPlan,is_active:true},activePlan.id);}catch(e){console.error(e);}}
+                    setEditMode(!editMode); setPlanMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
+                    <Pencil size={14} className="text-secondary flex-shrink-0"/>
+                    {editMode?'Save manual edits':'Edit manually'}
+                  </button>
+                  <button onClick={()=>{handleReactivate();setPlanMenuOpen(false);}} disabled={reactivating}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left disabled:opacity-40">
+                    <Play size={14} className="text-secondary flex-shrink-0"/>
+                    {reactivating?'Syncing…':'Reactivate dates'}
+                  </button>
+                  <button onClick={()=>{setView('wizard');setPlanMenuOpen(false);}}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
+                    <Sparkles size={14} className="text-secondary flex-shrink-0"/> New plan
+                  </button>
+                </>)}
+                {view==='preview' && (
+                  <button onClick={()=>{setEditMode(!editMode);setPlanMenuOpen(false);}}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
+                    <Pencil size={14} className="text-secondary flex-shrink-0"/>
+                    {editMode?'Done editing':'Edit manually'}
+                  </button>
+                )}
+                <div className="border-t border-border/50 pt-1 flex gap-3 px-3 py-1">
+                  <button onClick={()=>{expandAll(displayPlan);setPlanMenuOpen(false);}} className="text-[11px] text-tertiary hover:text-secondary">Expand all</button>
+                  <button onClick={()=>{collapseAll();setPlanMenuOpen(false);}} className="text-[11px] text-tertiary hover:text-secondary">Collapse all</button>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={()=>setShowAIEditor(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[10px] bg-bc-indigo-light text-bc-indigo hover:opacity-80 transition-colors min-h-[44px]">
-                <MessageSquare size={12}/> Edit with AI
-              </button>
-              {view==='preview'&&(<>
-                <button onClick={()=>setEditMode(!editMode)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors min-h-[44px] ${editMode?'bg-bc-blue text-white':'bg-canvas border border-border text-secondary hover:text-primary'}`}>
-                  {editMode?<Check size={12}/>:<Pencil size={12}/>}{editMode?'Done':'Edit'}
-                </button>
-                <button onClick={handleActivate} disabled={activating}
-                  className="flex items-center gap-1.5 px-4 py-1.5 bg-bc-indigo hover:opacity-90 disabled:opacity-50 text-white text-xs font-semibold rounded-[10px] transition-all min-h-[44px]">
-                  {activating?<Loader2 size={12} className="animate-spin"/>:<Play size={12}/>}
-                  {activating?'Activating…':'Activate'}
-                </button>
-              </>)}
-              {view==='active'&&(<>
-                <button onClick={async()=>{
-                  if(editMode){try{const{savePlan:sp}=await import('@/lib/database');await sp(user.id,{...activePlan,plan_data:displayPlan,is_active:true},activePlan.id);}catch(e){console.error(e);}}
-                  setEditMode(!editMode);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors min-h-[44px] ${editMode?'bg-bc-green text-white':'bg-canvas border border-border text-secondary hover:text-primary'}`}>
-                  {editMode?<Check size={12}/>:<Pencil size={12}/>}{editMode?'Save Edits':'Edit Plan'}
-                </button>
-                <button onClick={handleReactivate} disabled={reactivating}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas border border-border text-secondary text-xs rounded-[10px] hover:text-primary transition-colors min-h-[44px] disabled:opacity-40">
-                  {reactivating?<Loader2 size={12} className="animate-spin"/>:<Play size={12}/>}
-                  {reactivating?'Syncing…':'Reactivate'}
-                </button>
-                <button onClick={()=>setView('wizard')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas border border-border text-secondary text-xs rounded-[10px] hover:text-primary transition-colors min-h-[44px]">
-                  <Sparkles size={12}/> New Plan
-                </button>
-              </>)}
-            </div>
-          </div>
-
-          {/* Expand / Collapse */}
-          <div className="flex gap-2 mb-4">
-            <button onClick={()=>expandAll(displayPlan)} className="bc-caption hover:text-secondary transition-colors min-h-[44px]">Expand all</button>
-            <span className="bc-caption">·</span>
-            <button onClick={collapseAll} className="bc-caption hover:text-secondary transition-colors min-h-[44px]">Collapse all</button>
+            )}
           </div>
 
           {/* Schedule suggestions */}
@@ -494,6 +534,77 @@ export default function PlansPage() {
 
           {error&&<div className="mb-4 p-3 bg-bc-red-light border border-bc-red/20 rounded-[14px]"><p className="text-bc-red-dark text-xs">{error}</p></div>}
 
+          {/* ── Today's sessions — prominent card at top ── */}
+          {view==='active' && (() => {
+            // Find today's sessions from the actual workout DB
+            const todaySessions = allWorkouts.filter(w =>
+              w.date === TODAY_STR && w.type !== 'rest'
+            );
+            if (todaySessions.length === 0) return (
+              <div className="bc-card mb-4 py-3 px-4 flex items-center justify-between">
+                <div>
+                  <p className="bc-caption uppercase tracking-wider mb-0.5">Today</p>
+                  <p className="text-sm font-medium text-secondary">Rest day or no sessions scheduled</p>
+                </div>
+                <button onClick={()=>setShowNewLogForm(true)}
+                  className="text-[11px] font-semibold text-bc-blue px-3 py-1.5 border border-bc-blue/30 rounded-[8px] active:scale-95">
+                  + Log workout
+                </button>
+              </div>
+            );
+            return (
+              <div className="mb-4">
+                <p className="bc-caption uppercase tracking-wider mb-2">Today · {new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</p>
+                <div className="space-y-2">
+                  {todaySessions.map(w => {
+                    const isRun  = w.type === 'run';
+                    const isDone = w.status === 'completed';
+                    const isSkip = w.status === 'skipped';
+                    return (
+                      <div key={w.id}
+                        className={`flex items-center justify-between p-3 rounded-[14px] border-l-4 ${
+                          isRun ? 'bg-run-bg border-run-accent' : 'bg-lift-bg border-lift-accent'
+                        } ${isDone ? 'opacity-70' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={`text-[10px] font-bold uppercase tracking-wide ${isRun?'text-run-accent':'text-lift-accent'}`}>
+                              {isRun ? (w.details.runDescription||w.details.runType||'Run') : (w.details.sessionName||'Lift')}
+                            </span>
+                            {w.details.weekNumber && <span className="text-[9px] text-tertiary">Wk {w.details.weekNumber}</span>}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {isRun && w.details.plannedDistance && (
+                              <span className="text-sm font-bold text-primary" style={{fontVariantNumeric:'tabular-nums'}}>
+                                {w.details.plannedDistance} <span className="text-xs font-normal text-tertiary">mi</span>
+                              </span>
+                            )}
+                            {isRun && w.details.targetPace && (
+                              <span className="text-[10px] text-secondary">@ {w.details.targetPace}/mi</span>
+                            )}
+                            {!isRun && w.details.exercises?.length > 0 && (
+                              <span className="text-[10px] text-secondary">{w.details.exercises.length} exercises</span>
+                            )}
+                            {w.details.duration && (
+                              <span className="text-[10px] text-tertiary">{w.details.duration} min</span>
+                            )}
+                          </div>
+                        </div>
+                        <button onClick={()=>setLogTarget(w)}
+                          className={`ml-3 text-[11px] font-semibold px-3 py-2 rounded-[10px] flex-shrink-0 active:scale-95 transition-all ${
+                            isDone ? 'bg-bc-green-light text-bc-green-dark' :
+                            isSkip ? 'bg-bc-red-light text-bc-red-dark'   :
+                            'bg-bc-blue text-white'
+                          }`}>
+                          {isDone ? '✓ Done' : isSkip ? 'Skipped' : 'Log It'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── Week rows ── */}
           <div className="space-y-3">
             {displayPlan.weeks.map((week,wIdx)=>{
@@ -504,7 +615,7 @@ export default function PlansPage() {
               const wStartStr=wStart.toLocaleDateString('en-CA');
               const isCurWk=wStartStr<=TODAY_STR&&TODAY_STR<=wEnd.toLocaleDateString('en-CA');
               return(
-                <div key={week.weekNumber} className="bc-card-flush">
+                <div key={week.weekNumber} className="bc-card-flush" id={`week-${week.weekNumber}`}>
                   <button onClick={()=>toggleWeek(week.weekNumber)}
                     className="w-full flex items-center justify-between p-4 hover:bg-canvas transition-colors min-h-[44px]">
                     <div className="flex items-center gap-3 flex-wrap">
