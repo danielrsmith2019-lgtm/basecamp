@@ -194,9 +194,12 @@ export default function Dashboard() {
     const thisWeekLifts = completedLifts.filter(w=>w.date>=mondayStr&&w.date<=sundayStr);
     const thisWeekMiles = thisWeekRuns.reduce((s,w)=>s+(w.details.actualDistance||0),0);
     const thisWeekVol   = thisWeekLifts.reduce((s,w)=>s+(w.details.totalVolume||0),0);
+
+    const thisWeekWorkouts = workouts.filter(w=>w.date>=mondayStr&&w.date<=sundayStr);
+
     // Current plan week number — from workouts in this calendar week
     const currentWeekNumber = thisWeekWorkouts.find(w=>w.details?.weekNumber)?.details?.weekNumber || null;
-    
+
     // Planned miles: runs in this calendar week that aren't skipped
     // If we have a week number, also exclude any runs from a DIFFERENT week number
     // (catches orphaned duplicate rows from old reschedules that landed in this week)
@@ -209,7 +212,6 @@ export default function Dashboard() {
     });
     const thisWeekPlannedMiles = thisWeekPlannedRuns.reduce((s,w)=>s+(w.details.plannedDistance||0),0);
 
-    const thisWeekWorkouts = workouts.filter(w=>w.date>=mondayStr&&w.date<=sundayStr);
     const phaseCounts = {};
     thisWeekWorkouts.forEach(w=>{ const p=w.details?.phase; if(p) phaseCounts[p]=(phaseCounts[p]||0)+1; });
     const currentPhase = Object.keys(phaseCounts).sort((a,b)=>phaseCounts[b]-phaseCounts[a])[0]||null;
