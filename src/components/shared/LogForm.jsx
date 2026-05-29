@@ -410,274 +410,121 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   }
 
   // ══════════════════════════════════════════════
-  // ACTIVE LIFT MODE — full-screen set-by-set
+  // ACTIVE LIFT MODE — scrollable stacked exercise cards
+  // All exercises visible at once, no dots/pagination.
+  // User scrolls through the full workout like the KPI card stack.
+  // Each exercise card shows: name, prev best, compact set table.
   // ══════════════════════════════════════════════
   if (mode === 'active' && workoutType === 'lift') {
-    const ex = exercises[activeExIdx];
-    const sets = Array.isArray(ex?.sets) ? ex.sets : [];
-    const completedSetsCount = sets.filter(s => s.completed).length;
-    const totalExercises = exercises.length;
-    const allSetsThisEx = completedSetsCount === sets.length;
     const restRemaining = restTimer ? restTimer.total - restTimer.elapsed : 0;
-    const history = exerciseHistory[ex?.name];
+    const totalSetsCompleted = exercises.reduce((s, ex) =>
+      s + (Array.isArray(ex.sets) ? ex.sets : []).filter(s => s.completed).length, 0);
+    const totalSetsAll = exercises.reduce((s, ex) =>
+      s + (Array.isArray(ex.sets) ? ex.sets : []).length, 0);
+    const allDone = totalSetsAll > 0 && totalSetsCompleted === totalSetsAll;
 
     return (
-      <div className="fixed inset-0 bg-surface z-50 flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="fixed inset-0 bg-white z-50 flex flex-col"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
 
-        {/* ── Top bar ── */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border flex-shrink-0">
-          <button onClick={() => setMode('setup')} className="flex items-center gap-1 text-tertiary text-sm min-h-[44px] min-w-[44px]">
-            <X size={18} />
+        {/* ── Sticky top bar: session name + elapsed timer ── */}
+        <div className="flex items-center justify-between px-4 border-b border-border flex-shrink-0"
+          style={{ paddingTop: 'max(12px, env(safe-area-inset-top))', paddingBottom: 12 }}>
+          <button onClick={() => setMode('setup')}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-tertiary active:text-primary">
+            <X size={20} />
           </button>
-          <div className="text-center">
-            <p className="text-xs font-semibold text-primary">{sessionName || 'Lifting'}</p>
-            <p className="bc-caption">{activeExIdx + 1} of {totalExercises} exercises</p>
+          <div className="text-center flex-1 min-w-0 px-2">
+            <p className="text-sm font-bold text-primary truncate">{sessionName || 'Workout'}</p>
+            <p className="text-[10px] text-tertiary">
+              {totalSetsCompleted}/{totalSetsAll} sets · {exercises.length} exercises
+            </p>
           </div>
-          <button onClick={() => setShowTimer(true)} className="min-h-[44px] min-w-[44px] flex items-center justify-center">
-            <div className="flex items-center gap-1 px-2 py-1 bg-lift-bg rounded-[8px]">
+          <button onClick={() => setShowTimer(true)}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <div className="flex items-center gap-1 px-2.5 py-1.5 bg-lift-bg rounded-[10px]">
               <Timer size={12} className="text-lift-accent" />
-              <span className="text-[11px] font-semibold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <span className="text-[11px] font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {timerSeconds > 0 ? formatTime(timerSeconds) : '--:--'}
               </span>
             </div>
           </button>
         </div>
 
-        {/* ── Exercise progress dots ── */}
-        <div className="flex items-center gap-1 px-4 py-1.5 flex-shrink-0">
-          {exercises.map((e, i) => {
-            const exSets = Array.isArray(e.sets) ? e.sets : [];
-            const done = exSets.filter(s => s.completed).length;
-            const total = exSets.length;
-            return (
-              <button key={i} onClick={() => setActiveExIdx(i)}
-                className="flex-1 h-1 rounded-full transition-all min-h-[20px]"
-                style={{ background: i === activeExIdx ? '#007AFF' : done === total && total > 0 ? '#34C759' : '#E5E5EA' }} />
-            );
-          })}
-        </div>
-
-        {/* ── Exercise name + history ── */}
-        <div className="px-4 pt-1 pb-2 flex-shrink-0">
-          <h2 className="text-lg font-bold text-primary leading-tight">{ex?.name}</h2>
-          {history && (
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className="text-[11px] text-tertiary">
-                Last: <span className="font-semibold text-secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {history.weight} lbs × {history.reps}
-                </span>
-              </span>
-              {history.suggestedWeight > history.weight && (
-                <span className="text-[10px] px-2 py-0.5 bg-bc-green-light text-bc-green-dark rounded-full font-semibold">
-                  Goal: {history.suggestedWeight} lbs ↑
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Rest timer banner ── */}
+        {/* ── Rest timer — sticky below header when active ── */}
         {restTimer && restRemaining > 0 && (
-          <div className="mx-4 mb-2 px-4 py-2 rounded-[12px] flex items-center justify-between flex-shrink-0"
-            style={{ background: '#007AFF15', border: '1px solid #007AFF30' }}>
+          <div className="flex items-center justify-between px-4 py-2.5 border-b bg-lift-bg/60 flex-shrink-0">
             <div className="flex items-center gap-2">
               <Timer size={14} className="text-lift-accent" />
               <span className="text-sm font-semibold text-lift-accent">Rest</span>
             </div>
-            <span className="text-lg font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <span className="text-xl font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {formatTime(restRemaining)}
             </span>
             <button onClick={() => { clearInterval(restIntervalRef.current); setRestTimer(null); }}
-              className="text-[11px] text-tertiary hover:text-secondary">Skip</button>
+              className="text-xs text-tertiary px-3 py-1.5 rounded-[8px] bg-white/60 min-h-[32px]">
+              Skip
+            </button>
           </div>
         )}
 
-        {/* ── Sets ── */}
-        <div className="flex-1 overflow-y-auto px-4 space-y-2.5 pb-4">
-
-          {/* Column headers — matches reference app layout */}
-          <div className="flex items-center gap-2 px-1 mb-1">
-            <div className="w-6 flex-shrink-0"/>
-            <div className="w-20 flex-shrink-0 text-center">
-              <span className="text-[9px] font-semibold text-tertiary uppercase tracking-wider">Prev</span>
-            </div>
-            <div className="flex-1 text-center">
-              <span className="text-[9px] font-semibold text-tertiary uppercase tracking-wider">Lbs</span>
-            </div>
-            <div className="flex-1 text-center">
-              <span className="text-[9px] font-semibold text-tertiary uppercase tracking-wider">Reps</span>
-            </div>
-            <div className="w-12 flex-shrink-0"/>
-          </div>
-
-          {sets.map((set, si) => {
-            const isNext = !set.completed && si === sets.findIndex(s => !s.completed);
-            // Prev: what was done in the last session for this set position
-            const prevSets = history?.completedSets || [];
-            const prevSet  = prevSets[si] || null;
-            const prevLabel = prevSet
-              ? `${prevSet.weight} × ${prevSet.reps}`
-              : (history?.weight && history?.reps)
-                ? `${history.weight} × ${history.reps}`
-                : '—';
+        {/* ── Scrollable exercise cards ── */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {exercises.map((ex, exIdx) => {
+            const exSets    = Array.isArray(ex.sets) ? ex.sets : [];
+            const hist      = exerciseHistory[ex.name];
+            const doneCount = exSets.filter(s => s.completed).length;
+            const allExDone = exSets.length > 0 && doneCount === exSets.length;
+            const nextSetIdx = exSets.findIndex(s => !s.completed);
 
             return (
-              <div key={si}
-                className={`rounded-[14px] border transition-all ${
-                  set.completed ? 'bg-bc-green-light/40 border-bc-green/30' :
-                  isNext        ? 'bg-white border-bc-blue/40 shadow-sm' :
-                                  'bg-canvas border-border/50'
-                }`}>
-                <div className="flex items-center gap-2 px-3 py-3">
-
-                  {/* Set number */}
-                  <div className="w-6 flex-shrink-0 text-center">
-                    <span className={`text-sm font-bold ${
-                      set.completed ? 'text-bc-green-dark' :
-                      isNext ? 'text-bc-blue' : 'text-tertiary'
-                    }`}>{si + 1}</span>
-                  </div>
-
-                  {/* Prev — grey, shows last session */}
-                  <div className="w-20 flex-shrink-0 text-center">
-                    <span className="text-[11px] text-tertiary" style={{fontVariantNumeric:'tabular-nums'}}>
-                      {prevLabel}
-                    </span>
-                  </div>
-
-                  {/* Weight */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'weight', Math.max(0, (Number(set.weight) || 0) - 2.5)); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
-                        <Minus size={11} className="text-secondary" />
-                      </button>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={set.weight ?? ''}
-                        onChange={e => updateSet(activeExIdx, si, 'weight', e.target.value)}
-                        placeholder={set.targetWeight ? String(set.targetWeight) : '0'}
-                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 py-1 ${
-                          set.completed ? 'text-bc-green-dark' : isNext ? 'text-primary' : 'text-secondary'
-                        }`}
-                        style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}
-                      />
-                      <button
-                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'weight', (Number(set.weight) || 0) + 2.5); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
-                        <Plus size={11} className="text-secondary" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Reps */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'reps', Math.max(0, (Number(set.reps) || 0) - 1)); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
-                        <Minus size={11} className="text-secondary" />
-                      </button>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={set.reps ?? ''}
-                        onChange={e => updateSet(activeExIdx, si, 'reps', e.target.value)}
-                        placeholder={set.targetReps ? String(set.targetReps) : '0'}
-                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 py-1 ${
-                          set.completed ? 'text-bc-green-dark' : isNext ? 'text-primary' : 'text-secondary'
-                        }`}
-                        style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}
-                      />
-                      <button
-                        onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'reps', (Number(set.reps) || 0) + 1); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
-                        <Plus size={11} className="text-secondary" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Check — large tap target */}
-                  <button
-                    onClick={() => completeSet(activeExIdx, si)}
-                    className="w-12 h-12 rounded-[12px] flex items-center justify-center active:scale-90 transition-transform flex-shrink-0"
-                    style={{ background: set.completed ? '#34C759' : '#E5E5EA' }}>
-                    <Check size={20} color={set.completed ? '#fff' : '#AEAEB2'} strokeWidth={2.5} />
-                  </button>
-                </div>
-              </div>
+              <ExerciseCard
+                key={exIdx}
+                ex={ex}
+                exIdx={exIdx}
+                exSets={exSets}
+                hist={hist}
+                doneCount={doneCount}
+                allExDone={allExDone}
+                nextSetIdx={nextSetIdx}
+                onUpdateSet={updateSet}
+                onCompleteSet={(si) => {
+                  completeSet(exIdx, si);
+                }}
+                onAddSet={() => addSet(exIdx)}
+                onRemoveSet={() => removeSet(exIdx)}
+                restPreset={restPreset}
+                setRestPreset={setRestPreset}
+              />
             );
           })}
 
-          {/* Add / remove set */}
-          <div className="flex gap-2 pt-1">
-            <button onClick={() => addSet(activeExIdx)}
-              className="flex-1 py-2.5 border border-border rounded-[10px] text-xs font-semibold text-secondary active:bg-canvas flex items-center justify-center gap-1">
-              <Plus size={12} /> Add Set
-            </button>
-            {sets.length > 1 && (
-              <button onClick={() => removeSet(activeExIdx)}
-                className="px-4 py-2.5 border border-border rounded-[10px] text-xs font-semibold text-tertiary active:text-bc-red flex items-center justify-center gap-1">
-                <Minus size={12} /> Remove
-              </button>
-            )}
-          </div>
-
-          {/* Rest preset selector */}
-          <div className="pt-1 pb-2">
-            <p className="bc-caption uppercase tracking-wider mb-1.5">Rest timer</p>
-            <div className="flex gap-2">
-              {REST_PRESETS.map(s => (
-                <button key={s} onClick={() => setRestPreset(s)}
-                  className="flex-1 py-2 text-xs font-semibold rounded-[10px] transition-colors"
-                  style={{ background: restPreset === s ? '#007AFF' : '#F2F2F7', color: restPreset === s ? '#fff' : '#3C3C43' }}>
-                  {s}s
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* ── Add exercise during active session ── */}
+          <button
+            className="w-full py-3 border border-dashed border-border rounded-[14px] text-sm text-tertiary
+                       hover:text-secondary hover:border-secondary transition-colors active:scale-95 flex items-center justify-center gap-1.5">
+            <Plus size={14} /> Add exercise
+          </button>
         </div>
 
-        {/* ── Bottom bar ── */}
-        <div className="border-t border-border px-4 pt-3 flex gap-3 flex-shrink-0"
+        {/* ── Sticky bottom bar: volume + Finish ── */}
+        <div className="border-t border-border px-4 pt-3 flex items-center gap-3 flex-shrink-0"
           style={{ paddingBottom: 'max(16px, calc(12px + env(safe-area-inset-bottom)))' }}>
-          {/* Prev / Next exercise */}
-          <button disabled={activeExIdx === 0}
-            onClick={() => setActiveExIdx(i => i - 1)}
-            className="w-11 h-11 rounded-[10px] bg-canvas border border-border flex items-center justify-center disabled:opacity-30">
-            <ChevronDown size={18} className="text-secondary" />
-          </button>
-
-          {/* Live volume */}
-          <div className="flex-1 flex items-center justify-center bg-lift-bg rounded-[10px] px-3">
-            <Flame size={12} className="text-lift-accent mr-1" />
-            <span className="text-xs font-semibold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-lift-bg rounded-[12px]">
+            <Flame size={14} className="text-lift-accent flex-shrink-0" />
+            <span className="text-xs font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {liveVolume.sets} sets · {liveVolume.total > 0 ? `${liveVolume.total.toLocaleString()} lbs` : '0 lbs'}
             </span>
           </div>
-
-          {activeExIdx < totalExercises - 1 ? (
-            <button onClick={() => setActiveExIdx(i => i + 1)}
-              className="flex items-center gap-1.5 px-3 h-11 rounded-[10px] bg-canvas border border-border">
-              <span className="text-xs font-semibold text-secondary truncate max-w-[80px]">
-                {exercises[activeExIdx + 1]?.name?.split(' ')[0] || 'Next'}
-              </span>
-              <ChevronUp size={14} className="text-tertiary flex-shrink-0" />
-            </button>
-          ) : (
-            <button onClick={handleSave}
-              className="px-4 h-11 rounded-[10px] text-xs font-bold text-white flex items-center gap-1.5 active:scale-95"
-              style={{ background: '#34C759' }}>
-              <Check size={14} /> Finish
-            </button>
-          )}
+          <button onClick={handleSave}
+            className="px-5 py-3 rounded-[12px] text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform"
+            style={{ background: allDone ? '#34C759' : '#007AFF' }}>
+            <Check size={16} /> {allDone ? 'Finish' : 'Save'}
+          </button>
         </div>
       </div>
     );
   }
-
   // ══════════════════════════════════════════════
   // SETUP MODE (and non-lift active mode)
   // ══════════════════════════════════════════════
@@ -978,6 +825,235 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// ExerciseCard — one card per exercise in active workout mode.
+//
+// Layout matches KPI card stack pattern:
+//   ┌─────────────────────────────────────────┐
+//   │ Exercise name          Done 2/3  ▼/▲   │
+//   │ Last: 185 × 5  →  try 190 lbs          │
+//   ├─────────────────────────────────────────┤
+//   │ SET  PREV        LBS          REPS   ✓  │
+//   │  1   185×5    [ 190  ]    [  5  ]   ✓  │
+//   │  2   185×5    [ 190  ]    [  5  ]   ·  │
+//   │  3   185×5    [     ]    [     ]   ·  │
+//   ├──────────────────┬──────────────────────┤
+//   │  + Add Set       │  − Remove            │
+//   └──────────────────┴──────────────────────┘
+// ══════════════════════════════════════════════════════════════
+function ExerciseCard({
+  ex, exIdx, exSets, hist, doneCount, allExDone, nextSetIdx,
+  onUpdateSet, onCompleteSet, onAddSet, onRemoveSet,
+  restPreset, setRestPreset,
+}) {
+  const [collapsed, setCollapsed] = React.useState(false);
+
+  const borderColor = allExDone ? '#34C759' : doneCount > 0 ? '#007AFF' : '#E5E5EA';
+  const headerBg    = allExDone ? '#F0FFF4' : 'white';
+
+  return (
+    <div className="rounded-[16px] border-2 overflow-hidden bg-white shadow-sm"
+      style={{ borderColor }}>
+
+      {/* ── Card header ── */}
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        style={{ background: headerBg }}
+        onClick={() => setCollapsed(v => !v)}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold text-primary truncate">{ex.name}</p>
+            {allExDone && (
+              <span className="text-[10px] font-bold text-bc-green-dark px-1.5 py-0.5 bg-bc-green-light rounded-full flex-shrink-0">
+                ✓ Done
+              </span>
+            )}
+            {!allExDone && doneCount > 0 && (
+              <span className="text-[10px] text-bc-blue font-semibold flex-shrink-0">
+                {doneCount}/{exSets.length}
+              </span>
+            )}
+          </div>
+          {/* Previous best + suggestion */}
+          {hist && (
+            <p className="text-[10px] text-tertiary mt-0.5" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              Last: {hist.weight} lbs × {hist.reps}
+              {hist.suggestedWeight > hist.weight && (
+                <span className="text-bc-green-dark font-semibold ml-1">→ try {hist.suggestedWeight} lbs</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="ml-2 flex-shrink-0 text-tertiary">
+          {collapsed
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+          }
+        </div>
+      </button>
+
+      {!collapsed && (
+        <>
+          {/* ── Column headers ── */}
+          <div className="flex items-center px-4 py-1.5 bg-canvas/60 border-t border-border/40">
+            <div className="w-7 flex-shrink-0"/>
+            <div className="w-[72px] flex-shrink-0 text-center">
+              <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">Prev</span>
+            </div>
+            <div className="flex-1 text-center">
+              <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">Lbs</span>
+            </div>
+            <div className="flex-1 text-center">
+              <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">Reps</span>
+            </div>
+            <div className="w-11 flex-shrink-0"/>
+          </div>
+
+          {/* ── Set rows ── */}
+          <div className="divide-y divide-border/30">
+            {exSets.map((set, si) => {
+              const isNext = si === nextSetIdx;
+              const prevSets = hist?.completedSets || [];
+              const prevLabel = prevSets[si]
+                ? `${prevSets[si].weight}×${prevSets[si].reps}`
+                : (hist?.weight && hist?.reps ? `${hist.weight}×${hist.reps}` : '—');
+
+              return (
+                <div key={si}
+                  className={`flex items-center px-4 py-2.5 transition-colors ${
+                    set.completed ? 'bg-bc-green-light/30' :
+                    isNext ? 'bg-bc-blue-light/20' : 'bg-white'
+                  }`}>
+
+                  {/* Set number */}
+                  <div className="w-7 flex-shrink-0">
+                    <span className={`text-sm font-bold ${
+                      set.completed ? 'text-bc-green-dark' :
+                      isNext ? 'text-bc-blue' : 'text-tertiary'
+                    }`}>{si + 1}</span>
+                  </div>
+
+                  {/* Prev */}
+                  <div className="w-[72px] flex-shrink-0 text-center">
+                    <span className="text-[11px] text-tertiary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {prevLabel}
+                    </span>
+                  </div>
+
+                  {/* Weight input — tap to edit, +/- on sides */}
+                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
+                    <button
+                      onPointerDown={e => {
+                        e.preventDefault();
+                        onUpdateSet(exIdx, si, 'weight', Math.max(0, (Number(set.weight) || 0) - 2.5));
+                      }}
+                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <input
+                      type="number" inputMode="decimal"
+                      value={set.weight ?? ''}
+                      onChange={e => onUpdateSet(exIdx, si, 'weight', e.target.value)}
+                      placeholder={set.targetWeight ? String(set.targetWeight) : '0'}
+                      className={`w-12 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
+                        set.completed ? 'text-bc-green-dark' : 'text-primary'
+                      }`}
+                      style={{ fontSize: 16, fontVariantNumeric: 'tabular-nums' }}
+                    />
+                    <button
+                      onPointerDown={e => {
+                        e.preventDefault();
+                        onUpdateSet(exIdx, si, 'weight', (Number(set.weight) || 0) + 2.5);
+                      }}
+                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Reps input */}
+                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
+                    <button
+                      onPointerDown={e => {
+                        e.preventDefault();
+                        onUpdateSet(exIdx, si, 'reps', Math.max(0, (Number(set.reps) || 0) - 1));
+                      }}
+                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <input
+                      type="number" inputMode="numeric"
+                      value={set.reps ?? ''}
+                      onChange={e => onUpdateSet(exIdx, si, 'reps', e.target.value)}
+                      placeholder={set.targetReps ? String(set.targetReps) : '0'}
+                      className={`w-12 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
+                        set.completed ? 'text-bc-green-dark' : 'text-primary'
+                      }`}
+                      style={{ fontSize: 16, fontVariantNumeric: 'tabular-nums' }}
+                    />
+                    <button
+                      onPointerDown={e => {
+                        e.preventDefault();
+                        onUpdateSet(exIdx, si, 'reps', (Number(set.reps) || 0) + 1);
+                      }}
+                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Complete checkmark */}
+                  <div className="w-11 flex-shrink-0 flex justify-end">
+                    <button
+                      onClick={() => onCompleteSet(si)}
+                      className="w-9 h-9 rounded-[10px] flex items-center justify-center active:scale-90 transition-transform"
+                      style={{ background: set.completed ? '#34C759' : '#F2F2F7' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke={set.completed ? '#fff' : '#AEAEB2'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Add / Remove set + Rest preset ── */}
+          <div className="px-4 py-3 border-t border-border/40 bg-canvas/40 space-y-2.5">
+            <div className="flex gap-2">
+              <button onClick={onAddSet}
+                className="flex-1 py-2 text-xs font-semibold text-secondary rounded-[10px] border border-border bg-white active:bg-canvas flex items-center justify-center gap-1">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add set
+              </button>
+              {exSets.length > 1 && (
+                <button onClick={onRemoveSet}
+                  className="px-4 py-2 text-xs font-semibold text-tertiary rounded-[10px] border border-border bg-white active:text-bc-red flex items-center gap-1">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Remove
+                </button>
+              )}
+            </div>
+            {/* Rest timer presets — shown once per card */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider flex-shrink-0">Rest</span>
+              {[60, 90, 120, 180].map(s => (
+                <button key={s} onClick={() => setRestPreset(s)}
+                  className="flex-1 py-1.5 text-[11px] font-semibold rounded-[8px] transition-colors"
+                  style={{
+                    background: restPreset === s ? '#007AFF' : '#F2F2F7',
+                    color:      restPreset === s ? '#fff' : '#3C3C43',
+                  }}>
+                  {s}s
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
