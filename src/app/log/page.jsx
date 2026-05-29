@@ -1,409 +1,434 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+/**
+ * Log Page — Two distinct surfaces:
+ *
+ * 1. HISTORY VIEW (default, the Log tab)
+ *    Compact card-per-workout, week headers with totals,
+ *    collapsed filter strip, tap to open detail modal.
+ *
+ * 2. ACTIVE WORKOUT (launched from Plan or Home via ?start=workoutId)
+ *    Full-screen overlay — delegates entirely to LogForm which
+ *    already has set-by-set flow, rest timer, progressive overload.
+ *    The overlay renders on top of whatever page triggered it,
+ *    but the Log tab also surfaces it if the user navigates here.
+ */
+
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { formatDate, comparePaces } from '@/utils/runUtils';
-import { formatVolume, summarizeExercises } from '@/utils/liftUtils';
+import { formatVolume } from '@/utils/liftUtils';
 import WorkoutDetailModal from '@/components/shared/WorkoutDetailModal';
 import LogForm from '@/components/shared/LogForm';
-import { Footprints, Dumbbell, Bike, Moon, Activity } from 'lucide-react';
 import { useWorkouts } from '@/lib/WorkoutContext';
+import {
+  Footprints, Dumbbell, Bike, Moon, Activity,
+  SlidersHorizontal, X, ChevronDown, ChevronUp,
+  Plus, TrendingUp, Calendar,
+} from 'lucide-react';
 
+// ── Type config ─────────────────────────────────────────
 const TYPE_CONFIG = {
-  run:    { Icon: Footprints, label: 'Run',    color: 'text-run-accent',    bg: 'bg-run-bg' },
-  lift:   { Icon: Dumbbell,   label: 'Lift',   color: 'text-lift-accent',   bg: 'bg-lift-bg' },
-  cardio: { Icon: Bike,       label: 'Cardio', color: 'text-cardio-accent', bg: 'bg-cardio-bg' },
-  rest:   { Icon: Moon,       label: 'Rest',   color: 'text-rest-accent',   bg: 'bg-rest-bg' },
-  other:  { Icon: Activity,   label: 'Other',  color: 'text-secondary',     bg: 'bg-surface-alt' },
+  run:    { Icon: Footprints, label: 'Run',    accent: '#34C759', bg: 'bg-run-bg',    text: 'text-run-accent'    },
+  lift:   { Icon: Dumbbell,   label: 'Lift',   accent: '#007AFF', bg: 'bg-lift-bg',   text: 'text-lift-accent'   },
+  cardio: { Icon: Bike,       label: 'Cardio', accent: '#FF9500', bg: 'bg-cardio-bg', text: 'text-cardio-accent' },
+  rest:   { Icon: Moon,       label: 'Rest',   accent: '#8E8E93', bg: 'bg-rest-bg',   text: 'text-rest-accent'   },
+  other:  { Icon: Activity,   label: 'Other',  accent: '#8E8E93', bg: 'bg-surface',   text: 'text-secondary'     },
 };
 
-const STATUS_DOT = {
-  completed: 'bg-bc-green',
-  planned:   'bg-tertiary',
-  skipped:   'bg-bc-red',
+const STATUS_CONFIG = {
+  completed: { dot: 'bg-bc-green',   label: '✓' },
+  planned:   { dot: 'bg-tertiary',   label: '·' },
+  skipped:   { dot: 'bg-bc-red',     label: '✗' },
 };
 
-const FILTERS = [
-  { key: 'all',  label: 'All' },
-  { key: 'run',  label: 'Runs' },
-  { key: 'lift', label: 'Lifts' },
-  { key: 'rest', label: 'Rest' },
-];
-
-// ── Label helpers ─────────────────────────────────────
-const RUN_TYPE_LABELS = {
-  easy: 'Easy Run', tempo: 'Tempo', interval: 'Intervals', intervals: 'Intervals',
-  long_run: 'Long Run', recovery: 'Recovery', fartlek: 'Fartlek', race: 'Race',
-  shakeout: 'Shakeout', strides: 'Strides', progression: 'Progression',
-  'easy run': 'Easy Run', 'long run': 'Long Run', 'tempo run': 'Tempo',
-  'speed work': 'Speed Work', 'hill repeats': 'Hill Repeats',
+// ── Label helpers ────────────────────────────────────────
+const RUN_LABELS = {
+  easy:'Easy Run',tempo:'Tempo',interval:'Intervals',intervals:'Intervals',
+  long_run:'Long Run',recovery:'Recovery',fartlek:'Fartlek',race:'Race',
+  shakeout:'Shakeout',strides:'Strides',progression:'Progression',
+  'easy run':'Easy Run','long run':'Long Run','tempo run':'Tempo',
+  'speed work':'Speed Work','hill repeats':'Hill Repeats',
 };
-
-const REST_TYPE_LABELS = {
-  full_rest: 'Rest Day', off_running: 'No Running', off_lifting: 'No Lifting',
-  active_recovery: 'Active Recovery', rest: 'Rest Day', 'full rest': 'Rest Day',
-};
-
-function formatRunType(runType) {
-  if (!runType) return 'Run';
-  const lower = runType.toLowerCase().replace(/_/g, ' ');
-  if (RUN_TYPE_LABELS[lower]) return RUN_TYPE_LABELS[lower];
-  const underscored = runType.toLowerCase().replace(/\s+/g, '_');
-  if (RUN_TYPE_LABELS[underscored]) return RUN_TYPE_LABELS[underscored];
-  return runType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+function fmtRun(t) {
+  if (!t) return 'Run';
+  const k = t.toLowerCase().replace(/_/g,' ');
+  return RUN_LABELS[k] || t.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+function fmtRest(t) {
+  const m = {full_rest:'Rest Day',off_running:'No Running',off_lifting:'No Lifting',active_recovery:'Active Recovery'};
+  return m[t] || m[t?.toLowerCase()] || 'Rest Day';
 }
 
-function formatRestType(restType) {
-  if (!restType) return 'Rest Day';
-  const lower = restType.toLowerCase().replace(/_/g, ' ');
-  if (REST_TYPE_LABELS[lower]) return REST_TYPE_LABELS[lower];
-  const underscored = restType.toLowerCase().replace(/\s+/g, '_');
-  if (REST_TYPE_LABELS[underscored]) return REST_TYPE_LABELS[underscored];
-  return restType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+// ── ISO week key ─────────────────────────────────────────
+function isoWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const w1 = new Date(d.getFullYear(), 0, 4);
+  const n  = 1 + Math.round(((d - w1) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7);
+  return `${d.getFullYear()}-W${String(n).padStart(2,'0')}`;
 }
 
-export default function TrainingLog() {
+// ── Main ────────────────────────────────────────────────
+export default function LogPage() {
   const { workouts, saveWorkout, isLoaded } = useWorkouts();
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [selectedWorkout, setSelectedWorkout] = useState(null);
-  const [showNewForm, setShowNewForm] = useState(false);
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [showPast, setShowPast] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
+  // If ?start= is in the URL, open LogForm immediately for that workout
+  const startId = searchParams?.get('start');
+  const startWorkout = startId ? workouts.find(w => w.id === startId) : null;
+
+  const [showLogForm,      setShowLogForm]      = useState(!!startId);
+  const [logFormWorkout,   setLogFormWorkout]   = useState(startWorkout || null);
+  const [selectedWorkout,  setSelectedWorkout]  = useState(null);
+  const [typeFilter,       setTypeFilter]       = useState('all');
+  const [dateFrom,         setDateFrom]         = useState('');
+  const [dateTo,           setDateTo]           = useState('');
+  const [showFilters,      setShowFilters]       = useState(false);
+  const [showPastWeeks,    setShowPastWeeks]    = useState(false);
+  const [sortDesc,         setSortDesc]         = useState(true);
+
+  // Sync startWorkout once workouts load
+  useEffect(() => {
+    if (startId && workouts.length > 0 && !logFormWorkout) {
+      const w = workouts.find(w => w.id === startId);
+      if (w) { setLogFormWorkout(w); setShowLogForm(true); }
+    }
+  }, [startId, workouts]);
+
+  // ── Filtered + sorted workouts ────────────────────────
   const filtered = useMemo(() => {
     return workouts
       .filter(w => {
         if (typeFilter !== 'all' && w.type !== typeFilter) return false;
+        if (w.status === 'planned') return false; // history only shows logged sessions
         if (dateFrom && w.date < dateFrom) return false;
-        if (dateTo && w.date > dateTo) return false;
+        if (dateTo   && w.date > dateTo)   return false;
         return true;
       })
-      .sort((a, b) => sortOrder === 'desc'
+      .sort((a, b) => sortDesc
         ? b.date.localeCompare(a.date)
-        : a.date.localeCompare(b.date)
-      );
-  }, [workouts, typeFilter, dateFrom, dateTo, sortOrder]);
+        : a.date.localeCompare(b.date));
+  }, [workouts, typeFilter, dateFrom, dateTo, sortDesc]);
 
-  const allRows = useMemo(() => buildTableRows(filtered, sortOrder), [filtered, sortOrder]);
+  // ── Group by ISO week ──────────────────────────────────
+  const { currentWeekKey, weekGroups } = useMemo(() => {
+    const today = new Date().toLocaleDateString('en-CA');
+    const cwk   = isoWeek(today);
 
-  const { currentAndFutureRows, pastRows } = useMemo(() => {
-    const currentWeekKey = getISOWeek(new Date().toLocaleDateString('en-CA'));
-    let hitPast = false;
-    const current = [];
-    const past = [];
-    allRows.forEach(row => {
-      if (row.isSummary && row.isPast) hitPast = true;
-      if (hitPast) { past.push(row); } else { current.push(row); }
+    const map = {};
+    filtered.forEach(w => {
+      const k = isoWeek(w.date);
+      if (!map[k]) map[k] = [];
+      map[k].push(w);
     });
-    return { currentAndFutureRows: current, pastRows: past };
-  }, [allRows]);
 
-  const tableRows = showPast ? [...currentAndFutureRows, ...pastRows] : currentAndFutureRows;
+    // Sort week keys: current first, then future desc, then past desc
+    const keys = Object.keys(map).sort((a, b) => {
+      if (a === cwk) return -1;
+      if (b === cwk) return  1;
+      return b.localeCompare(a);
+    });
 
+    const groups = keys.map(k => {
+      const wks    = map[k];
+      const done   = wks.filter(w => w.status === 'completed');
+      const runs   = done.filter(w => w.type === 'run');
+      const lifts  = done.filter(w => w.type === 'lift');
+      const miles  = runs.reduce((s,w) => s+(w.details?.actualDistance||0), 0);
+      const vol    = lifts.reduce((s,w) => s+(w.details?.totalVolume||0), 0);
+      const dates  = wks.map(w => w.date).sort();
+      const label  = k === cwk
+        ? `This week · ${formatDate(dates[0])}`
+        : `Week of ${formatDate(dates[0])}`;
+      return { key:k, workouts:wks, label, miles, vol,
+               runCount:runs.length, liftCount:lifts.length,
+               sessionCount:done.length, isPast: k < cwk };
+    });
+
+    return { currentWeekKey:cwk, weekGroups:groups };
+  }, [filtered]);
+
+  const currentGroups = weekGroups.filter(g => !g.isPast);
+  const pastGroups    = weekGroups.filter(g => g.isPast);
+
+  // ── Stats across all filtered completed workouts ──────
   const stats = useMemo(() => {
-    const f = filtered.filter(w => w.status === 'completed');
-    const runs = f.filter(w => w.type === 'run');
-    const lifts = f.filter(w => w.type === 'lift');
+    const done  = filtered.filter(w => w.status === 'completed');
+    const runs  = done.filter(w => w.type === 'run');
+    const lifts = done.filter(w => w.type === 'lift');
     return {
-      total: filtered.length,
-      completed: f.length,
-      totalMiles: runs.reduce((s, w) => s + (w.details.actualDistance || 0), 0).toFixed(1),
-      totalVolume: lifts.reduce((s, w) => s + (w.details.totalVolume || 0), 0),
+      total:   filtered.length,
+      miles:   runs.reduce((s,w) => s+(w.details?.actualDistance||0), 0).toFixed(1),
+      volume:  lifts.reduce((s,w) => s+(w.details?.totalVolume||0), 0),
+      sessions:done.length,
     };
   }, [filtered]);
 
   function handleSave(data) {
     saveWorkout(data);
     setSelectedWorkout(null);
-    setShowNewForm(false);
+    setShowLogForm(false);
+    setLogFormWorkout(null);
+    // Clear the ?start= param without full navigation
+    if (startId) router.replace('/log');
   }
 
-  function clearFilters() {
-    setTypeFilter('all');
-    setDateFrom('');
-    setDateTo('');
+  function openNewLog() {
+    setLogFormWorkout(null);
+    setShowLogForm(true);
   }
 
-  const hasActiveFilters = typeFilter !== 'all' || dateFrom || dateTo;
+  const hasFilters = typeFilter !== 'all' || dateFrom || dateTo;
 
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-tertiary text-sm">Loading...</p>
-      </div>
-    );
-  }
+  if (!isLoaded) return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <p className="text-tertiary text-sm">Loading…</p>
+    </div>
+  );
 
   return (
-  <div className="pb-24">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="bc-caption uppercase tracking-wider mb-0">Training Log</h2>
-        <button onClick={() => setShowNewForm(true)}
-          className="px-3 py-1.5 bg-bc-blue text-white text-xs font-semibold
+    <div className="pb-24">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-[15px] font-bold text-primary">Training Log</h2>
+        <button onClick={openNewLog}
+          className="flex items-center gap-1.5 px-4 py-2 bg-bc-blue text-white text-xs font-semibold
                      rounded-[10px] hover:opacity-90 active:scale-95 transition-all min-h-[44px]">
-          + Log Workout
+          <Plus size={14}/> Log Workout
         </button>
       </div>
 
-      {/* Filter bar */}
-      <div className="bc-card p-4 mb-4">
-        <div className="bc-tab-bar w-full mb-3">
-          {FILTERS.map(f => {
-            const isActive = typeFilter === f.key;
-            return (
-              <button key={f.key} onClick={() => setTypeFilter(f.key)}
-                className="bc-tab flex-1"
-                style={{
-                  background:   isActive ? '#007AFF' : 'transparent',
-                  color:        isActive ? '#FFFFFF' : '#8E8E93',
-                  fontWeight:   isActive ? 600 : 500,
-                  borderRadius: '10px',
-                }}>
-                {f.label}
-              </button>
-            );
-          })}
+      {/* ── Quick stats ── */}
+      {stats.sessions > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[
+            { label:'Sessions', value:stats.sessions,           color:'text-primary'      },
+            { label:'Miles',    value:`${stats.miles} mi`,      color:'text-run-accent',  hide: stats.miles === '0.0' },
+            { label:'Volume',   value:formatVolume(stats.volume),color:'text-lift-accent', hide: stats.volume === 0 },
+          ].filter(s => !s.hide).map(s => (
+            <div key={s.label} className="bc-card py-2.5 px-3 text-center">
+              <p className={`text-[15px] font-bold ${s.color}`} style={{fontVariantNumeric:'tabular-nums'}}>{s.value}</p>
+              <p className="text-[9px] text-tertiary uppercase tracking-wider mt-0.5">{s.label}</p>
+            </div>
+          ))}
         </div>
+      )}
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="bc-input !py-1.5 !text-xs min-w-0 flex-1" />
-          <span className="text-tertiary text-xs flex-shrink-0">to</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="bc-input !py-1.5 !text-xs min-w-0 flex-1" />
-          <button onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-            className="px-2 py-1.5 text-xs text-secondary hover:text-primary flex-shrink-0
-                       bg-surface-alt rounded-[10px] border border-border transition-colors min-h-[36px]">
-            {sortOrder === 'desc' ? '↓ Newest' : '↑ Oldest'}
+      {/* ── Filter strip ── */}
+      <div className="mb-4">
+        {/* Type pills + filter toggle */}
+        <div className="flex items-center gap-2">
+          {/* Type pills */}
+          <div className="flex gap-1 flex-1">
+            {['all','run','lift','cardio'].map(t => (
+              <button key={t} onClick={() => setTypeFilter(t)}
+                className={`px-3 py-1.5 rounded-[8px] text-[11px] font-semibold transition-all capitalize min-h-[36px] flex-1 ${
+                  typeFilter === t
+                    ? 'bg-bc-blue text-white'
+                    : 'bg-canvas border border-border text-tertiary hover:text-secondary'
+                }`}>
+                {t === 'all' ? 'All' : t.charAt(0).toUpperCase()+t.slice(1)+'s'}
+              </button>
+            ))}
+          </div>
+          {/* Filter expand toggle */}
+          <button onClick={() => setShowFilters(v => !v)}
+            className={`w-9 h-9 rounded-[8px] flex items-center justify-center border transition-colors ${
+              hasFilters ? 'bg-bc-blue border-bc-blue text-white' : 'bg-canvas border-border text-tertiary hover:text-secondary'
+            }`}>
+            <SlidersHorizontal size={14}/>
+          </button>
+          {/* Sort toggle */}
+          <button onClick={() => setSortDesc(v => !v)}
+            className="w-9 h-9 rounded-[8px] flex items-center justify-center border border-border bg-canvas text-tertiary hover:text-secondary transition-colors">
+            <TrendingUp size={14} className={sortDesc ? '' : 'rotate-180'}/>
           </button>
         </div>
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-          <div className="flex items-center gap-3 text-xs text-tertiary flex-wrap">
-            <span><span className="bc-data text-primary">{stats.total}</span> entries</span>
-            <span><span className="bc-data text-primary">{stats.completed}</span> completed</span>
-            {stats.totalMiles !== '0.0' && (
-              <span><span className="bc-data text-run-accent">{stats.totalMiles}</span> mi</span>
-            )}
-            {stats.totalVolume > 0 && (
-              <span><span className="bc-data text-lift-accent">{formatVolume(stats.totalVolume)}</span></span>
-            )}
-          </div>
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="text-xs text-bc-blue hover:underline flex-shrink-0">Clear</button>
-          )}
-        </div>
-      </div>
-
-      {pastRows.length > 0 && (
-        <button onClick={() => setShowPast(!showPast)}
-          className="flex items-center gap-2 text-xs text-tertiary hover:text-secondary transition-colors mb-3 min-h-[44px]">
-          {showPast ? '▲ Hide' : '▼ Show'} past weeks
-          <span className="bc-data text-[10px]">
-            ({pastRows.filter(r => r.isSummary).length} week{pastRows.filter(r => r.isSummary).length !== 1 ? 's' : ''})
-          </span>
-        </button>
-      )}
-
-      <div className="bc-card-flush">
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                {['Date', 'Type', '', 'Details', 'Key Metric', 'RPE', 'Notes'].map((h, i) => (
-                  <th key={i} className="text-left text-[10px] uppercase tracking-wider text-tertiary font-semibold px-4 py-3 first:pl-4">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((row, i) =>
-                row.isSummary
-                  ? <WeeklySummaryRow key={`summary-${i}`} summary={row} />
-                  : <WorkoutRow key={row.workout.id} workout={row.workout} onClick={() => setSelectedWorkout(row.workout)} />
+        {/* Expanded filters */}
+        {showFilters && (
+          <div className="mt-2 p-3 bg-canvas border border-border rounded-[12px]">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <label className="text-[9px] text-tertiary uppercase tracking-wider block mb-1">From</label>
+                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                  className="bc-input !py-1.5 !text-xs w-full"/>
+              </div>
+              <div className="flex-1">
+                <label className="text-[9px] text-tertiary uppercase tracking-wider block mb-1">To</label>
+                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                  className="bc-input !py-1.5 !text-xs w-full"/>
+              </div>
+              {hasFilters && (
+                <button onClick={() => { setTypeFilter('all'); setDateFrom(''); setDateTo(''); }}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[10px] text-bc-red hover:opacity-70 mt-4">
+                  <X size={10}/> Clear
+                </button>
               )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="md:hidden">
-          {tableRows.map((row, i) =>
-            row.isSummary
-              ? <MobileSummaryCard key={`summary-${i}`} summary={row} />
-              : <MobileWorkoutCard key={row.workout.id} workout={row.workout} onClick={() => setSelectedWorkout(row.workout)} />
-          )}
-        </div>
-
-        {allRows.length === 0 && (
-          <div className="bc-empty">
-            <p className="bc-empty-title">No workouts match your filters.</p>
-            <button onClick={clearFilters} className="text-bc-blue text-sm mt-2 hover:underline">Clear filters</button>
+            </div>
           </div>
         )}
       </div>
 
-      <WorkoutDetailModal workout={selectedWorkout} onClose={() => setSelectedWorkout(null)} onSave={handleSave} />
-      {showNewForm && <LogForm workout={null} onSave={handleSave} onClose={() => setShowNewForm(false)} />}
+      {/* ── Empty state ── */}
+      {weekGroups.length === 0 && (
+        <div className="bc-card bc-empty py-16">
+          <Calendar size={32} className="text-tertiary mb-3"/>
+          <p className="bc-empty-title">No workouts logged yet</p>
+          <p className="bc-empty-text mb-4">Activate a plan or log your first session to get started.</p>
+          <button onClick={openNewLog}
+            className="flex items-center gap-1.5 px-4 py-2 bg-bc-blue text-white text-xs font-semibold rounded-[10px] active:scale-95 transition-all">
+            <Plus size={12}/> Log First Workout
+          </button>
+        </div>
+      )}
+
+      {/* ── Current week + future ── */}
+      <div className="space-y-1">
+        {currentGroups.map(group => (
+          <WeekGroup key={group.key} group={group} onWorkoutClick={setSelectedWorkout}/>
+        ))}
+      </div>
+
+      {/* ── Past weeks toggle ── */}
+      {pastGroups.length > 0 && (
+        <div className="mt-3">
+          <button onClick={() => setShowPastWeeks(v => !v)}
+            className="flex items-center justify-between w-full px-4 py-3 bc-card-flush hover:bg-canvas transition-colors min-h-[44px]">
+            <div className="flex items-center gap-2">
+              {showPastWeeks ? <ChevronUp size={12} className="text-tertiary"/> : <ChevronDown size={12} className="text-tertiary"/>}
+              <span className="text-xs text-secondary font-semibold">
+                Past weeks ({pastGroups.length})
+              </span>
+              {/* Completion color bars */}
+              <div className="flex gap-0.5 ml-1">
+                {pastGroups.slice(0,8).map(g => {
+                  const rate = g.workouts.length > 0 ? g.sessionCount / g.workouts.length : 0;
+                  return (
+                    <span key={g.key} className="w-4 h-1.5 rounded-full"
+                      style={{background: rate>=0.8?'#34C759':rate>=0.5?'#FF9500':'#FF3B30'}}/>
+                  );
+                })}
+              </div>
+            </div>
+            <span className="text-[10px] text-tertiary">
+              {pastGroups.reduce((s,g)=>s+g.sessionCount,0)} sessions
+            </span>
+          </button>
+
+          {showPastWeeks && (
+            <div className="space-y-1 mt-1">
+              {pastGroups.map(group => (
+                <WeekGroup key={group.key} group={group} onWorkoutClick={setSelectedWorkout} isPast/>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Modals ── */}
+      <WorkoutDetailModal
+        workout={selectedWorkout}
+        onClose={() => setSelectedWorkout(null)}
+        onSave={handleSave}
+      />
+
+      {showLogForm && (
+        <LogForm
+          workout={logFormWorkout}
+          onSave={handleSave}
+          onClose={() => {
+            setShowLogForm(false);
+            setLogFormWorkout(null);
+            if (startId) router.replace('/log');
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function WorkoutRow({ workout, onClick }) {
-  const { date, type, status, details } = workout;
-  const typeInfo = TYPE_CONFIG[type] || TYPE_CONFIG.other;
-  let detailText = '';
-  let keyMetric = '';
-  let keyMetricColor = 'text-primary';
-  let rpe = details.rpe;
-
-  if (type === 'run') {
-    // Use runDescription if available, otherwise normalize runType
-    detailText = details.runDescription && details.runDescription !== details.runType
-      ? details.runDescription
-      : formatRunType(details.runType);
-    if (status === 'completed' && details.actualPace) {
-      keyMetric = `${details.actualDistance || ''} mi @ ${details.actualPace}`;
-      const comparison = comparePaces(details.actualPace, details.targetPace);
-      if (comparison) keyMetricColor = comparison.color;
-    } else {
-      keyMetric = `${details.plannedDistance || ''} mi @ ${details.targetPace || ''}`;
-      keyMetricColor = 'text-secondary';
-    }
-  }
-
-  if (type === 'lift') {
-    detailText = details.sessionName || summarizeExercises(details.exercises || [], 2);
-    const volStr = details.totalVolume ? formatVolume(details.totalVolume) : null;
-    const durStr = details.duration ? `${details.duration}m` : null;
-    keyMetric = [volStr, durStr].filter(Boolean).join(' · ') || '—';
-    keyMetricColor = 'text-lift-accent';
-    if (!rpe && details.exercises) {
-      const allRpe = details.exercises.flatMap(e =>
-        (Array.isArray(e.sets) ? e.sets : []).filter(s => s.rpe != null).map(s => s.rpe)
-      );
-      if (allRpe.length > 0) rpe = Math.round(allRpe.reduce((a, b) => a + b, 0) / allRpe.length);
-    }
-  }
-
-  if (type === 'cardio') {
-    detailText = details.activityType || 'Cardio';
-    keyMetric = details.duration ? `${details.duration} min` : '—';
-    rpe = details.rpe;
-  }
-
-  if (type === 'rest') {
-    detailText = formatRestType(details.restType); // ← FIXED
-    keyMetric = '—';
-  }
+// ── Week group component ────────────────────────────────
+function WeekGroup({ group, onWorkoutClick, isPast = false }) {
+  const [expanded, setExpanded] = useState(!isPast);
 
   return (
-    <tr onClick={onClick}
-      className={`border-b border-border/50 transition-colors cursor-pointer hover:bg-surface-alt ${status === 'skipped' ? 'opacity-50' : ''}`}>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[status] || STATUS_DOT.planned}`} />
-          <span className="text-sm text-primary">{formatDate(date)}</span>
+    <div className="bc-card-flush">
+      {/* Week header */}
+      <button onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-canvas transition-colors min-h-[44px]">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[11px] font-bold text-secondary truncate">{group.label}</span>
+          {group.runCount > 0 && (
+            <span className="text-[10px] text-run-accent font-semibold">{group.miles}mi</span>
+          )}
+          {group.liftCount > 0 && (
+            <span className="text-[10px] text-lift-accent font-semibold">{formatVolume(group.vol)}</span>
+          )}
         </div>
-      </td>
-      <td className="px-3 py-3 text-center">
-        <div className={`bc-pill ${typeInfo.bg} ${typeInfo.color} inline-flex`}>
-          <typeInfo.Icon size={14} strokeWidth={2} />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[10px] text-tertiary">{group.sessionCount} done</span>
+          {expanded ? <ChevronUp size={12} className="text-tertiary"/> : <ChevronDown size={12} className="text-tertiary"/>}
         </div>
-      </td>
-      <td className="px-3 py-3 text-center">
-        {status === 'completed' && <span className="text-bc-green-dark text-xs">✓</span>}
-        {status === 'skipped'   && <span className="text-bc-red text-xs">✗</span>}
-        {status === 'planned'   && <span className="text-tertiary text-xs">—</span>}
-      </td>
-      <td className="px-4 py-3">
-        <span className="text-sm text-primary">{detailText}</span>
-        {type === 'lift' && details.muscleGroups && (
-          <div className="flex gap-1 mt-1">
-            {details.muscleGroups.slice(0, 3).map(mg => (
-              <span key={mg} className="text-[10px] text-tertiary">{mg}</span>
+      </button>
+
+      {/* Workout cards */}
+      {expanded && (
+        <div className="border-t border-border/50">
+          {[...group.workouts]
+            .filter(w => w.status !== 'planned') // never show planned in log
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .map(w => (
+              <WorkoutCard key={w.id} workout={w} onClick={() => onWorkoutClick(w)}/>
             ))}
-          </div>
-        )}
-        {type === 'run' && details.phase && (
-          <span className="text-[10px] text-tertiary ml-2">{details.phase.replace(/Phase \d+: /, '')}</span>
-        )}
-      </td>
-      <td className={`px-4 py-3 text-right bc-data text-sm ${keyMetricColor}`}>{keyMetric}</td>
-      <td className="px-3 py-3 text-center">
-        {rpe != null
-          ? <span className={`bc-data text-xs ${rpe <= 4 ? 'text-run-accent' : rpe <= 7 ? 'text-bc-orange' : 'text-bc-red'}`}>{rpe}</span>
-          : <span className="text-tertiary text-xs">—</span>}
-      </td>
-      <td className="px-4 py-3">
-        <span className="text-xs text-secondary truncate block max-w-[160px]">{details.notes || '—'}</span>
-      </td>
-    </tr>
+        </div>
+      )}
+    </div>
   );
 }
 
-function WeeklySummaryRow({ summary }) {
-  return (
-    <tr className="bg-surface-alt border-b border-border">
-      <td colSpan={2} className="px-4 py-2.5">
-        <span className="bc-caption uppercase tracking-wider text-tertiary">{summary.label}</span>
-      </td>
-      <td className="px-3 py-2.5 text-center">
-        <span className="bc-data text-xs text-primary">{summary.workoutCount}</span>
-      </td>
-      <td className="px-4 py-2.5">
-        <div className="flex gap-3 text-xs">
-          {summary.runCount > 0 && <span className="text-run-accent">{summary.runCount} run{summary.runCount !== 1 ? 's' : ''}</span>}
-          {summary.liftCount > 0 && <span className="text-lift-accent">{summary.liftCount} lift{summary.liftCount !== 1 ? 's' : ''}</span>}
-          {summary.skippedCount > 0 && <span className="text-bc-red">{summary.skippedCount} skipped</span>}
-        </div>
-      </td>
-      <td className="px-4 py-2.5 text-right">
-        <div className="flex flex-col items-end gap-0.5">
-          {summary.totalMiles > 0 && <span className="bc-data text-xs text-run-accent">{summary.totalMiles.toFixed(1)} mi</span>}
-          {summary.totalVolume > 0 && <span className="bc-data text-xs text-lift-accent">{formatVolume(summary.totalVolume)}</span>}
-        </div>
-      </td>
-      <td className="px-3 py-2.5 text-center">
-        {summary.avgRpe != null && <span className="bc-data text-xs text-secondary">{summary.avgRpe}</span>}
-      </td>
-      <td className="px-4 py-2.5" />
-    </tr>
-  );
-}
-
-function MobileWorkoutCard({ workout, onClick }) {
+// ── Individual workout card ─────────────────────────────
+function WorkoutCard({ workout, onClick }) {
   const { date, type, status, details } = workout;
-  const typeInfo = TYPE_CONFIG[type] || TYPE_CONFIG.other;
-  let title = '';
+  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.other;
+  const Icon = cfg.Icon;
+  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.planned;
+  const skipped = status === 'skipped';
+
+  // Build title and metric
+  let title  = '';
   let metric = '';
   let metricColor = 'text-primary';
+  let sub    = '';
 
   if (type === 'run') {
-    // Use runDescription if set, otherwise normalize runType
     title = (details.runDescription && details.runDescription !== details.runType)
-      ? details.runDescription
-      : formatRunType(details.runType); // ← FIXED
+      ? details.runDescription : fmtRun(details.runType);
     if (status === 'completed' && details.actualPace) {
-      metric = `${details.actualDistance} mi @ ${details.actualPace}`;
-      const comparison = comparePaces(details.actualPace, details.targetPace);
-      if (comparison) metricColor = comparison.color;
-    } else {
-      metric = `${details.plannedDistance} mi`;
+      metric = `${details.actualDistance ?? ''} mi @ ${details.actualPace}`;
+      const cmp = comparePaces(details.actualPace, details.targetPace);
+      if (cmp) metricColor = cmp.color;
+    } else if (details.plannedDistance) {
+      metric = `${details.plannedDistance} mi planned`;
       metricColor = 'text-secondary';
     }
+    if (details.phase) sub = details.phase;
   } else if (type === 'lift') {
-    title = details.sessionName || 'Lift';
-    // Show volume if available, otherwise exercise count + duration
+    title = details.sessionName || 'Lift Session';
     if (details.totalVolume) {
       metric = formatVolume(details.totalVolume);
+      metricColor = 'text-lift-accent';
       if (details.duration) metric += ` · ${details.duration}m`;
-    } else {
-      metric = `${(details.exercises || []).length} exercises`;
-      if (details.duration) metric += ` · ${details.duration}m`;
+    } else if ((details.exercises||[]).length > 0) {
+      metric = `${details.exercises.length} exercises`;
+      metricColor = 'text-lift-accent';
     }
-    metricColor = 'text-lift-accent';
+    if (details.muscleGroups?.length) sub = details.muscleGroups.slice(0,3).join(' · ');
   } else if (type === 'rest') {
-    title = formatRestType(details.restType); // ← FIXED
+    title = fmtRest(details.restType);
     metric = '';
   } else {
     title = details.activityType || 'Workout';
@@ -412,92 +437,45 @@ function MobileWorkoutCard({ workout, onClick }) {
 
   return (
     <button onClick={onClick}
-      className={`w-full text-left flex items-center justify-between p-4 border-b border-border/50 transition-colors hover:bg-surface-alt ${status === 'skipped' ? 'opacity-50' : ''}`}>
-      <div className="flex items-center gap-3">
-        <div className="flex flex-col items-center w-8">
-          <span className={`w-1.5 h-1.5 rounded-full mb-1 ${STATUS_DOT[status] || STATUS_DOT.planned}`} />
-          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${typeInfo.bg}`}>
-            <typeInfo.Icon size={14} className={typeInfo.color} strokeWidth={2} />
-          </div>
+      className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-border/40
+                  hover:bg-surface transition-colors last:border-b-0 ${skipped?'opacity-40':''}`}>
+      {/* Status dot + type icon */}
+      <div className="flex flex-col items-center gap-1 flex-shrink-0 w-8">
+        <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`}/>
+        <div className={`w-7 h-7 rounded-[8px] flex items-center justify-center ${cfg.bg}`}>
+          <Icon size={14} className={cfg.text} strokeWidth={2}/>
         </div>
-        <div>
-          <p className="text-sm font-medium text-primary">{title}</p>
-          <p className="text-xs text-secondary">{formatDate(date)}</p>
-          {details.notes && (
-            <p className="text-[11px] text-tertiary mt-0.5 truncate max-w-[180px]">{details.notes}</p>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-sm font-semibold text-primary truncate">{title}</p>
+          {metric && (
+            <p className={`text-sm font-bold flex-shrink-0 ${metricColor}`}
+               style={{fontVariantNumeric:'tabular-nums'}}>{metric}</p>
           )}
         </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-tertiary">{formatDate(date)}</span>
+          {sub && <span className="text-[10px] text-tertiary">· {sub}</span>}
+          {details.rpe != null && (
+            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+              details.rpe<=4 ? 'bg-run-bg text-run-accent' :
+              details.rpe<=7 ? 'bg-bc-orange-light text-bc-orange-dark' :
+              'bg-bc-red-light text-bc-red-dark'
+            }`}>RPE {details.rpe}</span>
+          )}
+        </div>
+        {details.notes && (
+          <p className="text-[10px] text-tertiary mt-0.5 truncate italic">{details.notes}</p>
+        )}
       </div>
-      <div className="text-right flex-shrink-0 ml-3">
-        {metric && <p className={`bc-data text-sm ${metricColor}`}>{metric}</p>}
-        {details.rpe != null && <p className="text-[10px] text-tertiary mt-0.5">RPE {details.rpe}</p>}
-      </div>
+
+      {/* Skipped indicator */}
+      {skipped && (
+        <span className="text-[10px] text-bc-red font-semibold flex-shrink-0">Skipped</span>
+      )}
     </button>
   );
-}
-
-function MobileSummaryCard({ summary }) {
-  return (
-    <div className="bg-surface-alt px-4 py-3 border-b border-border">
-      <div className="flex items-center justify-between">
-        <span className="bc-caption uppercase tracking-wider text-tertiary">{summary.label}</span>
-        <div className="flex gap-3 text-xs">
-          {summary.totalMiles > 0 && <span className="bc-data text-run-accent">{summary.totalMiles.toFixed(1)} mi</span>}
-          {summary.totalVolume > 0 && <span className="bc-data text-lift-accent">{formatVolume(summary.totalVolume)}</span>}
-          <span className="text-tertiary">{summary.workoutCount} sessions</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function buildTableRows(workouts, sortOrder) {
-  if (workouts.length === 0) return [];
-  const currentWeekKey = getISOWeek(new Date().toLocaleDateString('en-CA'));
-  const weeks = {};
-  workouts.forEach(w => {
-    const weekKey = getISOWeek(w.date);
-    if (!weeks[weekKey]) weeks[weekKey] = [];
-    weeks[weekKey].push(w);
-  });
-  const weekKeys = Object.keys(weeks).sort();
-  const orderedKeys = [
-    ...weekKeys.filter(k => k === currentWeekKey),
-    ...weekKeys.filter(k => k > currentWeekKey).sort(),
-    ...weekKeys.filter(k => k < currentWeekKey).sort().reverse(),
-  ];
-  const rows = [];
-  orderedKeys.forEach(weekKey => {
-    const weekWorkouts = weeks[weekKey];
-    const isCurrent = weekKey === currentWeekKey;
-    const isPast = weekKey < currentWeekKey;
-    const completed = weekWorkouts.filter(w => w.status === 'completed');
-    const runs = completed.filter(w => w.type === 'run');
-    const lifts = completed.filter(w => w.type === 'lift');
-    const skipped = weekWorkouts.filter(w => w.status === 'skipped');
-    const totalMiles = runs.reduce((s, w) => s + (w.details.actualDistance || 0), 0);
-    const totalVolume = lifts.reduce((s, w) => s + (w.details.totalVolume || 0), 0);
-    const allRpe = completed.map(w => w.details.rpe).filter(r => r != null);
-    const avgRpe = allRpe.length > 0 ? Math.round(allRpe.reduce((a, b) => a + b, 0) / allRpe.length * 10) / 10 : null;
-    const dates = weekWorkouts.map(w => w.date).sort();
-    rows.push({
-      isSummary: true,
-      label: isCurrent ? `This Week (${formatDate(dates[0])})` : `Week of ${formatDate(dates[0])}`,
-      isCurrent, isPast,
-      workoutCount: weekWorkouts.length,
-      runCount: runs.length, liftCount: lifts.length, skippedCount: skipped.length,
-      totalMiles, totalVolume, avgRpe,
-    });
-    [...weekWorkouts].sort((a, b) => a.date.localeCompare(b.date)).forEach(w => rows.push({ isSummary: false, workout: w }));
-  });
-  return rows;
-}
-
-function getISOWeek(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const week1 = new Date(d.getFullYear(), 0, 4);
-  const weekNum = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
-  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }

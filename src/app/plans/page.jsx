@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { savePlan, getActivePlan, addWorkoutsBatch } from '@/lib/database';
 import { useWorkouts } from '@/lib/WorkoutContext';
@@ -58,6 +59,7 @@ function useInsightsCollapsed() {
 
 export default function PlansPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const { refresh, workouts: allWorkouts, saveWorkout, rescheduleWorkout, isLoaded } = useWorkouts();
 
   const [view,           setView]           = useState('loading');
@@ -672,7 +674,7 @@ export default function PlansPage() {
                               <div className="w-1 self-stretch rounded-full bg-run-accent flex-shrink-0 min-h-[16px]"/>
                               <span className="text-[10px] font-bold uppercase tracking-wide text-run-accent">{getRunLabel(run.details?.runType)}</span>
                             </div>
-                            <button onClick={()=>(rs==='completed'||rs==='skipped')?setSelectedWorkout(run):setLogTarget(run)}
+                            <button onClick={()=>(rs==='completed'||rs==='skipped')?setSelectedWorkout(run):(run.id?router.push(`/log?start=${run.id}`):setLogTarget(run))}
                               className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${rs==='completed'?'bg-bc-green-light text-bc-green-dark':rs==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
                               {rs==='completed'?'✓ Done':rs==='skipped'?'View':'Log It'}
                             </button>
@@ -692,7 +694,7 @@ export default function PlansPage() {
                               <div className="w-1 self-stretch rounded-full bg-lift-accent flex-shrink-0 min-h-[16px]"/>
                               <div><span className="text-xs font-bold text-lift-accent">{lift.details?.sessionName}</span>{lift.details?.duration&&<span className="text-[10px] text-tertiary ml-2">{lift.details.duration} min</span>}</div>
                             </div>
-                            <button onClick={()=>(ls==='completed'||ls==='skipped')?setSelectedWorkout(lift):setLogTarget(lift)}
+                            <button onClick={()=>(ls==='completed'||ls==='skipped')?setSelectedWorkout(lift):(lift.id?router.push(`/log?start=${lift.id}`):setLogTarget(lift))}
                               className={`text-[10px] font-semibold px-2.5 py-1 rounded-[8px] min-h-[32px] transition-all active:scale-95 ${ls==='completed'?'bg-bc-green-light text-bc-green-dark':ls==='skipped'?'bg-bc-red-light text-bc-red-dark':'bg-bc-blue text-white'}`}>
                               {ls==='completed'?'✓ Done':ls==='skipped'?'View':'Log It'}
                             </button>
