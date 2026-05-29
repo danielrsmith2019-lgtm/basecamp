@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import ExerciseSearch from '@/components/shared/ExerciseSearch';
+import ExerciseSearch from '@/components/lifting/ExerciseSearch';
 import WorkoutTimer, { formatTime, estimateCalories } from '@/components/shared/WorkoutTimer';
 import { comparePaces } from '@/utils/runUtils';
 import { calculateLiftVolume } from '@/data/types';
