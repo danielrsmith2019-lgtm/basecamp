@@ -451,9 +451,24 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
           </button>
         </div>
 
-        {/* ── Rest timer — sticky below header when active ── */}
+        {/* ── Rest preset selector — always visible below header ── */}
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-canvas/60 flex-shrink-0">
+          <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider flex-shrink-0 w-7">Rest</span>
+          {[60, 90, 120, 180].map(s => (
+            <button key={s} onClick={() => setRestPreset(s)}
+              className="flex-1 py-1.5 text-[11px] font-semibold rounded-[8px] transition-colors"
+              style={{
+                background: restPreset === s ? '#007AFF' : '#F2F2F7',
+                color:      restPreset === s ? '#fff' : '#3C3C43',
+              }}>
+              {s}s
+            </button>
+          ))}
+        </div>
+
+        {/* ── Rest timer countdown — appears when rest is active ── */}
         {restTimer && restRemaining > 0 && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-b bg-lift-bg/60 flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-bc-blue/20 bg-lift-bg/70 flex-shrink-0">
             <div className="flex items-center gap-2">
               <Timer size={14} className="text-lift-accent" />
               <span className="text-sm font-semibold text-lift-accent">Rest</span>
@@ -510,12 +525,27 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
         {/* ── Sticky bottom bar: volume + Finish ── */}
         <div className="border-t border-border px-4 pt-3 flex items-center gap-3 flex-shrink-0"
           style={{ paddingBottom: 'max(16px, calc(12px + env(safe-area-inset-bottom)))' }}>
-          <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-lift-bg rounded-[12px]">
-            <Flame size={14} className="text-lift-accent flex-shrink-0" />
-            <span className="text-xs font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {liveVolume.sets} sets · {liveVolume.total > 0 ? `${liveVolume.total.toLocaleString()} lbs` : '0 lbs'}
-            </span>
-          </div>
+          {(() => {
+            // Show completed volume if any sets done, otherwise show planned
+            const completedVol = liveVolume.total;
+            const plannedVol   = exercises.reduce((sum, ex) =>
+              sum + (Array.isArray(ex.sets) ? ex.sets : []).reduce((s2, set) =>
+                s2 + (set.weight || set.targetWeight || 0) * (set.reps || set.targetReps || 0), 0), 0);
+            const displayVol  = completedVol > 0 ? completedVol : plannedVol;
+            const volLabel    = completedVol > 0
+              ? `${liveVolume.sets} done · ${completedVol.toLocaleString()} lbs`
+              : totalSetsAll > 0
+              ? `${totalSetsAll} sets planned`
+              : '0 sets';
+            return (
+              <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-lift-bg rounded-[12px]">
+                <Flame size={14} className="text-lift-accent flex-shrink-0" />
+                <span className="text-xs font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {volLabel}
+                </span>
+              </div>
+            );
+          })()}
           <button onClick={handleSave}
             className="px-5 py-3 rounded-[12px] text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform"
             style={{ background: allDone ? '#34C759' : '#007AFF' }}>
@@ -959,10 +989,10 @@ function ExerciseCard({
                       value={set.weight ?? ''}
                       onChange={e => onUpdateSet(exIdx, si, 'weight', e.target.value)}
                       placeholder={set.targetWeight ? String(set.targetWeight) : '0'}
-                      className={`w-12 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
+                      className={`w-14 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
                         set.completed ? 'text-bc-green-dark' : 'text-primary'
                       }`}
-                      style={{ fontSize: 16, fontVariantNumeric: 'tabular-nums' }}
+                      style={{ fontSize: 15, fontVariantNumeric: 'tabular-nums' }}
                     />
                     <button
                       onPointerDown={e => {
@@ -989,10 +1019,10 @@ function ExerciseCard({
                       value={set.reps ?? ''}
                       onChange={e => onUpdateSet(exIdx, si, 'reps', e.target.value)}
                       placeholder={set.targetReps ? String(set.targetReps) : '0'}
-                      className={`w-12 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
+                      className={`w-14 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
                         set.completed ? 'text-bc-green-dark' : 'text-primary'
                       }`}
-                      style={{ fontSize: 16, fontVariantNumeric: 'tabular-nums' }}
+                      style={{ fontSize: 15, fontVariantNumeric: 'tabular-nums' }}
                     />
                     <button
                       onPointerDown={e => {
@@ -1036,20 +1066,6 @@ function ExerciseCard({
                   Remove
                 </button>
               )}
-            </div>
-            {/* Rest timer presets — shown once per card */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider flex-shrink-0">Rest</span>
-              {[60, 90, 120, 180].map(s => (
-                <button key={s} onClick={() => setRestPreset(s)}
-                  className="flex-1 py-1.5 text-[11px] font-semibold rounded-[8px] transition-colors"
-                  style={{
-                    background: restPreset === s ? '#007AFF' : '#F2F2F7',
-                    color:      restPreset === s ? '#fff' : '#3C3C43',
-                  }}>
-                  {s}s
-                </button>
-              ))}
             </div>
           </div>
         </>
