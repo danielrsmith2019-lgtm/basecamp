@@ -176,9 +176,10 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   const [liftCalories, setLiftCalories] = useState(workout?.details?.caloriesBurned ?? '');
 
   // ── Active lift state ──
-  const [activeExIdx,   setActiveExIdx]   = useState(0);  // which exercise is focused
-  const [restTimer,     setRestTimer]     = useState(null); // null | { seconds, elapsed }
-  const [restPreset,    setRestPreset]    = useState(90);
+  const [activeExIdx,      setActiveExIdx]      = useState(0);
+  const [restTimer,        setRestTimer]        = useState(null);
+  const [restPreset,       setRestPreset]       = useState(90);
+  const [showAddExercise,  setShowAddExercise]  = useState(false);
   const restIntervalRef = useRef(null);
 
   // ── Cardio state ──
@@ -503,9 +504,7 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
                 allExDone={allExDone}
                 nextSetIdx={nextSetIdx}
                 onUpdateSet={updateSet}
-                onCompleteSet={(si) => {
-                  completeSet(exIdx, si);
-                }}
+                onCompleteSet={(si) => { completeSet(exIdx, si); }}
                 onAddSet={() => addSet(exIdx)}
                 onRemoveSet={() => removeSet(exIdx)}
                 restPreset={restPreset}
@@ -515,11 +514,29 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
           })}
 
           {/* ── Add exercise during active session ── */}
-          <button
-            className="w-full py-3 border border-dashed border-border rounded-[14px] text-sm text-tertiary
-                       hover:text-secondary hover:border-secondary transition-colors active:scale-95 flex items-center justify-center gap-1.5">
-            <Plus size={14} /> Add exercise
-          </button>
+          {showAddExercise ? (
+            <div className="bc-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-primary">Add Exercise</p>
+                <button onClick={() => setShowAddExercise(false)}
+                  className="w-7 h-7 rounded-full bg-canvas border border-border flex items-center justify-center text-tertiary">
+                  <X size={13}/>
+                </button>
+              </div>
+              <ExerciseSearch
+                onSelect={ex => { handleAddExercise(ex); setShowAddExercise(false); }}
+                placeholder="Search exercises…"
+                workoutHistory={allWorkouts}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAddExercise(true)}
+              className="w-full py-3 border border-dashed border-border rounded-[14px] text-sm text-tertiary
+                         hover:text-secondary hover:border-secondary transition-colors active:scale-95 flex items-center justify-center gap-1.5">
+              <Plus size={14} /> Add exercise
+            </button>
+          )}
         </div>
 
         {/* ── Sticky bottom bar: volume + Finish ── */}
@@ -974,8 +991,8 @@ function ExerciseCard({
                     </span>
                   </div>
 
-                  {/* Weight input — tap to edit, +/- on sides */}
-                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
+                  {/* Weight input — fills available space between +/- buttons */}
+                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0 px-1">
                     <button
                       onPointerDown={e => {
                         e.preventDefault();
@@ -989,7 +1006,7 @@ function ExerciseCard({
                       value={set.weight ?? ''}
                       onChange={e => onUpdateSet(exIdx, si, 'weight', e.target.value)}
                       placeholder={set.targetWeight ? String(set.targetWeight) : '0'}
-                      className={`w-14 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
+                      className={`min-w-0 w-full text-center font-bold bg-transparent outline-none rounded-[6px] py-1 ${
                         set.completed ? 'text-bc-green-dark' : 'text-primary'
                       }`}
                       style={{ fontSize: 15, fontVariantNumeric: 'tabular-nums' }}
@@ -1005,7 +1022,7 @@ function ExerciseCard({
                   </div>
 
                   {/* Reps input */}
-                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
+                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0 px-1">
                     <button
                       onPointerDown={e => {
                         e.preventDefault();
@@ -1019,7 +1036,7 @@ function ExerciseCard({
                       value={set.reps ?? ''}
                       onChange={e => onUpdateSet(exIdx, si, 'reps', e.target.value)}
                       placeholder={set.targetReps ? String(set.targetReps) : '0'}
-                      className={`w-14 text-center font-bold bg-transparent outline-none rounded-[6px] py-1 min-w-0 ${
+                      className={`min-w-0 w-full text-center font-bold bg-transparent outline-none rounded-[6px] py-1 ${
                         set.completed ? 'text-bc-green-dark' : 'text-primary'
                       }`}
                       style={{ fontSize: 15, fontVariantNumeric: 'tabular-nums' }}
