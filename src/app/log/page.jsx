@@ -1,20 +1,6 @@
 'use client';
 
-/**
- * Log Page — Two distinct surfaces:
- *
- * 1. HISTORY VIEW (default, the Log tab)
- *    Compact card-per-workout, week headers with totals,
- *    collapsed filter strip, tap to open detail modal.
- *
- * 2. ACTIVE WORKOUT (launched from Plan or Home via ?start=workoutId)
- *    Full-screen overlay — delegates entirely to LogForm which
- *    already has set-by-set flow, rest timer, progressive overload.
- *    The overlay renders on top of whatever page triggered it,
- *    but the Log tab also surfaces it if the user navigates here.
- */
-
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { formatDate, comparePaces } from '@/utils/runUtils';
 import { formatVolume } from '@/utils/liftUtils';
@@ -26,6 +12,28 @@ import {
   SlidersHorizontal, X, ChevronDown, ChevronUp,
   Plus, TrendingUp, Calendar,
 } from 'lucide-react';
+
+// useSearchParams must live in a child component wrapped in Suspense
+// to avoid Next.js prerender errors during static generation
+function LogPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const startId = searchParams?.get('start');
+  return <LogPageContent startId={startId} router={router} />;
+}
+
+// Default export wraps the inner component in Suspense
+export default function LogPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <p className="text-tertiary text-sm">Loading…</p>
+      </div>
+    }>
+      <LogPageInner />
+    </Suspense>
+  );
+}
 
 // ── Type config ─────────────────────────────────────────
 const TYPE_CONFIG = {
@@ -69,14 +77,9 @@ function isoWeek(dateStr) {
   return `${d.getFullYear()}-W${String(n).padStart(2,'0')}`;
 }
 
-// ── Main ────────────────────────────────────────────────
-export default function LogPage() {
+// ── Main content component (receives startId + router as props) ────────────
+function LogPageContent({ startId, router }) {
   const { workouts, saveWorkout, isLoaded } = useWorkouts();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
-  // If ?start= is in the URL, open LogForm immediately for that workout
-  const startId = searchParams?.get('start');
   const startWorkout = startId ? workouts.find(w => w.id === startId) : null;
 
   const [showLogForm,      setShowLogForm]      = useState(!!startId);
