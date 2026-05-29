@@ -850,7 +850,7 @@ function ExerciseCard({
   onUpdateSet, onCompleteSet, onAddSet, onRemoveSet,
   restPreset, setRestPreset,
 }) {
-  const [collapsed, setCollapsed] = React.useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const borderColor = allExDone ? '#34C759' : doneCount > 0 ? '#007AFF' : '#E5E5EA';
   const headerBg    = allExDone ? '#F0FFF4' : 'white';
