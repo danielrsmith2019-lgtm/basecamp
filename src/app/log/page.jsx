@@ -139,7 +139,7 @@ function LogPageContent({ startId, router }) {
       const done   = wks.filter(w => w.status === 'completed');
       const runs   = done.filter(w => w.type === 'run');
       const lifts  = done.filter(w => w.type === 'lift');
-      const miles  = runs.reduce((s,w) => s+(w.details?.actualDistance||0), 0);
+      const miles  = parseFloat(runs.reduce((s,w) => s+(w.details?.actualDistance||0), 0).toFixed(1));
       const vol    = lifts.reduce((s,w) => s+(w.details?.totalVolume||0), 0);
       const dates  = wks.map(w => w.date).sort();
       const label  = k === cwk
@@ -209,7 +209,7 @@ function LogPageContent({ startId, router }) {
         <div className="grid grid-cols-3 gap-2 mb-4">
           {[
             { label:'Sessions', value:stats.sessions,           color:'text-primary'      },
-            { label:'Miles',    value:`${stats.miles} mi`,      color:'text-run-accent',  hide: stats.miles === '0.0' },
+            { label:'Miles',    value:`${Number(stats.miles).toFixed(1)} mi`,      color:'text-run-accent',  hide: stats.miles === '0.0' },
             { label:'Volume',   value:formatVolume(stats.volume),color:'text-lift-accent', hide: stats.volume === 0 },
           ].filter(s => !s.hide).map(s => (
             <div key={s.label} className="bc-card py-2.5 px-3 text-center">
@@ -233,7 +233,7 @@ function LogPageContent({ startId, router }) {
                     ? 'bg-bc-blue text-white'
                     : 'bg-canvas border border-border text-tertiary hover:text-secondary'
                 }`}>
-                {t === 'all' ? 'All' : t.charAt(0).toUpperCase()+t.slice(1)+'s'}
+                {t === 'all' ? 'All' : t === 'cardio' ? 'Cardio' : t.charAt(0).toUpperCase()+t.slice(1)+'s'}
               </button>
             ))}
           </div>
@@ -366,7 +366,7 @@ function WeekGroup({ group, onWorkoutClick, isPast = false }) {
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[11px] font-bold text-secondary truncate">{group.label}</span>
           {group.runCount > 0 && (
-            <span className="text-[10px] text-run-accent font-semibold">{group.miles}mi</span>
+            <span className="text-[10px] text-run-accent font-semibold">{Number(group.miles).toFixed(1)}mi</span>
           )}
           {group.liftCount > 0 && (
             <span className="text-[10px] text-lift-accent font-semibold">{formatVolume(group.vol)}</span>
@@ -411,7 +411,7 @@ function WorkoutCard({ workout, onClick }) {
     title = (details.runDescription && details.runDescription !== details.runType)
       ? details.runDescription : fmtRun(details.runType);
     if (status === 'completed' && details.actualPace) {
-      metric = `${details.actualDistance ?? ''} mi @ ${details.actualPace}`;
+      metric = `${details.actualDistance != null ? Number(details.actualDistance).toFixed(1) : ''} mi @ ${details.actualPace}`;
       const cmp = comparePaces(details.actualPace, details.targetPace);
       if (cmp) metricColor = cmp.color;
     } else if (details.plannedDistance) {

@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import ExerciseSearch from '@/components/lifting/ExerciseSearch'
+import ExerciseSearch from '@/components/shared/ExerciseSearch';
 import WorkoutTimer, { formatTime, estimateCalories } from '@/components/shared/WorkoutTimer';
 import { comparePaces } from '@/utils/runUtils';
 import { calculateLiftVolume } from '@/data/types';
@@ -77,6 +77,7 @@ function getLastExerciseData(workouts, exerciseName) {
       weight:       Math.round(avgWeight),
       reps:         Math.round(avgReps),
       sets:         completedSets.length,
+      completedSets, // per-set history for PREV column
       // Progressive overload: +2.5% rounded to nearest 2.5
       suggestedWeight: Math.round((avgWeight * 1.025) / 2.5) * 2.5,
     };
@@ -145,8 +146,30 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   // ── Lift state ──
   const [sessionName,  setSessionName]  = useState(workout?.details?.sessionName || '');
   const [exercises,    setExercises]    = useState(() => {
+    // Normalize plan-format exercises to set-array format immediately
+    // Plan format: { name, sets: 3, reps: "5" }
+    // Active format: { name, sets: [{weight, reps, completed}] }
     const existing = workout?.details?.exercises || [];
-    return existing;
+    return existing.map(ex => {
+      // Already in set-array format
+      if (Array.isArray(ex.sets)) return ex;
+      // Convert plan format — no history at init time, weight/reps filled by useEffect below
+      const setCount = parseInt(ex.sets) || 3;
+      const targetReps = ex.reps || null;
+      return {
+        ...ex,
+        sets: Array.from({ length: setCount }, (_, i) => ({
+          setNumber: i + 1,
+          weight: null,
+          reps: typeof targetReps === 'string' ? parseInt(targetReps) || null : targetReps,
+          targetWeight: null,
+          targetReps: typeof targetReps === 'string' ? parseInt(targetReps) || null : targetReps,
+          rpe: null,
+          completed: false,
+        })),
+        _needsHistoryPrefill: true,  // flag for useEffect below
+      };
+    });
   });
   const [liftNotes,    setLiftNotes]    = useState(workout?.details?.notes         ?? '');
   const [liftDuration, setLiftDuration] = useState(workout?.details?.duration ? String(workout.details.duration) : '');
@@ -193,6 +216,30 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
     });
     return map;
   }, [exercises, allWorkouts]);
+
+  // ── Prefill history weights once allWorkouts loads ──
+  // Exercises converted from plan format start with null weights.
+  // Once the workout history is available, fill in previous weight/reps
+  // and the progressive overload suggestion.
+  useEffect(() => {
+    if (!allWorkouts?.length) return;
+    setExercises(prev => prev.map(ex => {
+      if (!ex._needsHistoryPrefill) return ex;
+      const hist = getLastExerciseData(allWorkouts, ex.name);
+      return {
+        ...ex,
+        _needsHistoryPrefill: false,
+        lastData: hist,
+        sets: (Array.isArray(ex.sets) ? ex.sets : []).map(s => ({
+          ...s,
+          weight:       hist?.weight       ?? s.weight,
+          targetWeight: hist?.suggestedWeight ?? s.targetWeight,
+          reps:         s.reps ?? hist?.reps ?? null,
+          targetReps:   s.targetReps ?? hist?.reps ?? null,
+        })),
+      };
+    }));
+  }, [allWorkouts]);
 
   // ── Rest timer ──
   function startRestTimer(seconds) {
@@ -448,87 +495,114 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
         {/* ── Sets ── */}
         <div className="flex-1 overflow-y-auto px-4 space-y-2.5 pb-4">
 
+          {/* Column headers — matches reference app layout */}
+          <div className="flex items-center gap-2 px-1 mb-1">
+            <div className="w-6 flex-shrink-0"/>
+            <div className="w-20 flex-shrink-0 text-center">
+              <span className="text-[9px] font-semibold text-tertiary uppercase tracking-wider">Prev</span>
+            </div>
+            <div className="flex-1 text-center">
+              <span className="text-[9px] font-semibold text-tertiary uppercase tracking-wider">Lbs</span>
+            </div>
+            <div className="flex-1 text-center">
+              <span className="text-[9px] font-semibold text-tertiary uppercase tracking-wider">Reps</span>
+            </div>
+            <div className="w-12 flex-shrink-0"/>
+          </div>
+
           {sets.map((set, si) => {
             const isNext = !set.completed && si === sets.findIndex(s => !s.completed);
+            // Prev: what was done in the last session for this set position
+            const prevSets = history?.completedSets || [];
+            const prevSet  = prevSets[si] || null;
+            const prevLabel = prevSet
+              ? `${prevSet.weight} × ${prevSet.reps}`
+              : (history?.weight && history?.reps)
+                ? `${history.weight} × ${history.reps}`
+                : '—';
+
             return (
               <div key={si}
-                className={`rounded-[16px] border transition-all ${
-                  set.completed ? 'bg-bc-green-light/50 border-bc-green/20' :
+                className={`rounded-[14px] border transition-all ${
+                  set.completed ? 'bg-bc-green-light/40 border-bc-green/30' :
                   isNext        ? 'bg-white border-bc-blue/40 shadow-sm' :
-                                  'bg-canvas border-transparent'
+                                  'bg-canvas border-border/50'
                 }`}>
-                <div className="flex items-center px-3 py-2.5 gap-3">
+                <div className="flex items-center gap-2 px-3 py-3">
 
                   {/* Set number */}
                   <div className="w-6 flex-shrink-0 text-center">
-                    <span className={`text-xs font-bold ${isNext ? 'text-bc-blue' : 'text-tertiary'}`}>
-                      {si + 1}
+                    <span className={`text-sm font-bold ${
+                      set.completed ? 'text-bc-green-dark' :
+                      isNext ? 'text-bc-blue' : 'text-tertiary'
+                    }`}>{si + 1}</span>
+                  </div>
+
+                  {/* Prev — grey, shows last session */}
+                  <div className="w-20 flex-shrink-0 text-center">
+                    <span className="text-[11px] text-tertiary" style={{fontVariantNumeric:'tabular-nums'}}>
+                      {prevLabel}
                     </span>
                   </div>
 
                   {/* Weight */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[9px] text-tertiary uppercase tracking-wide mb-0.5">Weight</p>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <button
                         onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'weight', Math.max(0, (Number(set.weight) || 0) - 2.5)); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
-                        <Minus size={12} className="text-secondary" />
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
+                        <Minus size={11} className="text-secondary" />
                       </button>
                       <input
                         type="number"
                         inputMode="decimal"
                         value={set.weight ?? ''}
                         onChange={e => updateSet(activeExIdx, si, 'weight', e.target.value)}
-                        placeholder={set.targetWeight ? String(set.targetWeight) : '—'}
-                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 rounded-[6px] py-1
-                          ${set.completed ? 'text-bc-green-dark' : 'text-primary'}`}
-                        style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums' }}
+                        placeholder={set.targetWeight ? String(set.targetWeight) : '0'}
+                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 py-1 ${
+                          set.completed ? 'text-bc-green-dark' : isNext ? 'text-primary' : 'text-secondary'
+                        }`}
+                        style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}
                       />
                       <button
                         onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'weight', (Number(set.weight) || 0) + 2.5); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
-                        <Plus size={12} className="text-secondary" />
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
+                        <Plus size={11} className="text-secondary" />
                       </button>
                     </div>
-                    {set.targetWeight && !set.weight && (
-                      <p className="text-[9px] text-center text-bc-green-dark mt-0.5">
-                        ↑ {set.targetWeight} lbs
-                      </p>
-                    )}
                   </div>
 
                   {/* Reps */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[9px] text-tertiary uppercase tracking-wide mb-0.5">Reps</p>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <button
                         onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'reps', Math.max(0, (Number(set.reps) || 0) - 1)); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
-                        <Minus size={12} className="text-secondary" />
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
+                        <Minus size={11} className="text-secondary" />
                       </button>
                       <input
                         type="number"
                         inputMode="numeric"
                         value={set.reps ?? ''}
                         onChange={e => updateSet(activeExIdx, si, 'reps', e.target.value)}
-                        placeholder={set.targetReps ? String(set.targetReps) : '—'}
-                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 rounded-[6px] py-1
-                          ${set.completed ? 'text-bc-green-dark' : 'text-primary'}`}
-                        style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums' }}
+                        placeholder={set.targetReps ? String(set.targetReps) : '0'}
+                        className={`flex-1 text-center font-bold bg-transparent outline-none min-w-0 py-1 ${
+                          set.completed ? 'text-bc-green-dark' : isNext ? 'text-primary' : 'text-secondary'
+                        }`}
+                        style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}
                       />
                       <button
                         onPointerDown={e => { e.preventDefault(); updateSet(activeExIdx, si, 'reps', (Number(set.reps) || 0) + 1); }}
-                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:bg-canvas">
-                        <Plus size={12} className="text-secondary" />
+                        className="w-8 h-8 rounded-[8px] bg-surface border border-border flex items-center justify-center flex-shrink-0 active:scale-90">
+                        <Plus size={11} className="text-secondary" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Complete — big tap target */}
+                  {/* Check — large tap target */}
                   <button
                     onClick={() => completeSet(activeExIdx, si)}
-                    className="w-12 h-12 rounded-[12px] flex items-center justify-center active:scale-90 transition-all flex-shrink-0"
+                    className="w-12 h-12 rounded-[12px] flex items-center justify-center active:scale-90 transition-transform flex-shrink-0"
                     style={{ background: set.completed ? '#34C759' : '#E5E5EA' }}>
                     <Check size={20} color={set.completed ? '#fff' : '#AEAEB2'} strokeWidth={2.5} />
                   </button>
