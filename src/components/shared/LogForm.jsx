@@ -948,7 +948,7 @@ function ExerciseCard({
           {/* ── Column headers ── */}
           <div className="flex items-center px-4 py-1.5 bg-canvas/60 border-t border-border/40">
             <div className="w-7 flex-shrink-0"/>
-            <div className="w-[72px] flex-shrink-0 text-center">
+            <div className="w-[80px] flex-shrink-0 text-center">
               <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">Prev</span>
             </div>
             <div className="flex-1 text-center">
@@ -985,70 +985,38 @@ function ExerciseCard({
                   </div>
 
                   {/* Prev */}
-                  <div className="w-[72px] flex-shrink-0 text-center">
+                  <div className="w-[80px] flex-shrink-0 text-center">
                     <span className="text-[11px] text-tertiary" style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {prevLabel}
                     </span>
                   </div>
 
-                  {/* Weight input — fills available space between +/- buttons */}
-                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0 px-1">
-                    <button
-                      onPointerDown={e => {
-                        e.preventDefault();
-                        onUpdateSet(exIdx, si, 'weight', Math.max(0, (Number(set.weight) || 0) - 2.5));
-                      }}
-                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    </button>
+                  {/* Weight input — full width, tap to type */}
+                  <div className="flex-1 min-w-0">
                     <input
                       type="number" inputMode="decimal"
                       value={set.weight ?? ''}
                       onChange={e => onUpdateSet(exIdx, si, 'weight', e.target.value)}
                       placeholder={set.targetWeight ? String(set.targetWeight) : '0'}
-                      className={`min-w-0 w-full text-center font-bold bg-transparent outline-none rounded-[6px] py-1 ${
+                      className={`w-full text-center font-bold bg-transparent outline-none py-1 ${
                         set.completed ? 'text-bc-green-dark' : 'text-primary'
                       }`}
-                      style={{ fontSize: 15, fontVariantNumeric: 'tabular-nums' }}
+                      style={{ fontSize: 16, fontVariantNumeric: 'tabular-nums', minWidth: 0 }}
                     />
-                    <button
-                      onPointerDown={e => {
-                        e.preventDefault();
-                        onUpdateSet(exIdx, si, 'weight', (Number(set.weight) || 0) + 2.5);
-                      }}
-                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    </button>
                   </div>
 
-                  {/* Reps input */}
-                  <div className="flex-1 flex items-center justify-center gap-1 min-w-0 px-1">
-                    <button
-                      onPointerDown={e => {
-                        e.preventDefault();
-                        onUpdateSet(exIdx, si, 'reps', Math.max(0, (Number(set.reps) || 0) - 1));
-                      }}
-                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    </button>
+                  {/* Reps input — full width, tap to type */}
+                  <div className="flex-1 min-w-0">
                     <input
                       type="number" inputMode="numeric"
                       value={set.reps ?? ''}
                       onChange={e => onUpdateSet(exIdx, si, 'reps', e.target.value)}
                       placeholder={set.targetReps ? String(set.targetReps) : '0'}
-                      className={`min-w-0 w-full text-center font-bold bg-transparent outline-none rounded-[6px] py-1 ${
+                      className={`w-full text-center font-bold bg-transparent outline-none py-1 ${
                         set.completed ? 'text-bc-green-dark' : 'text-primary'
                       }`}
-                      style={{ fontSize: 15, fontVariantNumeric: 'tabular-nums' }}
+                      style={{ fontSize: 16, fontVariantNumeric: 'tabular-nums', minWidth: 0 }}
                     />
-                    <button
-                      onPointerDown={e => {
-                        e.preventDefault();
-                        onUpdateSet(exIdx, si, 'reps', (Number(set.reps) || 0) + 1);
-                      }}
-                      className="w-7 h-7 rounded-[6px] bg-canvas border border-border flex items-center justify-center active:bg-border flex-shrink-0">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    </button>
                   </div>
 
                   {/* Complete checkmark */}
