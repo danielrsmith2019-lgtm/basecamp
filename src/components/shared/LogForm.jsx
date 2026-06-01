@@ -542,31 +542,27 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
         {/* ── Sticky bottom bar: volume + Finish ── */}
         <div className="border-t border-border px-4 pt-3 flex items-center gap-3 flex-shrink-0"
           style={{ paddingBottom: 'max(16px, calc(12px + env(safe-area-inset-bottom)))' }}>
-          {(() => {
-            // Show completed volume if any sets done, otherwise show planned
-            const completedVol = liveVolume.total;
-            const plannedVol   = exercises.reduce((sum, ex) =>
-              sum + (Array.isArray(ex.sets) ? ex.sets : []).reduce((s2, set) =>
-                s2 + (set.weight || set.targetWeight || 0) * (set.reps || set.targetReps || 0), 0), 0);
-            const displayVol  = completedVol > 0 ? completedVol : plannedVol;
-            const volLabel    = completedVol > 0
-              ? `${liveVolume.sets} done · ${completedVol.toLocaleString()} lbs`
-              : totalSetsAll > 0
-              ? `${totalSetsAll} sets planned`
-              : '0 sets';
-            return (
-              <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-lift-bg rounded-[12px]">
-                <Flame size={14} className="text-lift-accent flex-shrink-0" />
-                <span className="text-xs font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {volLabel}
-                </span>
-              </div>
-            );
-          })()}
+          <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-lift-bg rounded-[12px]">
+            <Flame size={14} className="text-lift-accent flex-shrink-0" />
+            <span className="text-xs font-bold text-lift-accent" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {(() => {
+                const completedVol = liveVolume.total;
+                const volLabel = liveVolume.sets > 0
+                  ? `${liveVolume.sets} done · ${completedVol.toLocaleString()} lbs`
+                  : totalSetsAll > 0 ? `${totalSetsAll} sets planned` : '0 sets';
+                return volLabel;
+              })()}
+            </span>
+          </div>
+          {/* Finish — secondary style, requires explicit intent */}
           <button onClick={handleSave}
-            className="px-5 py-3 rounded-[12px] text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform"
-            style={{ background: allDone ? '#34C759' : '#007AFF' }}>
-            <Check size={16} /> {allDone ? 'Finish' : 'Save'}
+            className="px-4 py-2.5 rounded-[12px] text-sm font-semibold border transition-colors active:scale-95"
+            style={{
+              background: 'transparent',
+              borderColor: allDone ? '#34C759' : '#C7C7CC',
+              color: allDone ? '#34C759' : '#8E8E93',
+            }}>
+            {allDone ? '✓ Finish' : 'End workout'}
           </button>
         </div>
       </div>
