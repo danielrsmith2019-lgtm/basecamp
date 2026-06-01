@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import { formatDate, parsePace } from '@/utils/runUtils';
 import { calculateE1RM, formatVolume } from '@/utils/liftUtils';
