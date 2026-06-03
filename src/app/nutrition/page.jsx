@@ -1,21 +1,19 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import { getUserSettings, getNutritionLog, saveNutritionLog } from '@/lib/database';
-import {
-  getTrainingCalorieBonus, getMealTimeGroup, MEAL_ORDER, searchFoods, FOOD_DATABASE,
-} from '@/utils/nutrition';
+import { getTrainingCalorieBonus, getMealTimeGroup, MEAL_ORDER } from '@/utils/nutrition';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import {
-  Plus, Search, X, ChevronDown, ChevronUp,
-  Footprints, Sun, Moon, Coffee, Apple, Dumbbell, Flame,
-  Beef, Wheat, Droplets, Salad, UtensilsCrossed, Zap, GlassWater, Pill,
+  Plus, X, ChevronDown, ChevronUp,
+  Footprints, Sun, Moon, Coffee, Apple, Flame,
 } from 'lucide-react';
+import FoodSearch from '@/components/shared/FoodSearch';
 
 // ── Meal icons ──────────────────────────────────────────
 const MEAL_ICON_MAP = {
@@ -25,23 +23,6 @@ const MEAL_ICON_MAP = {
   Snacks:    { Icon: Apple,  color: '#34C759', bg: '#E8F5E9' },
 };
 
-// ── Food category config ────────────────────────────────
-const CATEGORY_CONFIG = {
-  'All':          { Icon: UtensilsCrossed, color: '#8E8E93' },
-  'Protein':      { Icon: Beef,            color: '#FF3B30' },
-  'Carbs':        { Icon: Wheat,           color: '#FF9500' },
-  'Fats':         { Icon: Droplets,        color: '#34C759' },
-  'Vegetables':   { Icon: Salad,           color: '#30B050' },
-  'Meals':        { Icon: UtensilsCrossed, color: '#007AFF' },
-  'Breakfast':    { Icon: Coffee,          color: '#FF9500' },
-  'Snacks':       { Icon: Apple,           color: '#FF6B6B' },
-  'Pre-Workout':  { Icon: Zap,             color: '#FFD60A' },
-  'Post-Workout': { Icon: Dumbbell,        color: '#30D158' },
-  'Drinks':       { Icon: GlassWater,      color: '#64D2FF' },
-  'Supplements':  { Icon: Pill,            color: '#BF5AF2' },
-};
-
-const ALL_CATEGORIES = Object.keys(CATEGORY_CONFIG);
 
 export default function NutritionPage() {
   const { user } = useAuth();
@@ -56,14 +37,8 @@ export default function NutritionPage() {
   const [logLoaded,        setLogLoaded]        = useState(false);
   const [weeklyData,       setWeeklyData]       = useState([]);
   const [showSearch,       setShowSearch]       = useState(false);
-  const [searchQuery,      setSearchQuery]      = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedMeal,     setSelectedMeal]     = useState('Breakfast');
-  const [customEntry,      setCustomEntry]      = useState({ name: '', calories: '', protein: '', carbs: '', fat: '' });
-  const [showCustom,       setShowCustom]       = useState(false);
   const [collapsedMeals,   setCollapsedMeals]   = useState(new Set());
-
-  const searchRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -135,15 +110,6 @@ export default function NutritionPage() {
     return groups;
   }, [entries]);
 
-  // Category-aware search
-  const searchResults = useMemo(() => {
-    if (selectedCategory === 'All') return searchFoods(searchQuery);
-    return FOOD_DATABASE
-      .filter(f => f.category === selectedCategory &&
-        (!searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase())))
-      .slice(0, 12);
-  }, [searchQuery, selectedCategory]);
-
   async function persistEntries(newEntries) {
     setEntries(newEntries);
     if (!user) return;
@@ -164,21 +130,7 @@ export default function NutritionPage() {
       protein: food.protein || 0, carbs: food.carbs || 0, fat: food.fat || 0,
       time, mealGroup: selectedMeal,
     }]);
-    setSearchQuery('');
     setShowSearch(false);
-  }
-
-  function addCustomEntry() {
-    if (!customEntry.name || !customEntry.calories) return;
-    addFoodEntry({
-      name:     customEntry.name,
-      calories: parseInt(customEntry.calories) || 0,
-      protein:  parseInt(customEntry.protein)  || 0,
-      carbs:    parseInt(customEntry.carbs)    || 0,
-      fat:      parseInt(customEntry.fat)      || 0,
-    });
-    setCustomEntry({ name: '', calories: '', protein: '', carbs: '', fat: '' });
-    setShowCustom(false);
   }
 
   function removeEntry(id) { persistEntries(entries.filter(e => e.id !== id)); }
@@ -194,7 +146,6 @@ export default function NutritionPage() {
   function openSearch(meal) {
     setSelectedMeal(meal);
     setShowSearch(true);
-    setTimeout(() => searchRef.current?.focus(), 100);
   }
 
   if (!logLoaded || !settingsLoaded) {
@@ -340,110 +291,14 @@ export default function NutritionPage() {
       {/* ── Search panel ── */}
       {showSearch && (
         <div className="bc-card mb-4">
-          {/* Input */}
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex-1 relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary" />
-              <input ref={searchRef} type="text" value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search 150+ foods..."
-                className="bc-input !pl-8" style={{ fontSize: '16px' }} />
-            </div>
-            <button onClick={() => { setShowSearch(false); setSearchQuery(''); setSelectedCategory('All'); }}
-              className="w-10 h-10 rounded-full bg-canvas flex items-center justify-center text-secondary hover:text-primary transition-colors flex-shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-primary">Add to {selectedMeal}</p>
+            <button onClick={() => setShowSearch(false)}
+              className="w-10 h-10 rounded-full bg-canvas flex items-center justify-center text-secondary hover:text-primary transition-colors">
               <X size={14} />
             </button>
           </div>
-
-          {/* Category pills */}
-          <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3"
-            style={{ scrollbarWidth: 'none' }}>
-            {ALL_CATEGORIES.map(cat => {
-              const isActive = selectedCategory === cat;
-              const config = CATEGORY_CONFIG[cat];
-              return (
-                <button key={cat} onClick={() => setSelectedCategory(cat)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0 transition-all min-h-[32px]"
-                  style={{
-                    background: isActive ? config.color : '#F2F2F7',
-                    color:      isActive ? '#FFFFFF'    : '#8E8E93',
-                  }}>
-                  <config.Icon size={13} strokeWidth={2} style={{ color: isActive ? '#FFFFFF' : config.color }} />
-                  {cat}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Results */}
-          <div className="space-y-0.5 max-h-72 overflow-auto">
-            {searchResults.length === 0 ? (
-              <p className="text-center bc-caption py-6">No results — try a different search or category</p>
-            ) : searchResults.map(food => {
-              const catConfig = CATEGORY_CONFIG[food.category];
-              return (
-                <button key={food.id} onClick={() => addFoodEntry(food)}
-                  className="w-full flex items-center justify-between p-2.5 rounded-[10px] hover:bg-canvas text-left transition-colors min-h-[44px]">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {catConfig && (
-                      <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${catConfig.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <catConfig.Icon size={14} strokeWidth={2} style={{ color: catConfig.color }} />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{food.name}</p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="bc-caption">{food.category}</span>
-                        {food.protein > 0 && <span className="bc-caption" style={{ color: '#5856D6' }}>{food.protein}g pro</span>}
-                        {food.carbs > 0 && <span className="bc-caption text-bc-orange-dark">{food.carbs}g carbs</span>}
-                        {food.fat > 0 && <span className="bc-caption text-bc-green-dark">{food.fat}g fat</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0 ml-3">
-                    <p className="bc-data text-sm text-primary">{food.calories}</p>
-                    <p className="bc-caption">cal</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Custom entry */}
-          <button onClick={() => setShowCustom(!showCustom)}
-            className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border text-xs text-bc-blue hover:underline min-h-[44px]">
-            {showCustom ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            Add custom food
-          </button>
-
-          {showCustom && (
-            <div className="mt-3 space-y-2">
-              <input type="text" value={customEntry.name}
-                onChange={e => setCustomEntry(p => ({ ...p, name: e.target.value }))}
-                placeholder="Food name" className="bc-input" />
-              <div className="grid grid-cols-2 gap-2">
-                <input type="number" value={customEntry.calories}
-                  onChange={e => setCustomEntry(p => ({ ...p, calories: e.target.value }))}
-                  placeholder="Calories *" className="bc-input bc-data" />
-                <input type="number" value={customEntry.protein}
-                  onChange={e => setCustomEntry(p => ({ ...p, protein: e.target.value }))}
-                  placeholder="Protein (g)" className="bc-input bc-data" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input type="number" value={customEntry.carbs}
-                  onChange={e => setCustomEntry(p => ({ ...p, carbs: e.target.value }))}
-                  placeholder="Carbs (g)" className="bc-input bc-data" />
-                <input type="number" value={customEntry.fat}
-                  onChange={e => setCustomEntry(p => ({ ...p, fat: e.target.value }))}
-                  placeholder="Fat (g)" className="bc-input bc-data" />
-              </div>
-              <button onClick={addCustomEntry}
-                disabled={!customEntry.name || !customEntry.calories}
-                className="bc-btn-primary disabled:opacity-40 min-h-[44px]">
-                Add to {selectedMeal}
-              </button>
-            </div>
-          )}
+          <FoodSearch onSelect={addFoodEntry} />
         </div>
       )}
 
