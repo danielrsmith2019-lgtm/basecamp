@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import { getUserSettings, getNutritionLog, saveNutritionLog } from '@/lib/database';
@@ -12,66 +12,105 @@ import {
 import {
   Plus, X, ChevronDown, ChevronUp,
   Footprints, Sun, Moon, Coffee, Apple, Flame,
+  GlassWater, Zap, Dumbbell,
 } from 'lucide-react';
 import FoodSearch from '@/components/shared/FoodSearch';
 
 // ── Meal icons ──────────────────────────────────────────
 const MEAL_ICON_MAP = {
-  Breakfast: { Icon: Coffee, color: '#FF9500', bg: '#FFF3E0' },
-  Lunch:     { Icon: Sun,    color: '#FF9500', bg: '#FFF3E0' },
-  Dinner:    { Icon: Moon,   color: '#5856D6', bg: '#E8EAF6' },
-  Snacks:    { Icon: Apple,  color: '#34C759', bg: '#E8F5E9' },
+  Breakfast:      { Icon: Coffee,    color: '#FF9500', bg: '#FFF3E0' },
+  Lunch:          { Icon: Sun,       color: '#FF9500', bg: '#FFF3E0' },
+  Dinner:         { Icon: Moon,      color: '#5856D6', bg: '#E8EAF6' },
+  Snacks:         { Icon: Apple,     color: '#34C759', bg: '#E8F5E9' },
+  'Pre-Workout':  { Icon: Zap,       color: '#FFD60A', bg: '#FFFDE7' },
+  'Post-Workout': { Icon: Dumbbell,  color: '#34C759', bg: '#E8F5E9' },
 };
-
 
 export default function NutritionPage() {
   const { user } = useAuth();
   const { workouts } = useWorkouts();
   const today = new Date().toLocaleDateString('en-CA');
 
-  const [calorieTarget,    setCalorieTarget]    = useState(2000);
-  const [proteinTarget,    setProteinTarget]    = useState(150);
-  const [userWeight,       setUserWeight]       = useState(170);
-  const [settingsLoaded,   setSettingsLoaded]   = useState(false);
-  const [entries,          setEntries]          = useState([]);
-  const [logLoaded,        setLogLoaded]        = useState(false);
-  const [weeklyData,       setWeeklyData]       = useState([]);
-  const [showSearch,       setShowSearch]       = useState(false);
-  const [selectedMeal,     setSelectedMeal]     = useState('Breakfast');
-  const [collapsedMeals,   setCollapsedMeals]   = useState(new Set());
+  // ── Settings state ──
+  const [calorieTarget,  setCalorieTarget]  = useState(2000);
+  const [proteinTarget,  setProteinTarget]  = useState(150);
+  const [carbTarget,     setCarbTarget]     = useState(null);
+  const [fatTarget,      setFatTarget]      = useState(null);
+  const [waterTarget,    setWaterTarget]    = useState(2000);
+  const [userWeight,     setUserWeight]     = useState(170);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
+  // ── Log state ──
+  const [entries,          setEntries]          = useState([]);
+  const [waterMl,          setWaterMl]          = useState(0);
+  const [yesterdayEntries, setYesterdayEntries] = useState([]);
+  const [recentEntries,    setRecentEntries]    = useState([]);
+  const [weeklyData,       setWeeklyData]       = useState([]);
+  const [logLoaded,        setLogLoaded]        = useState(false);
+
+  // ── UI state ──
+  const [showSearch,    setShowSearch]    = useState(false);
+  const [selectedMeal,  setSelectedMeal]  = useState('Breakfast');
+  const [collapsedMeals,setCollapsedMeals]= useState(new Set());
+  const [copiedBanner,  setCopiedBanner]  = useState(false);
+  const [toast,         setToast]         = useState(null);
+
+  const toastRef = useRef(null);
+
+  // ── Data loading ────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     async function load() {
       const settings = await getUserSettings(user.id);
       if (settings) {
-        setCalorieTarget(settings.calorie_target || 2000);
-        setProteinTarget(settings.protein_target || 150);
-        setUserWeight(settings.weight || 170);
+        setCalorieTarget(settings.calorie_target  || 2000);
+        setProteinTarget(settings.protein_target  || 150);
+        setCarbTarget(settings.carb_target         || null);
+        setFatTarget(settings.fat_target           || null);
+        setWaterTarget(settings.water_target_ml    || 2000);
+        setUserWeight(settings.weight              || 170);
       }
       setSettingsLoaded(true);
 
-      const log = await getNutritionLog(user.id, today);
-      if (log?.meals) setEntries(log.meals);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+
+      const [todayLog, ydayLog] = await Promise.all([
+        getNutritionLog(user.id, today),
+        getNutritionLog(user.id, yesterdayStr),
+      ]);
+
+      if (todayLog?.meals)   setEntries(todayLog.meals);
+      if (todayLog?.water_ml) setWaterMl(todayLog.water_ml);
+      setYesterdayEntries(ydayLog?.meals || []);
       setLogLoaded(true);
 
-      const weekEntries = [];
+      // Weekly chart + collect recent entries (reuse today/yesterday already fetched)
+      const weekEntries    = [];
+      const allRecent      = [];
       for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        const dayLog = await getNutritionLog(user.id, dateStr);
+        const dateStr = d.toLocaleDateString('en-CA');
+        const dayLog  = i === 0 ? todayLog
+                      : i === 1 ? ydayLog
+                      : await getNutritionLog(user.id, dateStr);
         const cals = (dayLog?.meals || []).reduce((s, e) => s + (e.calories || 0), 0);
         weekEntries.push({
-          day: d.toLocaleDateString('en-US', { weekday: 'short' }),
-          date: dateStr, calories: cals,
+          day:      d.toLocaleDateString('en-US', { weekday: 'short' }),
+          date:     dateStr,
+          calories: cals,
         });
+        if (dayLog?.meals) allRecent.push(...dayLog.meals.map(e => ({ ...e, date: dateStr })));
       }
       setWeeklyData(weekEntries);
+      setRecentEntries(allRecent);
     }
     load();
   }, [user, today]);
 
+  // ── Computed values ─────────────────────────────────────
   const todayWorkouts = useMemo(() =>
     workouts.filter(w => w.date === today && w.type !== 'rest'),
   [workouts, today]);
@@ -81,6 +120,9 @@ export default function NutritionPage() {
   [todayWorkouts, userWeight]);
 
   const adjustedTarget = calorieTarget + calorieBonus;
+
+  const carbTargetFinal = carbTarget || Math.round(calorieTarget * 0.45 / 4);
+  const fatTargetFinal  = fatTarget  || Math.round(calorieTarget * 0.25 / 9);
 
   const exerciseCaloriesBurned = useMemo(() =>
     workouts
@@ -97,7 +139,12 @@ export default function NutritionPage() {
 
   const caloriePct = Math.min(100, Math.round((totals.calories / adjustedTarget) * 100));
   const proteinPct = Math.min(100, Math.round((totals.protein  / proteinTarget)  * 100));
+  const carbPct    = Math.min(100, Math.round((totals.carbs    / carbTargetFinal) * 100));
+  const fatPct     = Math.min(100, Math.round((totals.fat      / fatTargetFinal)  * 100));
   const remaining  = Math.max(0, adjustedTarget - totals.calories);
+
+  const waterGlasses      = Math.floor(waterMl / 250);
+  const waterGlassesTotal = Math.round(waterTarget / 250);
 
   const groupedMeals = useMemo(() => {
     const groups = {};
@@ -110,27 +157,54 @@ export default function NutritionPage() {
     return groups;
   }, [entries]);
 
-  async function persistEntries(newEntries) {
+  // ── Persistence ─────────────────────────────────────────
+  async function persistEntries(newEntries, wml) {
     setEntries(newEntries);
     if (!user) return;
+    const wmlSave = wml !== undefined ? wml : waterMl;
     const t = {
       calories: newEntries.reduce((s, e) => s + (e.calories || 0), 0),
       protein:  newEntries.reduce((s, e) => s + (e.protein  || 0), 0),
       target:   adjustedTarget,
     };
-    await saveNutritionLog(user.id, today, { meals: newEntries, daily_totals: t });
+    await saveNutritionLog(user.id, today, { meals: newEntries, water_ml: wmlSave, daily_totals: t });
   }
 
-  function addFoodEntry(food) {
+  async function updateWater(ml) {
+    const clamped = Math.max(0, Math.min(waterTarget * 3, ml));
+    setWaterMl(clamped);
+    if (!user) return;
+    const t = {
+      calories: entries.reduce((s, e) => s + (e.calories || 0), 0),
+      protein:  entries.reduce((s, e) => s + (e.protein  || 0), 0),
+      target:   adjustedTarget,
+    };
+    await saveNutritionLog(user.id, today, { meals: entries, water_ml: clamped, daily_totals: t });
+  }
+
+  // ── Actions ─────────────────────────────────────────────
+  function showToast(msg) {
+    clearTimeout(toastRef.current);
+    setToast(msg);
+    toastRef.current = setTimeout(() => setToast(null), 2000);
+  }
+
+  function handleFoodSelected(food) {
     const now  = new Date();
     const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     persistEntries([...entries, {
-      id: `${Date.now()}-${Math.random()}`,
-      name: food.name, calories: food.calories,
-      protein: food.protein || 0, carbs: food.carbs || 0, fat: food.fat || 0,
-      time, mealGroup: selectedMeal,
+      id:                 `${Date.now()}-${Math.random()}`,
+      name:               food.name,
+      calories:           food.calories || 0,
+      protein:            food.protein  || 0,
+      carbs:              food.carbs    || 0,
+      fat:                food.fat      || 0,
+      time,
+      mealGroup:          selectedMeal,
+      servingDescription: food.servingDescription || null,
     }]);
     setShowSearch(false);
+    showToast(`Added to ${selectedMeal}`);
   }
 
   function removeEntry(id) { persistEntries(entries.filter(e => e.id !== id)); }
@@ -148,6 +222,18 @@ export default function NutritionPage() {
     setShowSearch(true);
   }
 
+  async function handleCopyYesterday() {
+    if (!window.confirm("Copy yesterday's meals to today?")) return;
+    const copied = yesterdayEntries.map((e, i) => ({
+      ...e,
+      id:        `${Date.now()}-${i}`,
+      mealGroup: e.mealGroup || 'Breakfast',
+    }));
+    await persistEntries([...entries, ...copied]);
+    setCopiedBanner(true);
+  }
+
+  // ── Loading gate ────────────────────────────────────────
   if (!logLoaded || !settingsLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -159,15 +245,19 @@ export default function NutritionPage() {
   return (
     <div className="pb-24">
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="bc-caption uppercase tracking-wider">Nutrition</h2>
-        <span className="text-xs text-secondary">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </span>
+        <p className="bc-caption">
+          <span className="text-primary font-semibold">{totals.calories.toLocaleString()}</span>
+          {' cal · '}
+          {remaining > 0
+            ? <span className="text-bc-blue">{remaining.toLocaleString()} left</span>
+            : <span className="text-bc-green-dark">Goal reached!</span>}
+        </p>
       </div>
 
-      {/* Training bonus */}
+      {/* ── Training bonus ── */}
       {calorieBonus > 0 && (
         <div className="bc-card mb-3 bg-run-bg border-l-4 border-run-accent">
           <div className="flex items-center gap-2">
@@ -180,7 +270,7 @@ export default function NutritionPage() {
         </div>
       )}
 
-      {/* Exercise calories burned */}
+      {/* ── Exercise calories burned ── */}
       {exerciseCaloriesBurned > 0 && (
         <div className="bc-card mb-3 bg-lift-bg border-l-4 border-lift-accent">
           <div className="flex items-center justify-between gap-2">
@@ -194,8 +284,8 @@ export default function NutritionPage() {
       )}
 
       {/* ── Summary card ── */}
-      <div className="bc-card mb-5">
-        {/* Calorie row */}
+      <div className="bc-card mb-3">
+        {/* Calorie ring */}
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="bc-caption uppercase tracking-wider mb-0.5">Calories</p>
@@ -215,7 +305,7 @@ export default function NutritionPage() {
               <circle cx="40" cy="40" r="34" fill="none"
                 stroke={caloriePct >= 100 ? '#34C759' : caloriePct >= 60 ? '#FF9500' : '#007AFF'}
                 strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6"
-                strokeDashoffset={213.6 * (1 - Math.min(caloriePct, 100) / 100)}
+                strokeDashoffset={213.6 * (1 - caloriePct / 100)}
                 style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
@@ -224,7 +314,7 @@ export default function NutritionPage() {
           </div>
         </div>
 
-        {/* Macro progress bars */}
+        {/* Macro bars */}
         <div className="space-y-2.5">
           <div>
             <div className="flex justify-between mb-1">
@@ -233,46 +323,107 @@ export default function NutritionPage() {
             </div>
             <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, proteinPct)}%`, background: '#5856D6' }} />
+                style={{ width: `${proteinPct}%`, background: '#5856D6' }} />
             </div>
           </div>
-          {totals.carbs > 0 && (
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-xs text-secondary">Carbs</span>
-                <span className="bc-data text-xs text-bc-orange-dark">{totals.carbs}g</span>
-              </div>
-              <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${Math.min(100, (totals.carbs / 250) * 100)}%`, background: '#FF9500' }} />
-              </div>
+          <div>
+            <div className="flex justify-between mb-1">
+              <span className="text-xs text-secondary">Carbs</span>
+              <span className="bc-data text-xs text-bc-orange-dark">{totals.carbs}g / {carbTargetFinal}g</span>
             </div>
-          )}
-          {totals.fat > 0 && (
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-xs text-secondary">Fat</span>
-                <span className="bc-data text-xs text-bc-green-dark">{totals.fat}g</span>
-              </div>
-              <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${Math.min(100, (totals.fat / 80) * 100)}%`, background: '#34C759' }} />
-              </div>
+            <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${carbPct}%`, background: '#FF9500' }} />
             </div>
-          )}
+          </div>
+          <div>
+            <div className="flex justify-between mb-1">
+              <span className="text-xs text-secondary">Fat</span>
+              <span className="bc-data text-xs text-bc-green-dark">{totals.fat}g / {fatTargetFinal}g</span>
+            </div>
+            <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${fatPct}%`, background: '#34C759' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Water tracking */}
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <GlassWater size={12} className="text-bc-blue" />
+              <span className="text-xs text-secondary">Water</span>
+            </div>
+            <span className="bc-data text-xs text-bc-blue tabular-nums">
+              {waterGlasses} / {waterGlassesTotal} glasses
+            </span>
+          </div>
+          {/* Glass circles */}
+          <div className="flex items-center gap-1.5 mb-2">
+            {Array.from({ length: waterGlassesTotal }).map((_, i) => {
+              const filled = i < waterGlasses;
+              return (
+                <button key={i}
+                  onClick={() => updateWater(filled ? i * 250 : (i + 1) * 250)}
+                  className="flex-1 h-5 rounded-full transition-colors"
+                  style={{ background: filled ? '#007AFF' : '#E5E5EA', minWidth: 0 }} />
+              );
+            })}
+          </div>
+          {/* Quick-add buttons */}
+          <div className="flex gap-2">
+            <button onClick={() => updateWater(waterMl + 250)}
+              className="flex-1 py-1.5 text-xs font-semibold text-bc-blue border border-bc-blue/30 rounded-[8px] hover:bg-bc-blue/5 transition-colors min-h-[36px]">
+              +1 glass
+            </button>
+            <button onClick={() => updateWater(waterMl + 500)}
+              className="flex-1 py-1.5 text-xs font-semibold text-bc-blue border border-bc-blue/30 rounded-[8px] hover:bg-bc-blue/5 transition-colors min-h-[36px]">
+              +2 glasses
+            </button>
+            {waterMl > 0 && (
+              <button onClick={() => updateWater(Math.max(0, waterMl - 250))}
+                className="px-3 py-1.5 text-xs font-medium text-secondary border border-border rounded-[8px] hover:bg-canvas transition-colors min-h-[36px]">
+                −
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ── Copy yesterday ── */}
+      {entries.length === 0 && yesterdayEntries.length > 0 && !copiedBanner && (
+        <div className="mb-3 text-center">
+          <button onClick={handleCopyYesterday}
+            className="text-xs text-bc-blue border border-bc-blue/30 rounded-[10px] px-4 py-2.5 hover:bg-bc-blue/5 transition-colors min-h-[44px]">
+            Copy yesterday · {yesterdayEntries.reduce((s, e) => s + (e.calories || 0), 0).toLocaleString()} cal
+          </button>
+        </div>
+      )}
+
+      {/* ── Copied banner ── */}
+      {copiedBanner && (
+        <div className="mb-3 p-3 rounded-[12px] bg-bc-green-light border border-bc-green-dark/30 flex items-center justify-between">
+          <p className="text-xs text-bc-green-dark font-medium">Copied from yesterday — edit or delete any items below</p>
+          <button onClick={() => setCopiedBanner(false)}
+            className="ml-2 text-bc-green-dark/60 flex-shrink-0 flex items-center justify-center min-w-[36px] min-h-[36px]">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── Meal tabs + Add ── */}
       <div className="flex gap-2 mb-4">
         <div className="bc-tab-bar flex-1 overflow-x-auto">
           {MEAL_ORDER.map(meal => {
             const isActive = selectedMeal === meal;
-            const config = MEAL_ICON_MAP[meal];
+            const config   = MEAL_ICON_MAP[meal];
             return (
               <button key={meal} onClick={() => setSelectedMeal(meal)}
                 className="bc-tab text-xs whitespace-nowrap flex items-center gap-1"
                 style={{
                   background:   isActive ? '#007AFF' : 'transparent',
-                  color:        isActive ? '#FFFFFF' : '#8E8E93',
+                  color:        isActive ? '#FFFFFF'  : '#8E8E93',
                   fontWeight:   isActive ? 600 : 500,
                   borderRadius: '10px', flex: 1,
                 }}>
@@ -298,7 +449,11 @@ export default function NutritionPage() {
               <X size={14} />
             </button>
           </div>
-          <FoodSearch onSelect={addFoodEntry} />
+          <FoodSearch
+            onSelect={handleFoodSelected}
+            mealLabel={selectedMeal}
+            entries={recentEntries}
+          />
         </div>
       )}
 
@@ -334,7 +489,9 @@ export default function NutritionPage() {
                     <button onClick={e => { e.stopPropagation(); openSearch(mealGroup); }}
                       className="text-xs text-bc-blue hover:underline px-2 py-1">+ Add</button>
                   )}
-                  {isCollapsed ? <ChevronDown size={14} className="text-tertiary" /> : <ChevronUp size={14} className="text-tertiary" />}
+                  {isCollapsed
+                    ? <ChevronDown size={14} className="text-tertiary" />
+                    : <ChevronUp size={14} className="text-tertiary" />}
                 </div>
               </button>
 
@@ -347,12 +504,16 @@ export default function NutritionPage() {
                           className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-0">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-primary truncate">{entry.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              {entry.time && <span className="bc-caption">{entry.time}</span>}
-                              {entry.protein > 0 && <span className="bc-caption" style={{ color: '#5856D6' }}>{entry.protein}g pro</span>}
-                              {entry.carbs > 0 && <span className="bc-caption text-bc-orange-dark">{entry.carbs}g carbs</span>}
-                              {entry.fat > 0 && <span className="bc-caption text-bc-green-dark">{entry.fat}g fat</span>}
-                            </div>
+                            {entry.servingDescription ? (
+                              <p className="text-[10px] text-tertiary mt-0.5">{entry.servingDescription}</p>
+                            ) : (
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                {entry.time && <span className="bc-caption">{entry.time}</span>}
+                                {entry.protein > 0 && <span className="bc-caption" style={{ color: '#5856D6' }}>{entry.protein}g pro</span>}
+                                {entry.carbs   > 0 && <span className="bc-caption text-bc-orange-dark">{entry.carbs}g carbs</span>}
+                                {entry.fat     > 0 && <span className="bc-caption text-bc-green-dark">{entry.fat}g fat</span>}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                             <div className="text-right">
@@ -426,6 +587,15 @@ export default function NutritionPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className="fixed bottom-24 left-4 right-4 z-50 pointer-events-none">
+          <div className="bg-primary text-white text-sm font-semibold px-4 py-3 rounded-[14px] shadow-xl text-center">
+            {toast}
+          </div>
+        </div>
       )}
     </div>
   );
