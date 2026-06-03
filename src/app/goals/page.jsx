@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import { formatDate, parsePace } from '@/utils/runUtils';
 import { calculateE1RM, formatVolume } from '@/utils/liftUtils';
@@ -54,6 +54,8 @@ export default function GoalsPage() {
   const { workouts, isLoaded } = useWorkouts();
   const { user } = useAuth();
   const today = getLocalToday();
+
+  const milestonesRef = useRef(null);
 
   const [settings,       setSettings]    = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -333,7 +335,11 @@ export default function GoalsPage() {
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-[10px] border border-border text-secondary hover:text-primary transition-colors min-h-[36px]">
             <Flag size={12}/> Race
           </button>
-          <button onClick={() => setShowSetup('milestone')}
+          <button onClick={() => {
+              setShowSetup('milestone');
+              setExpandedSection(prev => ({ ...prev, milestones: true }));
+              setTimeout(() => milestonesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+            }}
             className="flex items-center gap-1.5 px-3 py-2 bg-bc-blue text-white text-xs font-semibold rounded-[10px] hover:opacity-90 active:scale-95 transition-all min-h-[36px]">
             <Plus size={12}/> Goal
           </button>
@@ -484,7 +490,7 @@ export default function GoalsPage() {
 
           {/* Add milestone form */}
           {showSetup === 'milestone' ? (
-            <div className="bc-card p-4">
+            <div ref={milestonesRef} className="bc-card p-4">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm font-semibold text-primary">New Milestone</p>
                 <button onClick={()=>setShowSetup(null)} className="w-7 h-7 rounded-full bg-canvas border border-border flex items-center justify-center text-tertiary"><X size={12}/></button>
