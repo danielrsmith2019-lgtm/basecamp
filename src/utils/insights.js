@@ -119,20 +119,23 @@ function checkVolumeSpike(workouts) {
   const completed = workouts.filter(w => w.type === 'run' && w.status === 'completed');
   const now = new Date();
 
-  // Key to current week's Monday — stable all week, resets Monday
+  // Calendar week boundaries (Mon–Sun), not rolling 7-day windows
   const dow = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + (dow === 0 ? -6 : 1 - dow));
-  const weekKey = monday.toLocaleDateString('en-CA');
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() + (dow === 0 ? -6 : 1 - dow));
+  thisMonday.setHours(0, 0, 0, 0);
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(thisMonday.getDate() - 7);
+  const weekKey = thisMonday.toLocaleDateString('en-CA');
 
   let thisWeekMiles = 0;
   let lastWeekMiles = 0;
 
   completed.forEach(w => {
-    const diffDays = Math.floor((now - new Date(w.date + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+    const wDate = new Date(w.date + 'T00:00:00');
     const dist = w.details.actualDistance || 0;
-    if (diffDays < 7)       thisWeekMiles += dist;
-    else if (diffDays < 14) lastWeekMiles += dist;
+    if (wDate >= thisMonday)                            thisWeekMiles += dist;
+    else if (wDate >= lastMonday && wDate < thisMonday) lastWeekMiles += dist;
   });
 
   if (lastWeekMiles > 0 && thisWeekMiles > 0) {

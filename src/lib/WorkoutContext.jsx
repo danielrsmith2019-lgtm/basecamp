@@ -19,6 +19,13 @@ import { useAuth } from '@/lib/auth';
 import { detectAllPRs, findNewPRs } from '@/utils/prDetection';
 import { checkAdaptations, applyAdaptation } from '@/utils/adaptation';
 
+function getWeekKey() {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + (now.getDay() === 0 ? -6 : 1 - now.getDay()));
+  return monday.toLocaleDateString('en-CA');
+}
+
 const WorkoutContext = createContext(null);
 
 export function WorkoutProvider({ children }) {
@@ -72,10 +79,10 @@ export function WorkoutProvider({ children }) {
   // ── Adaptation dismissal persistence ──
   function persistDismissedAdaptation(id) {
     try {
-      const today  = new Date().toLocaleDateString('en-CA');
-      const stored = JSON.parse(localStorage.getItem('bc-dismissed-adaptations') || '{}');
-      const ids    = stored.date === today ? [...(stored.ids || []), id] : [id];
-      localStorage.setItem('bc-dismissed-adaptations', JSON.stringify({ date: today, ids }));
+      const weekKey = getWeekKey();
+      const stored  = JSON.parse(localStorage.getItem('bc-dismissed-adaptations') || '{}');
+      const ids     = stored.weekKey === weekKey ? [...(stored.ids || []), id] : [id];
+      localStorage.setItem('bc-dismissed-adaptations', JSON.stringify({ weekKey, ids }));
     } catch {}
   }
 
@@ -84,12 +91,12 @@ export function WorkoutProvider({ children }) {
     if (workouts.length < 3) return;
     const results = checkAdaptations(workouts);
 
-    // Load persisted dismissals — keyed by date so they expire daily
+    // Load persisted dismissals — keyed by week so they expire on Monday
     let dismissedIds = new Set();
     try {
-      const stored = JSON.parse(localStorage.getItem('bc-dismissed-adaptations') || '{}');
-      const today  = new Date().toLocaleDateString('en-CA');
-      if (stored.date === today) dismissedIds = new Set(stored.ids || []);
+      const stored  = JSON.parse(localStorage.getItem('bc-dismissed-adaptations') || '{}');
+      const weekKey = getWeekKey();
+      if (stored.weekKey === weekKey) dismissedIds = new Set(stored.ids || []);
     } catch {}
 
     setAdaptations(prev => {

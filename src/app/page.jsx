@@ -28,6 +28,13 @@ function getLocalToday() {
   return new Date().toLocaleDateString('en-CA');
 }
 
+function getWeekKey() {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + (now.getDay() === 0 ? -6 : 1 - now.getDay()));
+  return monday.toLocaleDateString('en-CA');
+}
+
 export default function Dashboard() {
   const { workouts, prs, saveWorkout, rescheduleWorkout, isLoaded, adaptations, acceptAdaptation, rejectAdaptation } = useWorkouts();
   const { user } = useAuth();
@@ -46,18 +53,18 @@ export default function Dashboard() {
   const [dismissedInsights, setDismissedInsights] = useState(() => {
     if (typeof window === 'undefined') return new Set();
     try {
-      const stored = JSON.parse(localStorage.getItem('bc-dismissed-insights') || '{}');
-      const today  = new Date().toLocaleDateString('en-CA');
-      return stored.date === today ? new Set(stored.ids || []) : new Set();
+      const stored  = JSON.parse(localStorage.getItem('bc-dismissed-insights') || '{}');
+      const weekKey = getWeekKey();
+      return stored.weekKey === weekKey ? new Set(stored.ids || []) : new Set();
     } catch { return new Set(); }
   });
 
   const [dismissedSkips, setDismissedSkips] = useState(() => {
     if (typeof window === 'undefined') return new Set();
     try {
-      const stored = JSON.parse(localStorage.getItem('bc-dismissed-skips') || '{}');
-      const today  = new Date().toLocaleDateString('en-CA');
-      return stored.date === today ? new Set(stored.ids || []) : new Set();
+      const stored  = JSON.parse(localStorage.getItem('bc-dismissed-skips') || '{}');
+      const weekKey = getWeekKey();
+      return stored.weekKey === weekKey ? new Set(stored.ids || []) : new Set();
     } catch { return new Set(); }
   });
 
@@ -393,7 +400,7 @@ export default function Dashboard() {
           <div className="space-y-3">
             {skipInsights.map(insight=>(
               <SkipInsightCard key={insight.id} insight={insight}
-                onDismiss={id=>{setDismissedSkips(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-skips',JSON.stringify({date:new Date().toLocaleDateString('en-CA'),ids:[...next]}))}catch{}return next;});}}
+                onDismiss={id=>{setDismissedSkips(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-skips',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
                 onRescue={handleRescue}/>
             ))}
           </div>
@@ -412,8 +419,8 @@ export default function Dashboard() {
             <div className="space-y-3">
               {visibleInsights.map(insight=>(
                 <InsightCard key={insight.id} insight={insight}
-                  onDismiss={(id)=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({date:new Date().toLocaleDateString('en-CA'),ids:[...next]}))}catch{}return next;});}}
-                  onAction={(i)=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({date:new Date().toLocaleDateString('en-CA'),ids:[...next]}))}catch{}return next;});}}/>
+                  onDismiss={(id)=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
+                  onAction={(i)=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
               ))}
             </div>
           )}
