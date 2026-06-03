@@ -12,7 +12,8 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X, ChevronDown } from 'lucide-react';
-import { searchExercises, MUSCLE_GROUPS, EQUIPMENT_TYPES } from '@/data/exercises';
+import { getExerciseDatabase, searchExercises } from '@/lib/exerciseDatabase';
+import { MUSCLE_GROUPS, EQUIPMENT_TYPES } from '@/data/exercises';
 
 const GROUP_COLORS = {
   'Chest':      { bg: '#FFF3E0', text: '#E65100', dot: '#FF9500' },
@@ -35,9 +36,18 @@ export default function ExerciseSearch({ onSelect, placeholder = 'Search exercis
   const [equipFilter,    setEquipFilter]    = useState('');
   const [showFilters,    setShowFilters]    = useState(false);
   const [focusedIdx,     setFocusedIdx]     = useState(-1);
+  const [dbLoading,      setDbLoading]      = useState(true);
+  const [dbLoaded,       setDbLoaded]       = useState(false);
 
   const inputRef     = useRef(null);
   const dropdownRef  = useRef(null);
+
+  // Load the wger exercise database on mount (uses cache after first fetch)
+  useEffect(() => {
+    getExerciseDatabase()
+      .then(() => { setDbLoaded(true); setDbLoading(false); })
+      .catch(() => setDbLoading(false));
+  }, []);
 
   // Build recent exercise map from history
   const recentMap = useMemo(() => {
@@ -60,19 +70,18 @@ export default function ExerciseSearch({ onSelect, placeholder = 'Search exercis
     return map;
   }, [workoutHistory]);
 
-  const results = useMemo(() =>
+  const recentNames = useMemo(() => new Set(Object.keys(recentMap)), [recentMap]);
+
+  // searchExercises handles sorting: exact → starts-with → recently used → contains
+  const sortedResults = useMemo(() =>
     searchExercises(query, {
       muscleGroup: groupFilter || undefined,
       equipment:   equipFilter || undefined,
+      recentNames,
     }),
-  [query, groupFilter, equipFilter]);
-
-  // Sort: recently used first
-  const sortedResults = useMemo(() => {
-    const recent = results.filter(r => recentMap[r.name]);
-    const rest   = results.filter(r => !recentMap[r.name]);
-    return [...recent, ...rest];
-  }, [results, recentMap]);
+  // dbLoaded is a trigger: forces re-search once the wger DB is ready
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [query, groupFilter, equipFilter, recentNames, dbLoaded]);
 
   function handleSelect(exercise) {
     onSelect(exercise);
@@ -133,6 +142,13 @@ export default function ExerciseSearch({ onSelect, placeholder = 'Search exercis
           </button>
         </div>
       </div>
+
+      {/* ── Database hint ── */}
+      {!query && (
+        <p className="text-[10px] text-tertiary mt-1 ml-1">
+          {dbLoading ? 'Loading exercise database…' : '~900 exercises available'}
+        </p>
+      )}
 
       {/* ── Filter pills ── */}
       {showFilters && (
