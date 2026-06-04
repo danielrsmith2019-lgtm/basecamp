@@ -7,6 +7,7 @@ import { savePlan, getActivePlan, addWorkoutsBatch } from '@/lib/database';
 import { updateUserSettings } from '@/lib/database';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import PlanWizard from '@/components/shared/PlanWizard';
+import PlanImportWizard from '@/components/shared/PlanImportWizard';
 import PlanEditor from '@/components/shared/PlanEditor';
 import LogForm from '@/components/shared/LogForm';
 import DayTimeline from '@/components/shared/DayTimeline';
@@ -76,6 +77,7 @@ export default function PlansPage() {
   const [reactivating,   setReactivating]   = useState(false);
   const [error,          setError]          = useState(null);
   const [planMenuOpen,   setPlanMenuOpen]   = useState(false);
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const [pastWeeksOpen,  setPastWeeksOpen]  = useState(false);
   const [selectedWorkout,setSelectedWorkout]= useState(null);
   const [showNewLogForm, setShowNewLogForm] = useState(false);
@@ -379,7 +381,17 @@ export default function PlansPage() {
           className="flex items-center gap-2 px-6 py-3 bg-bc-indigo hover:opacity-90 active:scale-95 text-white text-sm font-semibold rounded-[10px] transition-all">
           <Sparkles size={16}/> Generate Your Plan
         </button>
+        <button onClick={()=>setShowImportWizard(true)}
+          className="flex items-center gap-2 px-6 py-3 border border-border text-secondary text-sm font-semibold rounded-[10px] hover:bg-canvas hover:text-primary transition-all">
+          Import existing plan
+        </button>
       </div>
+      {showImportWizard && (
+        <PlanImportWizard
+          onComplete={() => { setShowImportWizard(false); setView('active'); location.reload(); }}
+          onClose={() => setShowImportWizard(false)}
+        />
+      )}
     </div>
   );
 
@@ -867,6 +879,13 @@ export default function PlansPage() {
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
                 <Sparkles size={14} className="text-secondary flex-shrink-0"/> New plan
               </button>
+              <button onClick={()=>{
+                if(!window.confirm('This will replace your current active plan. Your logged workouts will be kept.')) return;
+                setPlanMenuOpen(false); setShowImportWizard(true);
+              }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-primary hover:bg-canvas text-left">
+                <Calendar size={14} className="text-secondary flex-shrink-0"/> Import & replace plan
+              </button>
             </>)}
             {view==='preview' && (
               <button onClick={()=>{setEditMode(!editMode);setPlanMenuOpen(false);}}
@@ -988,6 +1007,12 @@ export default function PlansPage() {
 
       {/* Modals */}
       {showAIEditor && <PlanEditor plan={displayPlan} onPlanUpdate={handleAIPlanUpdate} onClose={()=>setShowAIEditor(false)}/>}
+      {showImportWizard && (
+        <PlanImportWizard
+          onComplete={() => { setShowImportWizard(false); refresh?.(); }}
+          onClose={() => setShowImportWizard(false)}
+        />
+      )}
       {logTarget && (
         <LogForm
           workout={logTarget}
