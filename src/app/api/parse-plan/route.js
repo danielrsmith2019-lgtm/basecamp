@@ -60,14 +60,23 @@ Rules:
 - If a race is detected, set raceDistance, raceName, goalTime accordingly
 - Expand abbreviated plans: if weeks are similar, write out all weeks explicitly`;
 
-// Robust JSON extractor that survives common Claude formatting drift:
-//   • Strips markdown fences
-//   • Extracts the outermost { … } block
-//   • Removes JS-style comments
-//   • Removes trailing commas
-//   • On first-pass failure, quotes any bare property-name identifiers
-//     (lines that start with whitespace + word chars + colon)
-//     This is safe because already-quoted keys start with `"`, not a letter.
+// Robust JSON extractor that survives common Claude formatting drift.
+//
+// Known failure modes and their fixes (applied in order before first parse):
+//
+//  1. Markdown fences        — stripped unconditionally
+//  2. Trailing commas        — ,} or ,] → } or ]
+//  3. Missing commas between adjacent objects/arrays
+//     Claude drops the comma between large objects inside a week array:
+//       }\n{ → },\n{   (safe: }{ without comma is never valid JSON)
+//  4. Missing commas between adjacent quoted strings
+//     Claude drops commas in small arrays like muscleGroups:
+//       "Chest" "Shoulders" → "Chest","Shoulders"
+//     (safe: "x" "y" without a comma is never valid JSON)
+//
+// On first-pass failure a second pass also quotes bare property-name
+// identifiers (unquoted keys), which fixes "Expected double-quoted property
+// name" errors.
 function parseClaudeJSON(rawText) {
   let s = rawText
     .replace(/```json\s*/gi, '')
@@ -80,22 +89,31 @@ function parseClaudeJSON(rawText) {
   if (start < 0 || end < 0) throw new Error('No JSON object found in Claude response');
   s = s.slice(start, end + 1);
 
-  // Remove // … comments (avoid touching string contents — best-effort)
+  // Remove JS-style comments
   s = s.replace(/\/\/[^\n]*/g, '');
-  // Remove /* … */ block comments
   s = s.replace(/\/\*[\s\S]*?\*\//g, '');
 
-  // Fix trailing commas before } or ]
+  // Fix 2: trailing commas before } or ]
   s = s.replace(/,(\s*[}\]])/g, '$1');
+
+  // Fix 3: missing comma between adjacent } or ] and { or [
+  // Replacement: insert , immediately after the closing bracket, keep whitespace
+  // Already-commaed sequences (},\n{) don't match because , is not \s.
+  s = s.replace(/([}\]])(\s*)([{[])/g, '$1,$2$3');
+
+  // Fix 4: missing comma between adjacent double-quoted strings
+  // "value1"\n  "value2" → "value1",\n  "value2"
+  // The end-quote and start-quote are each consumed once; , is inserted between.
+  // Already-commaed sequences ("x", "y") don't match because , is not \s.
+  s = s.replace(/"(\s+)"/g, '",$1"');
 
   // ── Pass 1: strict parse ──
   try {
     return JSON.parse(s);
   } catch (e1) {
-    // ── Pass 2: quote bare property names ──
-    // Matches lines whose first non-whitespace content is an identifier
-    // immediately followed by a colon — i.e. an unquoted object key.
-    // Already-quoted keys start with `"` so [a-zA-Z_$] won't match them.
+    // ── Pass 2: quote bare property-name identifiers ──
+    // Lines whose first non-whitespace content is an identifier then a colon
+    // are unquoted keys. Already-quoted keys start with " so [a-zA-Z_$] skips them.
     const patched = s.replace(
       /^(\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/gm,
       '$1"$2"$3'
@@ -103,7 +121,6 @@ function parseClaudeJSON(rawText) {
     try {
       return JSON.parse(patched);
     } catch (e2) {
-      // Log both errors to help future debugging
       console.error('JSON parse pass 1:', e1.message);
       console.error('JSON parse pass 2:', e2.message);
       console.error('Raw (first 500 chars):', rawText.slice(0, 500));
