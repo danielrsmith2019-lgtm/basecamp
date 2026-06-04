@@ -19,15 +19,18 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ExerciseSearch from '@/components/lifting/ExerciseSearch';
 import WorkoutTimer, { formatTime, estimateCalories } from '@/components/shared/WorkoutTimer';
+import WorkoutTemplates from '@/components/shared/WorkoutTemplates';
 import { comparePaces } from '@/utils/runUtils';
 import { calculateLiftVolume } from '@/data/types';
 import { shouldShowPostWorkoutPrompt } from '@/utils/nutrition';
 import PostWorkoutPrompt from '@/components/shared/PostWorkoutPrompt';
 import { useWorkouts } from '@/lib/WorkoutContext';
+import { useAuth } from '@/lib/auth';
+import { saveWorkoutTemplate } from '@/lib/database';
 import {
   Footprints, Dumbbell, Bike, Play, ChevronRight,
   Check, RotateCcw, X, Plus, Minus, ChevronDown, ChevronUp,
-  Timer, Flame,
+  Timer, Flame, Layers,
 } from 'lucide-react';
 
 // ── Constants ──
@@ -103,6 +106,7 @@ function buildInitialSets(count, lastData) {
 // ══════════════════════════════════════════════════════════
 export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) {
   const { workouts: allWorkouts } = useWorkouts();
+  const { user } = useAuth();
 
   const initialType = workout?.type || 'run';
   const isEditing   = workout?.status === 'completed';
@@ -174,6 +178,11 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   const [liftNotes,    setLiftNotes]    = useState(workout?.details?.notes         ?? '');
   const [liftDuration, setLiftDuration] = useState(workout?.details?.duration ? String(workout.details.duration) : '');
   const [liftCalories, setLiftCalories] = useState(workout?.details?.caloriesBurned ?? '');
+
+  // ── Template state ──
+  const [showTemplates,    setShowTemplates]    = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName,     setTemplateName]     = useState('');
 
   // ── Active lift state ──
   const [activeExIdx,      setActiveExIdx]      = useState(0);
@@ -389,11 +398,64 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
     }
     const saved = { id: workout?.id || null, date, type: workoutType, status: 'completed', planId: workout?.planId || null, details };
     onSave(saved);
-    if (shouldShowPostWorkoutPrompt(saved)) {
-      setSavedWorkout(saved); setShowPostPrompt(true);
+    setSavedWorkout(saved);
+    if (workoutType === 'lift' && exercises.length > 0 && !isEditing) {
+      setTemplateName(sessionName || 'My Workout');
+      setShowSaveTemplate(true);
+    } else if (shouldShowPostWorkoutPrompt(saved)) {
+      setShowPostPrompt(true);
     } else {
       onClose();
     }
+  }
+
+  async function handleSaveTemplateAndContinue(shouldSave) {
+    if (shouldSave && user) {
+      const template = {
+        id:        `tpl-${Date.now()}`,
+        name:      templateName.trim() || sessionName || 'My Workout',
+        exercises: exercises.map(ex => ({
+          name:        ex.name,
+          muscleGroup: ex.muscleGroup || '',
+          equipment:   ex.equipment   || '',
+          defaultSets: Array.isArray(ex.sets) ? ex.sets.length : 3,
+          defaultReps: '8-10',
+        })),
+        createdAt: new Date().toISOString(),
+        lastUsed:  null,
+        useCount:  0,
+      };
+      await saveWorkoutTemplate(user.id, template);
+    }
+    setShowSaveTemplate(false);
+    if (savedWorkout && shouldShowPostWorkoutPrompt(savedWorkout)) {
+      setShowPostPrompt(true);
+    } else {
+      onClose();
+    }
+  }
+
+  function handleLoadTemplate(exercises, name) {
+    if (exercises.length > 0) {
+      const loaded = exercises.map(ex => {
+        const lastData = getLastExerciseData(allWorkouts, ex.name);
+        return {
+          name:        ex.name,
+          muscleGroup: ex.muscleGroup || '',
+          equipment:   ex.equipment   || '',
+          sets:        buildInitialSets(ex.defaultSets || 3, lastData),
+          lastData,
+        };
+      });
+      setExercises(loaded);
+      if (name) {
+        setSessionName(name);
+      } else if (!sessionName) {
+        const groups = [...new Set(loaded.map(e => e.muscleGroup).filter(Boolean))];
+        setSessionName(groups.join(' / '));
+      }
+    }
+    setShowTemplates(false);
   }
 
   // ══════════════════════════════════════════════
@@ -401,6 +463,52 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   // ══════════════════════════════════════════════
   if (showPostPrompt && savedWorkout) {
     return <PostWorkoutPrompt workout={savedWorkout} userWeight={userWeight} onDismiss={() => { setShowPostPrompt(false); onClose(); }} />;
+  }
+
+  // ══════════════════════════════════════════════
+  // SAVE AS TEMPLATE PROMPT (post-lift)
+  // ══════════════════════════════════════════════
+  if (showSaveTemplate) {
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50"
+        onClick={() => handleSaveTemplateAndContinue(false)}>
+        <div className="bg-surface border border-border rounded-t-[24px] sm:rounded-[20px] shadow-xl max-w-lg w-full p-5 flex flex-col gap-4"
+          style={{ marginBottom: '80px' }}
+          onClick={e => e.stopPropagation()}>
+          <div>
+            <h3 className="text-[17px] font-semibold text-primary">Save as template?</h3>
+            <p className="text-sm text-secondary mt-1">Load this workout plan in one tap next time.</p>
+          </div>
+          <div>
+            <label className="bc-caption uppercase tracking-wider block mb-1.5">Template name</label>
+            <input type="text" value={templateName} onChange={e => setTemplateName(e.target.value)}
+              className="bc-input" style={{ fontSize: '16px' }} />
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => handleSaveTemplateAndContinue(true)} className="bc-btn-primary flex-1 py-3 text-sm">
+              Save template
+            </button>
+            <button onClick={() => handleSaveTemplateAndContinue(false)}
+              className="px-6 py-3 bg-canvas text-secondary text-sm font-medium rounded-[12px] hover:text-primary transition-colors">
+              Skip
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════
+  // TEMPLATE BROWSER
+  // ══════════════════════════════════════════════
+  if (showTemplates) {
+    return (
+      <WorkoutTemplates
+        userId={user?.id}
+        onLoad={handleLoadTemplate}
+        onClose={() => setShowTemplates(false)}
+      />
+    );
   }
 
   // ══════════════════════════════════════════════
@@ -512,6 +620,14 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
               />
             );
           })}
+
+          {/* ── Load template shortcut when workout is empty ── */}
+          {exercises.length === 0 && !showAddExercise && (
+            <button onClick={() => setShowTemplates(true)}
+              className="w-full py-3 border border-dashed border-bc-blue/40 rounded-[14px] text-sm text-bc-blue flex items-center justify-center gap-1.5 active:scale-95 transition-all">
+              <Layers size={14} /> Load template
+            </button>
+          )}
 
           {/* ── Add exercise during active session ── */}
           {showAddExercise ? (
@@ -704,7 +820,13 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
               </div>
 
               <div>
-                <label className="bc-caption uppercase tracking-wider block mb-1.5">Add Exercise</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="bc-caption uppercase tracking-wider">Add Exercise</label>
+                  <button onClick={() => setShowTemplates(true)}
+                    className="flex items-center gap-1 text-xs font-semibold text-bc-blue min-h-[32px] px-1">
+                    <Layers size={12} /> Templates
+                  </button>
+                </div>
                 <ExerciseSearch onSelect={handleAddExercise} placeholder="Search exercises..." workoutHistory={allWorkouts} />
               </div>
 

@@ -430,6 +430,53 @@ export async function updateUserSettings(userId, settings) {
  
  
 // ============================================================
+// WORKOUT TEMPLATES
+// ============================================================
+
+/**
+ * Get all saved workout templates for a user.
+ * Templates are stored inside user_settings.workout_templates (JSONB).
+ * @param {string} userId
+ * @returns {Array} Array of template objects, newest first
+ */
+export async function getWorkoutTemplates(userId) {
+  const settings = await getUserSettings(userId)
+  return (settings?.workout_templates || []).slice().reverse()
+}
+
+/**
+ * Save (upsert) a single workout template.
+ * Matches on template.id — adds if new, replaces if existing.
+ * @param {string} userId
+ * @param {object} template - { id, name, exercises, createdAt, lastUsed, useCount }
+ * @returns {object|null} Updated settings row, or null on error
+ */
+export async function saveWorkoutTemplate(userId, template) {
+  const settings = await getUserSettings(userId)
+  const existing = settings?.workout_templates || []
+  const idx = existing.findIndex(t => t.id === template.id)
+  const updated = idx >= 0
+    ? existing.map(t => t.id === template.id ? template : t)
+    : [...existing, template]
+  return updateUserSettings(userId, { workout_templates: updated })
+}
+
+/**
+ * Delete a workout template by id.
+ * @param {string} userId
+ * @param {string} templateId
+ * @returns {object|null} Updated settings row, or null on error
+ */
+export async function deleteWorkoutTemplate(userId, templateId) {
+  const settings = await getUserSettings(userId)
+  const existing = settings?.workout_templates || []
+  return updateUserSettings(userId, {
+    workout_templates: existing.filter(t => t.id !== templateId),
+  })
+}
+
+
+// ============================================================
 // PROFILES
 // ============================================================
  
