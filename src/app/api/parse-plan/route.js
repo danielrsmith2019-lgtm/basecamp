@@ -62,21 +62,26 @@ Rules:
 
 // Robust JSON extractor that survives common Claude formatting drift.
 //
-// Known failure modes and their fixes (applied in order before first parse):
+// Root cause of all failures seen so far: the 4 000-token limit puts
+// Claude under context pressure near the end of a long plan, causing it
+// to drop commas or quotes around position 11 000-11 500 (≈ 70% through
+// a 16-week plan). Raising max_tokens to 8 000 eliminates most cases;
+// the cleanup passes below handle the residual formatting drift.
 //
-//  1. Markdown fences        — stripped unconditionally
-//  2. Trailing commas        — ,} or ,] → } or ]
-//  3. Missing commas between adjacent objects/arrays
-//     Claude drops the comma between large objects inside a week array:
-//       }\n{ → },\n{   (safe: }{ without comma is never valid JSON)
-//  4. Missing commas between adjacent quoted strings
-//     Claude drops commas in small arrays like muscleGroups:
-//       "Chest" "Shoulders" → "Chest","Shoulders"
-//     (safe: "x" "y" without a comma is never valid JSON)
+// Cleanup passes applied before JSON.parse:
+//  1. Strip markdown fences
+//  2. Extract outermost { … } block
+//  3. Remove JS-style comments
+//  4. Remove trailing commas  (,} or ,])
+//  5. Insert missing commas between adjacent objects/arrays  (}{ → },{)
+//  6. Insert missing commas between adjacent strings with whitespace
+//     "x" \n "y" → "x",\n"y"   (Fix 4, safe: "x" "y" is never valid)
+//  7. Insert missing commas between adjacent strings with NO whitespace
+//     "Chest""Shoulders" → "Chest","Shoulders"
+//     Detects word-char at end of first string + "" + word-char at start of next.
+//     Safe: empty strings ("") are never valid in our schema output.
 //
-// On first-pass failure a second pass also quotes bare property-name
-// identifiers (unquoted keys), which fixes "Expected double-quoted property
-// name" errors.
+// On first-pass failure a second pass also quotes unquoted property names.
 function parseClaudeJSON(rawText) {
   let s = rawText
     .replace(/```json\s*/gi, '')
@@ -93,19 +98,25 @@ function parseClaudeJSON(rawText) {
   s = s.replace(/\/\/[^\n]*/g, '');
   s = s.replace(/\/\*[\s\S]*?\*\//g, '');
 
-  // Fix 2: trailing commas before } or ]
+  // Fix 4: trailing commas before } or ]
   s = s.replace(/,(\s*[}\]])/g, '$1');
 
-  // Fix 3: missing comma between adjacent } or ] and { or [
-  // Replacement: insert , immediately after the closing bracket, keep whitespace
+  // Fix 5: missing comma between adjacent } or ] and { or [
+  // \s* matches zero or more whitespace so this catches same-line }{  too.
   // Already-commaed sequences (},\n{) don't match because , is not \s.
   s = s.replace(/([}\]])(\s*)([{[])/g, '$1,$2$3');
 
-  // Fix 4: missing comma between adjacent double-quoted strings
+  // Fix 6: missing comma between adjacent strings separated by whitespace
   // "value1"\n  "value2" → "value1",\n  "value2"
-  // The end-quote and start-quote are each consumed once; , is inserted between.
-  // Already-commaed sequences ("x", "y") don't match because , is not \s.
+  // Already-commaed ("x", "y") don't match because , is not \s.
   s = s.replace(/"(\s+)"/g, '",$1"');
+
+  // Fix 7: missing comma between adjacent strings with NO whitespace
+  // "Chest""Shoulders" → "Chest","Shoulders"
+  // Matches: a word/digit char at end of first string + "" + word/digit at start of next.
+  // Does NOT match: "key": "" (empty string — preceded by space/colon, not a word char)
+  // Does NOT match: ["", "x"] (empty string — preceded by [ which is not \w)
+  s = s.replace(/([a-zA-Z0-9_])""([a-zA-Z0-9_{\[])/g, '$1","$2');
 
   // ── Pass 1: strict parse ──
   try {
@@ -139,7 +150,7 @@ async function callClaude(text) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: `Parse this training plan:\n\n${text}` }],
     }),
