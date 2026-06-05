@@ -176,7 +176,7 @@ export default function Dashboard() {
     completedLifts.forEach(w => {
       (w.details.exercises || []).forEach(ex => {
         if (!ex.name) return;
-        (ex.sets || []).filter(s => s.completed && s.weight && s.reps).forEach(s => {
+        (Array.isArray(ex.sets) ? ex.sets : []).filter(s => s.completed && s.weight && s.reps).forEach(s => {
           const e1rm = Number(s.weight) * (1 + Number(s.reps) / 30);
           if (!e1rmMap[ex.name] || e1rm > e1rmMap[ex.name]) e1rmMap[ex.name] = e1rm;
         });
@@ -203,7 +203,7 @@ export default function Dashboard() {
       let improved = false; let hadComparison = false;
       const thisBest = {};
       (w.details.exercises || []).forEach(ex => {
-        const sets = (ex.sets || []).filter(s => s.completed && s.weight && s.reps);
+        const sets = (Array.isArray(ex.sets) ? ex.sets : []).filter(s => s.completed && s.weight && s.reps);
         if (!sets.length) return;
         const maxW = Math.max(...sets.map(s => Number(s.weight)));
         const maxR = Math.max(...sets.map(s => Number(s.reps)));

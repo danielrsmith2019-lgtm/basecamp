@@ -334,7 +334,7 @@ export function applyAdjustment(exercises, adj, restPreset) {
           if (ex.name !== adj.exerciseName) return ex;
           return {
             ...ex,
-            sets: (ex.sets || []).map(s => ({
+            sets: (Array.isArray(ex.sets) ? ex.sets : []).map(s => ({
               ...s,
               targetWeight: s.targetWeight ? Math.round((s.targetWeight * 0.9) / 2.5) * 2.5 : null,
               weight:       s.weight       ? Math.round((s.weight       * 0.9) / 2.5) * 2.5 : null,
