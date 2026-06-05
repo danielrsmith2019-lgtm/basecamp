@@ -2,7 +2,7 @@
 
 import { InsightIcon } from '@/utils/icons';
 
-export default function InsightCard({ insight, onDismiss, onAction }) {
+export default function InsightCard({ insight, onDismiss, onAction, onPermanentDismiss }) {
   const styles = {
     warning:    { border: 'border-bc-orange', iconBg: 'bg-bc-orange-light', title: 'text-bc-orange-dark', bg: 'bg-bc-orange-light/30' },
     suggestion: { border: 'border-bc-blue',   iconBg: 'bg-bc-blue-light',   title: 'text-bc-blue-dark',   bg: 'bg-bc-blue-light/30'   },
@@ -19,7 +19,7 @@ export default function InsightCard({ insight, onDismiss, onAction }) {
         <div className="flex-1 min-w-0">
           <h4 className={`text-sm font-semibold mb-1 ${style.title}`}>{insight.title}</h4>
           <p className="text-xs text-secondary leading-relaxed">{insight.description}</p>
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
             {insight.action && (
               <button
                 onClick={() => onAction?.(insight)}
@@ -31,6 +31,11 @@ export default function InsightCard({ insight, onDismiss, onAction }) {
               onClick={() => onDismiss?.(insight.id)}
               className="px-3 py-1.5 text-tertiary text-xs hover:text-primary transition-colors">
               Dismiss
+            </button>
+            <button
+              onClick={() => onPermanentDismiss?.(insight)}
+              className="px-3 py-1.5 text-tertiary text-[11px] hover:text-primary transition-colors border-l border-border/40">
+              Don't show again
             </button>
           </div>
         </div>

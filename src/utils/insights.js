@@ -97,7 +97,9 @@ function checkLegDayRunConflict(workouts) {
   const LEG_GROUPS  = ['Quads', 'Hamstrings', 'Glutes', 'Calves'];
   const HARD_RUNS   = ['Tempo', 'Intervals', 'Long Run', 'Race'];
   const today = new Date().toLocaleDateString('en-CA');
-  const upcoming = workouts.filter(w => w.date >= today && w.status === 'planned');
+  const fourteenOut = new Date(); fourteenOut.setDate(fourteenOut.getDate() + 14);
+  const maxDate14 = fourteenOut.toLocaleDateString('en-CA');
+  const upcoming = workouts.filter(w => w.date >= today && w.date <= maxDate14 && w.status === 'planned');
 
   const legDays  = upcoming.filter(w =>
     w.type === 'lift' &&
@@ -116,8 +118,8 @@ function checkLegDayRunConflict(workouts) {
       if (diffHours > 0 && diffHours <= 24) {  // same-day handled by checkSameDaySequencing
         const legFirst = legDate <= runDate;
         insights.push({
-          // ID keyed to the two workout dates — stable as long as these are planned
           id: `leg-run-conflict-${leg.date}-${run.date}`,
+          category: 'leg-run-conflict',
           type: 'warning',
           title: 'Leg Day + Hard Run Conflict',
           description: legFirst
@@ -410,7 +412,10 @@ function isoWeekKey(dateStr) {
 function checkSameDaySequencing(workouts) {
   const insights = [];
   const today = new Date().toLocaleDateString('en-CA');
-  const upcoming = workouts.filter(w => w.date >= today && w.status === 'planned');
+  const sevenOut = new Date(); sevenOut.setDate(sevenOut.getDate() + 7);
+  const maxDate  = sevenOut.toLocaleDateString('en-CA');
+  // Limit to next 7 days — same-day sequencing advice is only actionable near-term
+  const upcoming = workouts.filter(w => w.date >= today && w.date <= maxDate && w.status === 'planned');
 
   const HARD_RUN_TYPES = ['Tempo', 'Intervals', 'Long Run', 'Race'];
   const LEG_GROUPS     = ['Quads', 'Hamstrings', 'Glutes', 'Calves'];
@@ -437,6 +442,7 @@ function checkSameDaySequencing(workouts) {
           seenDates.add(date);
           insights.push({
             id: `same-day-sequence-${date}`,
+            category: 'same-day-sequence',
             type: 'warning',
             title: 'Hard Run + Legs Same Day',
             description: `A ${run.details.runType || 'hard run'} and lower body lifting on the same day significantly compounds fatigue. If you must do both today, lift first — strength output drops 15-20% after hard cardio. Better: move the run to tomorrow or swap it for easy cardio.`,
@@ -445,6 +451,7 @@ function checkSameDaySequencing(workouts) {
           seenDates.add(date);
           insights.push({
             id: `same-day-lift-first-${date}`,
+            category: 'same-day-lift-first',
             type: 'suggestion',
             title: 'Lift Before You Run Today',
             description: `You have lifting and a run scheduled today. Do the lifting session first — strength performance is better when legs are fresh. If the run is easy, same-day is fine after lifting.`,

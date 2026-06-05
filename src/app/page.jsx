@@ -65,6 +65,13 @@ export default function Dashboard() {
     } catch { return new Set(); }
   });
 
+  // Permanent dismissals — keyed by insight.category (or id), no week-key reset
+  const [permanentDismissed, setPermanentDismissed] = useState(() => {
+    if (typeof window === 'undefined') return new Set();
+    try { return new Set(JSON.parse(localStorage.getItem('bc-dismissed-permanent') || '[]')); }
+    catch { return new Set(); }
+  });
+
   const [dismissedSkips, setDismissedSkips] = useState(() => {
     if (typeof window === 'undefined') return new Set();
     try {
@@ -216,7 +223,13 @@ export default function Dashboard() {
     }
     return { topExercises, volTrend, thisWeekVol, lastWeekVol, streak };
   }, [workouts]);
-  const visibleInsights     = useMemo(() => allInsights.filter(i => !dismissedInsights.has(i.id)), [allInsights, dismissedInsights]);
+  const visibleInsights     = useMemo(() =>
+    allInsights.filter(i =>
+      !dismissedInsights.has(i.id) &&
+      !permanentDismissed.has(i.id) &&
+      !(i.category && permanentDismissed.has(i.category))
+    ),
+  [allInsights, dismissedInsights, permanentDismissed]);
   const warningInsights     = useMemo(() => visibleInsights.filter(i => i.type === 'warning'),    [visibleInsights]);
   const suggestionInsights  = useMemo(() => visibleInsights.filter(i => i.type === 'suggestion'), [visibleInsights]);
   const infoInsights        = useMemo(() => visibleInsights.filter(i => i.type === 'info'),       [visibleInsights]);
@@ -421,6 +434,15 @@ export default function Dashboard() {
     if (isLifter) setKpiToggle(prev => prev === 'both' ? 'lifts' : prev);
   }, [isLifter]);
 
+  function handlePermanentDismiss(insight) {
+    const key = insight.category || insight.id;
+    setPermanentDismissed(prev => {
+      const next = new Set([...prev, key]);
+      try { localStorage.setItem('bc-dismissed-permanent', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
   function handleSave(data) {
     saveWorkout(data);
     if (data.status==='completed') setJustLogged(data);
@@ -544,7 +566,8 @@ export default function Dashboard() {
                   {warningInsights.map(insight => (
                     <InsightCard key={insight.id} insight={insight}
                       onDismiss={id=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
-                      onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
+                      onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
+                      onPermanentDismiss={handlePermanentDismiss}/>
                   ))}
                 </div>
               )}
@@ -559,7 +582,8 @@ export default function Dashboard() {
                   {suggestionInsights.map(insight => (
                     <InsightCard key={insight.id} insight={insight}
                       onDismiss={id=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
-                      onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
+                      onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
+                      onPermanentDismiss={handlePermanentDismiss}/>
                   ))}
                 </div>
               )}
@@ -582,7 +606,8 @@ export default function Dashboard() {
                       {infoInsights.map(insight => (
                         <InsightCard key={insight.id} insight={insight}
                           onDismiss={id=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
-                          onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
+                          onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
+                          onPermanentDismiss={handlePermanentDismiss}/>
                       ))}
                     </div>
                   )}
