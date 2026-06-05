@@ -6,11 +6,12 @@ import { formatDate, comparePaces } from '@/utils/runUtils';
 import { formatVolume } from '@/utils/liftUtils';
 import WorkoutDetailModal from '@/components/shared/WorkoutDetailModal';
 import LogForm from '@/components/shared/LogForm';
+import WorkoutGenerator from '@/components/shared/WorkoutGenerator';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import {
   Footprints, Dumbbell, Bike, Moon, Activity,
   SlidersHorizontal, X, ChevronDown, ChevronUp,
-  Plus, TrendingUp, Calendar,
+  Plus, TrendingUp, Calendar, Sparkles,
 } from 'lucide-react';
 
 // useSearchParams must live in a child component wrapped in Suspense
@@ -84,6 +85,7 @@ function LogPageContent({ startId, router }) {
 
   const [showLogForm,      setShowLogForm]      = useState(!!startId);
   const [logFormWorkout,   setLogFormWorkout]   = useState(startWorkout || null);
+  const [showGenerator,    setShowGenerator]    = useState(false);
   const [selectedWorkout,  setSelectedWorkout]  = useState(null);
   const [typeFilter,       setTypeFilter]       = useState('all');
   const [dateFrom,         setDateFrom]         = useState('');
@@ -183,6 +185,12 @@ function LogPageContent({ startId, router }) {
     setShowLogForm(true);
   }
 
+  function handleStartWorkout(generatedWorkout) {
+    setShowGenerator(false);
+    setLogFormWorkout(generatedWorkout);
+    setShowLogForm(true);
+  }
+
   const hasFilters = typeFilter !== 'all' || dateFrom || dateTo;
 
   if (!isLoaded) return (
@@ -197,11 +205,19 @@ function LogPageContent({ startId, router }) {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-[15px] font-bold text-primary">Training Log</h2>
-        <button onClick={openNewLog}
-          className="flex items-center gap-1.5 px-4 py-2 bg-bc-blue text-white text-xs font-semibold
-                     rounded-[10px] hover:opacity-90 active:scale-95 transition-all min-h-[44px]">
-          <Plus size={14}/> Log Workout
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowGenerator(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-canvas border border-border text-secondary
+                       text-xs font-semibold rounded-[10px] hover:text-primary hover:border-border-strong
+                       active:scale-95 transition-all min-h-[44px]">
+            <Sparkles size={13} /> Generate
+          </button>
+          <button onClick={openNewLog}
+            className="flex items-center gap-1.5 px-4 py-2 bg-bc-blue text-white text-xs font-semibold
+                       rounded-[10px] hover:opacity-90 active:scale-95 transition-all min-h-[44px]">
+            <Plus size={14}/> Log Workout
+          </button>
+        </div>
       </div>
 
       {/* ── Quick stats ── */}
@@ -333,6 +349,13 @@ function LogPageContent({ startId, router }) {
       )}
 
       {/* ── Modals ── */}
+      {showGenerator && (
+        <WorkoutGenerator
+          onStartWorkout={handleStartWorkout}
+          onClose={() => setShowGenerator(false)}
+        />
+      )}
+
       <WorkoutDetailModal
         workout={selectedWorkout}
         onClose={() => setSelectedWorkout(null)}
