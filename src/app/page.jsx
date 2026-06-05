@@ -796,7 +796,7 @@ export default function Dashboard() {
               ):null}
             </div>
           );
-        })())}
+        })()}
 
         {/* Slot 2: Lift card (hybrid/lifter) OR Running Stats (runner) */}
         {isRunner ? (
@@ -879,7 +879,7 @@ export default function Dashboard() {
               ):null}
             </div>
           );
-        })())}
+        })()}
 
         {/* Streak */}
         <div className="bc-card p-4 bento-quarter">
