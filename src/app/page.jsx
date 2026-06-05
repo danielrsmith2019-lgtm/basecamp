@@ -464,7 +464,7 @@ export default function Dashboard() {
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-[20px] bg-bc-indigo-light flex items-center justify-center mx-auto mb-4"><Sparkles size={28} className="text-bc-indigo" /></div>
           <h1 className="text-[22px] font-bold text-primary mb-2">Welcome to BaseCamp</h1>
-          <p className="text-sm text-secondary leading-relaxed max-w-sm mx-auto">Your multimodal fitness OS. One app for every run, lift, and cardio session — with AI that understands how they all interact.</p>
+          <p className="text-sm text-secondary leading-relaxed max-w-sm mx-auto">Your multimodal fitness OS. One app for every run, lift, and cardio session all integrated with an intelligent AI engine that understands how they all interact.</p>
         </div>
         <div className="space-y-3 mb-6">
           <a href="/plans" className="flex items-center gap-4 p-4 bc-card hover:shadow-md transition-shadow no-underline">
@@ -485,7 +485,7 @@ export default function Dashboard() {
         </div>
         <div className="p-4 bg-bc-indigo-light/60 rounded-[16px] border border-bc-indigo/10">
           <p className="text-xs font-semibold text-bc-indigo-dark mb-1.5">Why BaseCamp is different</p>
-          <p className="text-xs text-bc-indigo-dark/80 leading-relaxed">Most apps only track one thing. BaseCamp understands the interference effect — how your Tuesday leg day affects your Wednesday tempo run. It&apos;s the only app built for athletes who do more than one thing.</p>
+          <p className="text-xs text-bc-indigo-dark/80 leading-relaxed">Most apps only track one thing. BaseCamp understands the interference effect. Basecamp uses emprical formulas to understand how your Tuesday leg day affects your Wednesday tempo run. We can predict when you can push it further, or need to scale back and with your approval, automatically adjust your plan. It&apos;s the only app built for athletes who do more than one thing, but does everthing well individually.</p>
         </div>
         {logTarget && <LogForm workout={logTarget} onSave={handleSave} onClose={()=>setLogTarget(null)}/>}
       </div>
