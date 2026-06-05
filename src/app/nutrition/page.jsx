@@ -12,7 +12,7 @@ import {
 import {
   Plus, X, ChevronDown, ChevronUp,
   Footprints, Sun, Moon, Coffee, Apple, Flame,
-  GlassWater, Zap, Dumbbell,
+  GlassWater, Zap, Dumbbell, TrendingDown, TrendingUp,
 } from 'lucide-react';
 import FoodSearch from '@/components/shared/FoodSearch';
 import { getRecentFoods } from '@/utils/nutritionUtils';
@@ -65,6 +65,7 @@ export default function NutritionPage() {
   const [fatTarget,      setFatTarget]      = useState(null);
   const [waterTarget,    setWaterTarget]    = useState(2000);
   const [userWeight,     setUserWeight]     = useState(170);
+  const [bodyWeightGoal, setBodyWeightGoal] = useState(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // ── Log state ──
@@ -96,6 +97,7 @@ export default function NutritionPage() {
         setFatTarget(settings.fat_target           || null);
         setWaterTarget(settings.water_target_ml    || 2000);
         setUserWeight(settings.weight              || 170);
+        setBodyWeightGoal(settings.body_weight_goal || null);
       }
       setSettingsLoaded(true);
 
@@ -376,6 +378,24 @@ export default function NutritionPage() {
             </div>
           </div>
         </div>
+
+        {/* Body composition goal on-track banner */}
+        {bodyWeightGoal && (() => {
+          const deficit = Math.round(bodyWeightGoal.weekly_rate * 3500 / 7);
+          const isLoss  = bodyWeightGoal.direction === 'lose';
+          const gap     = Math.abs(totals.calories - adjustedTarget);
+          if (gap > 100) return null;
+          return (
+            <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2">
+              {isLoss
+                ? <TrendingDown size={13} className="text-bc-green-dark flex-shrink-0"/>
+                : <TrendingUp size={13} className="text-lift-accent flex-shrink-0"/>}
+              <p className="text-xs font-semibold" style={{ color: isLoss ? '#2E7D32' : '#007AFF' }}>
+                On track for your weight {isLoss ? 'loss' : 'gain'} goal today
+              </p>
+            </div>
+          );
+        })()}
 
         {/* Water tracking */}
         <div className="mt-3 pt-3 border-t border-border/50">

@@ -16,7 +16,7 @@ import { useWorkouts } from '@/lib/WorkoutContext';
 import Metric from '@/components/shared/Metric';
 import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon } from '@/utils/icons';
-import { Flame, Sparkles, ChevronLeft, ChevronRight, TrendingUp, BarChart3, Activity, Footprints, Dumbbell, Zap, AlertTriangle, Lightbulb } from 'lucide-react';
+import { Flame, Sparkles, ChevronLeft, ChevronRight, TrendingUp, BarChart3, Activity, Footprints, Dumbbell, Zap, AlertTriangle, Lightbulb, Flag } from 'lucide-react';
 import { getUserTrainingProfile } from '@/utils/trainingProfile';
 import { generateLiftAdjustments } from '@/utils/liftAdjustments';
 import PlanAdaptationList from '@/components/shared/PlanAdaptation';
@@ -55,6 +55,7 @@ export default function Dashboard() {
   const [trainingTypeOverride, setTrainingTypeOverride] = useState('auto');
   const [dismissedOnboarding,  setDismissedOnboarding]  = useState(false);
   const [infoNotesOpen,        setInfoNotesOpen]        = useState(false);
+  const [raceCountdown,        setRaceCountdown]        = useState(null);
 
   const [dismissedInsights, setDismissedInsights] = useState(() => {
     if (typeof window === 'undefined') return new Set();
@@ -112,6 +113,12 @@ export default function Dashboard() {
     async function checkTrigger() {
       const settings = await getUserSettings(user.id);
       setTrainingTypeOverride(settings?.training_type || 'auto');
+      if (settings?.race_date) {
+        const rd = new Date(settings.race_date + 'T00:00:00');
+        const daysLeft = Math.ceil((rd - new Date().setHours(0,0,0,0)) / 86400000);
+        if (daysLeft >= 0 && daysLeft <= 90)
+          setRaceCountdown({ days: daysLeft, name: settings.race_name || settings.race_distance || 'Race' });
+      }
       if (settings?.last_checkin_date !== today) {
         setShowCheckIn(true);
       } else if (settings?.last_checkin_data) {
@@ -648,6 +655,15 @@ export default function Dashboard() {
             Skip for now
           </button>
         </div>
+      )}
+
+      {/* Race countdown banner */}
+      {raceCountdown && (
+        <a href="/goals" className="flex items-center gap-2 px-4 py-2.5 mb-2 rounded-[12px] bg-run-bg border border-run-accent/20 no-underline">
+          <Flag size={12} className="text-run-accent flex-shrink-0"/>
+          <span className="text-xs font-semibold text-run-accent">{raceCountdown.name}</span>
+          <span className="bc-caption ml-auto">{raceCountdown.days === 0 ? 'Today!' : `${raceCountdown.days} days`}</span>
+        </a>
       )}
 
       {/* Today's Plan */}
