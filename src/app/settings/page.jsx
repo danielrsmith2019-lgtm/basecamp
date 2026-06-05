@@ -17,7 +17,9 @@ import { useRouter } from 'next/navigation';
 import {
   User, Activity, Dumbbell, Database, Upload, Download,
   Trash2, Check, AlertTriangle, Calendar, ChevronDown, ChevronUp,
+  Footprints, Zap, Target,
 } from 'lucide-react';
+import { getUserTrainingProfile } from '@/utils/trainingProfile';
 
 const ACTIVITY_MULTIPLIERS = {
   sedentary:   { label: 'Sedentary (desk job)',    value: 1.2   },
@@ -44,6 +46,7 @@ export default function SettingsPage() {
     calorie_target: 2000, protein_target: 150,
     training_days_per_week: 5, experience_level: 'intermediate',
     primary_goal: 'hybrid', unit_system: 'imperial', activity_level: 'moderate',
+    training_type: 'auto',
   });
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -76,6 +79,7 @@ export default function SettingsPage() {
           primary_goal: settingsData.primary_goal || 'hybrid',
           unit_system: settingsData.unit_system || 'imperial',
           activity_level: settingsData.activity_level || 'moderate',
+          training_type: settingsData.training_type || 'auto',
         }));
       }
 
@@ -123,7 +127,7 @@ export default function SettingsPage() {
   function handleSettingsChange(field, value) {
     const updated = { ...settings, [field]: value };
     setSettings(updated);
-    if (['experience_level', 'primary_goal', 'unit_system', 'activity_level', 'training_days_per_week'].includes(field)) {
+    if (['experience_level', 'primary_goal', 'unit_system', 'activity_level', 'training_days_per_week', 'training_type'].includes(field)) {
       saveSettings({ [field]: value });
     }
   }
@@ -405,6 +409,51 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── TRAINING PROFILE ── */}
+      {(()=>{
+        const autoProfile = getUserTrainingProfile(workouts);
+        const autoLabel = autoProfile.primaryType === 'runner' ? 'Runner' : autoProfile.primaryType === 'lifter' ? 'Lifter' : autoProfile.primaryType === 'new' ? 'New user (not enough data)' : 'Hybrid';
+        return (
+          <div className="bc-card p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <Target size={16} className="text-bc-blue" />
+              <h3 className="bc-caption uppercase tracking-wider">Training Profile</h3>
+            </div>
+            <div>
+              <label className="bc-caption uppercase tracking-wider block mb-2">Training Type</label>
+              <div className="bc-tab-bar">
+                {[
+                  { value: 'runner', label: 'Runner', Icon: Footprints },
+                  { value: 'auto',   label: 'Auto',   Icon: Zap },
+                  { value: 'lifter', label: 'Lifter',  Icon: Dumbbell },
+                ].map(({ value, label, Icon }) => {
+                  const active = settings.training_type === value;
+                  return (
+                    <button key={value} onClick={() => handleSettingsChange('training_type', value)}
+                      className="bc-tab flex items-center gap-1.5 justify-center"
+                      style={{
+                        background: active ? '#007AFF' : 'transparent',
+                        color: active ? '#FFFFFF' : '#8E8E93',
+                        fontWeight: active ? 600 : 500,
+                        borderRadius: '10px', flex: 1,
+                      }}>
+                      <Icon size={12} strokeWidth={2} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="bc-caption mt-2">
+                Auto-detected: <span className="font-medium text-secondary">{autoLabel}</span>
+                {settings.training_type !== 'auto' && (
+                  <span className="ml-1 text-bc-blue">· Manual override active</span>
+                )}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── TRAINING PLAN MANAGEMENT ── NEW SECTION ── */}
       <div className="bc-card p-6">

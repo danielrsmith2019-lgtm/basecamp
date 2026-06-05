@@ -5,8 +5,10 @@
  * Step 0: Plan Type | Step 1: Goal | Step 2: Fitness | Step 3: Schedule
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronRight, ChevronLeft, Loader2, Sparkles, Footprints, Dumbbell, Zap } from 'lucide-react';
+import { useWorkouts } from '@/lib/WorkoutContext';
+import { getUserTrainingProfile } from '@/utils/trainingProfile';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -57,8 +59,16 @@ const INITIAL_STATE = {
 };
 
 export default function PlanWizard({ onComplete, onCancel }) {
+  const { workouts } = useWorkouts();
+  const trainingProfile = useMemo(() => getUserTrainingProfile(workouts), [workouts]);
+
+  const defaultPlanType = trainingProfile.primaryType === 'runner' ? 'running'
+    : trainingProfile.primaryType === 'lifter' ? 'lifting'
+    : null;
+
+  const [showProfileStep, setShowProfileStep] = useState(trainingProfile.primaryType === 'new');
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState(INITIAL_STATE);
+  const [form, setForm] = useState({ ...INITIAL_STATE, planType: defaultPlanType });
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -178,6 +188,49 @@ export default function PlanWizard({ onComplete, onCancel }) {
             ))}
           </div>
           <style jsx>{`@keyframes pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}`}</style>
+        </div>
+      </div>
+    );
+  }
+
+  // Profile selection for new users — shown before step 0
+  if (showProfileStep) {
+    return (
+      <div className="bc-card-flush">
+        <div className="p-4 sm:p-6 space-y-5">
+          <div>
+            <h3 className="text-[17px] font-semibold text-primary mb-1">What best describes your training?</h3>
+            <p className="text-sm text-secondary">This helps BaseCamp build the right plan for you.</p>
+          </div>
+          <div className="space-y-3">
+            {[
+              { value: 'running', label: "I'm a runner",    desc: 'Pure running plan — race prep, mileage building, speed work.',     Icon: Footprints, color: 'text-run-accent',  bg: 'bg-run-bg',          border: 'border-run-accent',  activeBg: 'bg-run-bg' },
+              { value: 'lifting', label: 'I lift weights',   desc: 'Pure strength plan — hypertrophy, powerlifting, or athletic.',      Icon: Dumbbell,   color: 'text-lift-accent', bg: 'bg-lift-bg',          border: 'border-lift-accent', activeBg: 'bg-lift-bg' },
+              { value: 'hybrid',  label: 'I do both',        desc: 'Hybrid plan — runs and lifts scheduled to minimize interference.',  Icon: Zap,         color: 'text-bc-indigo',   bg: 'bg-bc-indigo-light',  border: 'border-bc-indigo',   activeBg: 'bg-bc-indigo-light/40' },
+            ].map(opt => (
+              <button key={opt.value}
+                onClick={() => {
+                  update('planType', opt.value);
+                  setShowProfileStep(false);
+                }}
+                className={`w-full flex items-center gap-4 p-4 rounded-[16px] border-2 text-left transition-all border-border bg-canvas hover:border-border-strong`}>
+                <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center flex-shrink-0 ${opt.bg}`}>
+                  <opt.Icon size={24} className={opt.color} strokeWidth={2} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-primary">{opt.label}</p>
+                  <p className="text-xs text-secondary mt-0.5 leading-relaxed">{opt.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t border-border">
+            <button onClick={onCancel} className="px-4 py-2.5 text-secondary text-sm hover:text-primary transition-colors min-h-[44px]">Cancel</button>
+            <button onClick={() => setShowProfileStep(false)}
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-bc-blue text-white text-sm font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
+              Skip <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
       </div>
     );

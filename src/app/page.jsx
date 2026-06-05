@@ -16,7 +16,8 @@ import { useWorkouts } from '@/lib/WorkoutContext';
 import Metric from '@/components/shared/Metric';
 import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon } from '@/utils/icons';
-import { Flame, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Flame, Sparkles, ChevronLeft, ChevronRight, TrendingUp, BarChart3, Activity, Footprints, Dumbbell, Zap } from 'lucide-react';
+import { getUserTrainingProfile } from '@/utils/trainingProfile';
 import PlanAdaptationList from '@/components/shared/PlanAdaptation';
 import SkipInsightCard from '@/components/shared/SkipInsightCard';
 import { analyzeSkips, computeWeeklySkipRate } from '@/utils/skipIntelligence';
@@ -49,6 +50,9 @@ export default function Dashboard() {
   const [kpiToggle,     setKpiToggle]     = useState('both');
   // FIX 3: recent activity page index
   const [activityPage, setActivityPage]   = useState(0);
+
+  const [trainingTypeOverride, setTrainingTypeOverride] = useState('auto');
+  const [dismissedOnboarding,  setDismissedOnboarding]  = useState(false);
 
   const [dismissedInsights, setDismissedInsights] = useState(() => {
     if (typeof window === 'undefined') return new Set();
@@ -98,6 +102,7 @@ export default function Dashboard() {
     if (!user || !isLoaded) return;
     async function checkTrigger() {
       const settings = await getUserSettings(user.id);
+      setTrainingTypeOverride(settings?.training_type || 'auto');
       if (settings?.last_checkin_date !== today) {
         setShowCheckIn(true);
       } else if (settings?.last_checkin_data) {
@@ -130,6 +135,85 @@ export default function Dashboard() {
 
   const allInsights  = useMemo(() => generateInsights(workouts), [workouts]);
   const trainingLoad = useMemo(() => calculateTrainingLoad(workouts), [workouts]);
+
+  const trainingProfile = useMemo(() => {
+    const computed = getUserTrainingProfile(workouts);
+    if (trainingTypeOverride !== 'auto') return { ...computed, primaryType: trainingTypeOverride };
+    return computed;
+  }, [workouts, trainingTypeOverride]);
+
+  const runnerStats = useMemo(() => {
+    const completedRuns = workouts
+      .filter(w => w.type === 'run' && w.status === 'completed')
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA');
+    const monthRuns = completedRuns.filter(w => w.date >= monthStart);
+    const totalMilesMonth = parseFloat(monthRuns.reduce((s, w) => s + (w.details.actualDistance || 0), 0).toFixed(1));
+    const longestRunMonth = parseFloat(Math.max(...monthRuns.map(w => w.details.actualDistance || 0), 0).toFixed(1));
+    const last3 = completedRuns.slice(0, 3).filter(w => w.details.actualPace);
+    let avgPace = null;
+    if (last3.length > 0) {
+      const totalSecs = last3.reduce((s, w) => {
+        const parts = (w.details.actualPace || '').split(':');
+        return s + (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+      }, 0);
+      const avg = totalSecs / last3.length;
+      avgPace = `${Math.floor(avg / 60)}:${String(Math.round(avg % 60)).padStart(2, '0')}`;
+    }
+    const weeklyMiles = getWeeklyData(completedRuns, w => w.details.actualDistance || 0);
+    return { totalMilesMonth, longestRunMonth, avgPace, weeklyMiles };
+  }, [workouts]);
+
+  const lifterStats = useMemo(() => {
+    const completedLifts = workouts
+      .filter(w => w.type === 'lift' && w.status === 'completed')
+      .sort((a, b) => a.date.localeCompare(b.date));
+    // Top exercises by e1RM (Epley formula)
+    const e1rmMap = {};
+    completedLifts.forEach(w => {
+      (w.details.exercises || []).forEach(ex => {
+        if (!ex.name) return;
+        (ex.sets || []).filter(s => s.completed && s.weight && s.reps).forEach(s => {
+          const e1rm = Number(s.weight) * (1 + Number(s.reps) / 30);
+          if (!e1rmMap[ex.name] || e1rm > e1rmMap[ex.name]) e1rmMap[ex.name] = e1rm;
+        });
+      });
+    });
+    const topExercises = Object.entries(e1rmMap)
+      .sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([name, e1rm]) => ({ name, e1rm: Math.round(e1rm) }));
+    // Volume trend
+    const now = new Date();
+    const dow = now.getDay();
+    const mon = new Date(now); mon.setDate(mon.getDate() + (dow === 0 ? -6 : 1 - dow)); mon.setHours(0,0,0,0);
+    const monStr = mon.toLocaleDateString('en-CA');
+    const sunStr = new Date(mon.getTime() + 6*86400000).toLocaleDateString('en-CA');
+    const lastMonStr = new Date(mon.getTime() - 7*86400000).toLocaleDateString('en-CA');
+    const lastSunStr = new Date(mon.getTime() - 1).toLocaleDateString('en-CA');
+    const thisWeekVol = completedLifts.filter(w => w.date >= monStr && w.date <= sunStr).reduce((s,w) => s+(w.details.totalVolume||0), 0);
+    const lastWeekVol = completedLifts.filter(w => w.date >= lastMonStr && w.date <= lastSunStr).reduce((s,w) => s+(w.details.totalVolume||0), 0);
+    const volTrend = lastWeekVol > 0 ? Math.round(((thisWeekVol - lastWeekVol) / lastWeekVol) * 100) : null;
+    // Progressive overload streak (chronological)
+    const prevBest = {};
+    let streak = 0;
+    for (const w of completedLifts) {
+      let improved = false; let hadComparison = false;
+      const thisBest = {};
+      (w.details.exercises || []).forEach(ex => {
+        const sets = (ex.sets || []).filter(s => s.completed && s.weight && s.reps);
+        if (!sets.length) return;
+        const maxW = Math.max(...sets.map(s => Number(s.weight)));
+        const maxR = Math.max(...sets.map(s => Number(s.reps)));
+        thisBest[ex.name] = { weight: maxW, reps: maxR };
+        const prev = prevBest[ex.name];
+        if (prev) { hadComparison = true; if (maxW > prev.weight || (maxW === prev.weight && maxR > prev.reps)) improved = true; }
+      });
+      Object.entries(thisBest).forEach(([n, d]) => { prevBest[n] = d; });
+      if (hadComparison) { if (improved) streak++; else streak = 0; }
+    }
+    return { topExercises, volTrend, thisWeekVol, lastWeekVol, streak };
+  }, [workouts]);
   const visibleInsights = useMemo(() => allInsights.filter(i => !dismissedInsights.has(i.id)), [allInsights, dismissedInsights]);
 
   const skipInsights = useMemo(() => analyzeSkips(workouts).filter(i => !dismissedSkips.has(i.id)), [workouts, dismissedSkips]);
@@ -317,6 +401,15 @@ export default function Dashboard() {
   const weeklyChartData = useMemo(() => buildWeeklyChartData(workouts, chartWeekOffset), [workouts, chartWeekOffset]);
   const fuelStatus = getFuelStatus(todayCalories, todayCalTarget);
 
+  const isLifter = trainingProfile.primaryType === 'lifter';
+  const isRunner = trainingProfile.primaryType === 'runner';
+  const isNew    = trainingProfile.primaryType === 'new';
+
+  // Default Training Load chart to 'lifts' for lifter profile
+  useEffect(() => {
+    if (isLifter) setKpiToggle(prev => prev === 'both' ? 'lifts' : prev);
+  }, [isLifter]);
+
   function handleSave(data) {
     saveWorkout(data);
     if (data.status==='completed') setJustLogged(data);
@@ -427,6 +520,38 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Onboarding prompt — new users only */}
+      {isNew && !dismissedOnboarding && (
+        <div className="bc-card mb-6 p-5">
+          <p className="text-[15px] font-semibold text-primary mb-1">What best describes your training?</p>
+          <p className="bc-caption mb-4">BaseCamp adapts the dashboard and plans to your sport.</p>
+          <div className="space-y-2">
+            {[
+              { value: 'runner', label: "I'm a runner",   Icon: Footprints, bg: 'bg-run-bg',         border: 'border-run-accent/30',  color: 'text-run-accent' },
+              { value: 'lifter', label: 'I lift weights',  Icon: Dumbbell,   bg: 'bg-lift-bg',        border: 'border-lift-accent/30', color: 'text-lift-accent' },
+              { value: 'hybrid', label: 'I do both',       Icon: Zap,        bg: 'bg-bc-indigo-light', border: 'border-bc-indigo/30',   color: 'text-bc-indigo' },
+            ].map(({ value, label, Icon, bg, border, color }) => (
+              <button key={value}
+                onClick={async () => {
+                  setTrainingTypeOverride(value);
+                  setDismissedOnboarding(true);
+                  if (user) await updateUserSettings(user.id, { training_type: value });
+                }}
+                className={`w-full flex items-center gap-4 p-4 rounded-[16px] border ${border} ${bg} active:scale-95 transition-all min-h-[56px]`}>
+                <div className="w-10 h-10 rounded-[12px] bg-white/60 flex items-center justify-center flex-shrink-0">
+                  <Icon size={20} className={color} strokeWidth={2} />
+                </div>
+                <span className={`text-sm font-semibold ${color}`}>{label}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setDismissedOnboarding(true)}
+            className="w-full text-center bc-caption mt-3 py-2 hover:text-secondary transition-colors min-h-[44px]">
+            Skip for now
+          </button>
+        </div>
+      )}
+
       {/* Today's Plan */}
       <div className="bc-card mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -459,8 +584,16 @@ export default function Dashboard() {
           <div className="py-4">
             <p className="text-sm text-secondary mb-3">Nothing scheduled today.</p>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={()=>setLogTarget({type:'run',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-run-bg border border-run-accent/20 active:scale-95 transition-all"><RunTypeIcon runType="easy" size={16}/><span className="text-xs font-semibold text-run-accent">Log a Run</span></button>
-              <button onClick={()=>setLogTarget({type:'lift',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-lift-bg border border-lift-accent/20 active:scale-95 transition-all"><LiftSessionIcon sessionName="" size={16}/><span className="text-xs font-semibold text-lift-accent">Log a Lift</span></button>
+              {isRunner ? (<>
+                <button onClick={()=>setLogTarget({type:'run',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-run-bg border border-run-accent/20 active:scale-95 transition-all"><Footprints size={16} className="text-run-accent" strokeWidth={2}/><span className="text-xs font-semibold text-run-accent">Log a Run</span></button>
+                <button onClick={()=>setLogTarget({type:'cardio',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-cardio-bg border border-cardio-accent/20 active:scale-95 transition-all"><Activity size={16} className="text-cardio-accent" strokeWidth={2}/><span className="text-xs font-semibold text-cardio-accent">Log Cardio</span></button>
+              </>) : isLifter ? (<>
+                <button onClick={()=>setLogTarget({type:'lift',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-lift-bg border border-lift-accent/20 active:scale-95 transition-all"><Dumbbell size={16} className="text-lift-accent" strokeWidth={2}/><span className="text-xs font-semibold text-lift-accent">Log a Lift</span></button>
+                <button onClick={()=>setLogTarget({type:'cardio',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-cardio-bg border border-cardio-accent/20 active:scale-95 transition-all"><Activity size={16} className="text-cardio-accent" strokeWidth={2}/><span className="text-xs font-semibold text-cardio-accent">Log Cardio</span></button>
+              </>) : (<>
+                <button onClick={()=>setLogTarget({type:'run',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-run-bg border border-run-accent/20 active:scale-95 transition-all"><RunTypeIcon runType="easy" size={16}/><span className="text-xs font-semibold text-run-accent">Log a Run</span></button>
+                <button onClick={()=>setLogTarget({type:'lift',status:'planned',date:today,details:{}})} className="flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] bg-lift-bg border border-lift-accent/20 active:scale-95 transition-all"><LiftSessionIcon sessionName="" size={16}/><span className="text-xs font-semibold text-lift-accent">Log a Lift</span></button>
+              </>)}
             </div>
           </div>
         )}
@@ -503,8 +636,48 @@ export default function Dashboard() {
       </div>
       <div className="bento-grid mb-6">
 
-        {/* Run Card */}
-        {(()=>{
+        {/* Slot 1: Run card (runner/hybrid) OR Strength Stats (lifter) */}
+        {isLifter ? (
+          <div className="bc-card p-4 bento-half">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 size={14} className="text-lift-accent" />
+              <p className="bc-caption uppercase tracking-wider">Strength Stats</p>
+            </div>
+            {lifterStats.topExercises.length > 0 ? (
+              <div className="space-y-3">
+                {lifterStats.volTrend !== null && (
+                  <div>
+                    <p className="bc-caption mb-0.5">Volume vs last week</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl font-bold" style={{color:lifterStats.volTrend>=0?'#34C759':'#FF9500',fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em'}}>
+                        {lifterStats.volTrend>=0?'+':''}{lifterStats.volTrend}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <p className="bc-caption mb-1.5">Top lifts (e1RM)</p>
+                  <div className="space-y-1.5">
+                    {lifterStats.topExercises.map(ex => (
+                      <div key={ex.name} className="flex items-center justify-between">
+                        <span className="text-[10px] text-secondary truncate flex-1 pr-2">{ex.name}</span>
+                        <span className="text-[10px] font-bold text-lift-accent flex-shrink-0" style={{fontVariantNumeric:'tabular-nums'}}>{ex.e1rm} lbs</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {lifterStats.streak > 0 && (
+                  <div className="flex items-center gap-1.5 pt-1 border-t border-border/50">
+                    <TrendingUp size={11} className="text-bc-green-dark" />
+                    <span className="text-[10px] font-semibold text-bc-green-dark">{lifterStats.streak} sessions improving</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="bc-caption">Log lifts to see strength stats.</p>
+            )}
+          </div>
+        ) : (()=>{
           const wk=stats.weeklyHistory?.[runWeekIndex]; if(!wk) return null;
           const isCurrent=wk.isCurrent;
           const maxMiles=Math.max(...(wk.dailyMiles||[]).map(d=>d.value),0.1);
@@ -540,15 +713,61 @@ export default function Dashboard() {
               ):null}
             </div>
           );
-        })()}
+        })())}
 
-        {/* Lift Card */}
-        {(()=>{
+        {/* Slot 2: Lift card (hybrid/lifter) OR Running Stats (runner) */}
+        {isRunner ? (
+          <div className="bc-card p-4 bento-half">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp size={14} className="text-run-accent" />
+              <p className="bc-caption uppercase tracking-wider">Running Stats</p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <p className="bc-caption mb-0.5">This month</p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-bold text-run-accent" style={{fontSize:28,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',lineHeight:1}}>
+                    {runnerStats.totalMilesMonth}
+                  </span>
+                  <span className="text-xs text-tertiary">mi</span>
+                </div>
+                {runnerStats.longestRunMonth > 0 && (
+                  <p className="text-[10px] text-tertiary">Longest: {runnerStats.longestRunMonth} mi</p>
+                )}
+              </div>
+              {runnerStats.avgPace && (
+                <div>
+                  <p className="bc-caption mb-0.5">Avg pace (last 3 runs)</p>
+                  <p className="text-sm font-bold text-primary" style={{fontVariantNumeric:'tabular-nums'}}>{runnerStats.avgPace}/mi</p>
+                </div>
+              )}
+              <div>
+                <p className="bc-caption mb-1.5">Weekly miles</p>
+                <div className="flex items-end gap-1.5" style={{height:32}}>
+                  {(runnerStats.weeklyMiles||[0,0,0,0]).map((miles,i) => {
+                    const max=Math.max(...(runnerStats.weeklyMiles||[0]),0.1);
+                    const pct=max>0?miles/max:0;
+                    const isCurrent=i===3;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                        <div className="w-full rounded-t-[3px] transition-all"
+                          style={{height:Math.max(pct*24,miles>0?3:2),background:isCurrent?'#34C759':miles>0?'#A5D6A7':'#F2F2F7'}}/>
+                        <span className="text-[8px]" style={{color:isCurrent?'#2E7D32':'#AEAEB2'}}>
+                          {['3w','2w','1w','Now'][i]}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (()=>{
           const wk=stats.weeklyHistory?.[liftWeekIndex]; if(!wk) return null;
           const isCurrent=wk.isCurrent;
           const maxVol=Math.max(...(wk.dailyVolume||[]).map(d=>d.value),1);
           return (
-            <div className="bc-card p-4 bento-half overflow-hidden">
+            <div className={`bc-card p-4 ${isLifter?'bento-hero':'bento-half'} overflow-hidden`}>
               <div className="flex items-center justify-between mb-3">
                 <button onClick={()=>{setLiftWeekIndex(i=>Math.max(0,i-1));setLiftExpanded(false);}} disabled={liftWeekIndex===0} className="w-6 h-6 -ml-1 flex items-center justify-center rounded-full transition-opacity disabled:opacity-0" style={{color:'#AEAEB2'}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <div className="flex-1 text-center"><p className="bc-caption uppercase tracking-wider">{isCurrent?'This Week · Lifts':`${wk.label} · Lifts`}</p>{!isCurrent&&<p className="text-[9px] text-tertiary mt-0.5">{wk.dateRange}</p>}</div>
@@ -577,7 +796,7 @@ export default function Dashboard() {
               ):null}
             </div>
           );
-        })()}
+        })())}
 
         {/* Streak */}
         <div className="bc-card p-4 bento-quarter">
