@@ -135,14 +135,14 @@ export default function Dashboard() {
     if (user) await updateUserSettings(user.id, { last_checkin_date: data.date, last_checkin_data: data });
   }
 
-  const allInsights  = useMemo(() => generateInsights(workouts, trainingProfile), [workouts, trainingProfile]);
-  const trainingLoad = useMemo(() => calculateTrainingLoad(workouts), [workouts]);
-
   const trainingProfile = useMemo(() => {
     const computed = getUserTrainingProfile(workouts);
     if (trainingTypeOverride !== 'auto') return { ...computed, primaryType: trainingTypeOverride };
     return computed;
   }, [workouts, trainingTypeOverride]);
+
+  const allInsights  = useMemo(() => generateInsights(workouts, trainingProfile), [workouts, trainingProfile]);
+  const trainingLoad = useMemo(() => calculateTrainingLoad(workouts), [workouts]);
 
   const runnerStats = useMemo(() => {
     const completedRuns = workouts
