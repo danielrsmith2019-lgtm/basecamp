@@ -30,8 +30,39 @@ import { saveWorkoutTemplate } from '@/lib/database';
 import {
   Footprints, Dumbbell, Bike, Play, ChevronRight,
   Check, RotateCcw, X, Plus, Minus, ChevronDown, ChevronUp,
-  Timer, Flame, Layers,
+  Timer, Flame, Layers, Link2, Link2Off,
 } from 'lucide-react';
+
+// ── Superset helpers ──
+
+// Groups the flat exercises array into render groups for active mode.
+// Exercises with the same supersetGroupId that are contiguous become a 'superset' group.
+// Non-contiguous exercises with the same groupId each become standalone (orphan protection).
+function buildRenderGroups(exs) {
+  const groups = [];
+  let i = 0;
+  while (i < exs.length) {
+    const gid = exs[i].supersetGroupId;
+    if (!gid) {
+      groups.push({ type: 'standalone', indices: [i] });
+      i++;
+    } else {
+      const indices = [i];
+      let j = i + 1;
+      while (j < exs.length && exs[j].supersetGroupId === gid) {
+        indices.push(j);
+        j++;
+      }
+      groups.push(indices.length >= 2
+        ? { type: 'superset', groupId: gid, indices }
+        : { type: 'standalone', indices: [i] });
+      i = j;
+    }
+  }
+  return groups;
+}
+
+const SS_COLOR = '#8B5CF6';
 
 // ── Constants ──
 const RUN_TYPES   = ['Easy Run','Tempo','Intervals','Long Run','Race','Shakeout','Recovery','REST'];
@@ -332,16 +363,32 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   }
 
   function completeSet(exIdx, setIdx) {
-    setExercises(prev => prev.map((ex, i) => {
-      if (i !== exIdx) return ex;
-      const sets = [...(Array.isArray(ex.sets) ? ex.sets : [])];
-      const s = sets[setIdx];
-      const isCompleting = !s.completed;
-      sets[setIdx] = { ...s, completed: isCompleting };
-      return { ...ex, sets };
-    }));
-    // Auto-start rest timer when completing a set
-    startRestTimer(restPreset);
+    let shouldRest = false;
+
+    setExercises(prev => {
+      const isCompleting = !prev[exIdx]?.sets?.[setIdx]?.completed;
+      const next = prev.map((ex, i) => {
+        if (i !== exIdx) return ex;
+        const sets = [...(Array.isArray(ex.sets) ? ex.sets : [])];
+        sets[setIdx] = { ...sets[setIdx], completed: isCompleting };
+        return { ...ex, sets };
+      });
+
+      if (isCompleting) {
+        const groupId = next[exIdx]?.supersetGroupId;
+        if (!groupId) {
+          shouldRest = true;
+        } else {
+          // For a superset: rest only when all group members complete the same round
+          const members = next.filter(ex => ex.supersetGroupId === groupId);
+          const counts = members.map(ex => (ex.sets || []).filter(s => s.completed).length);
+          shouldRest = counts.length > 0 && counts.every(c => c === counts[0]);
+        }
+      }
+      return next;
+    });
+
+    if (shouldRest) startRestTimer(restPreset);
   }
 
   // ── Timer callbacks ──
@@ -456,6 +503,37 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
       }
     }
     setShowTemplates(false);
+  }
+
+  // ── Superset management ──
+  function linkSuperset(idxA, idxB) {
+    setExercises(prev => {
+      const existingId = prev[idxA]?.supersetGroupId || prev[idxB]?.supersetGroupId;
+      const groupId = existingId || `ss-${Date.now()}`;
+      return prev.map((ex, i) => {
+        if (i === idxA) return { ...ex, supersetGroupId: groupId, supersetPosition: 1 };
+        if (i === idxB) return { ...ex, supersetGroupId: groupId, supersetPosition: 2 };
+        return ex;
+      });
+    });
+  }
+
+  function unlinkFromSuperset(idx) {
+    setExercises(prev => {
+      const groupId = prev[idx]?.supersetGroupId;
+      if (!groupId) return prev;
+      const cleared = prev.map((ex, i) =>
+        i === idx ? { ...ex, supersetGroupId: null, supersetPosition: null } : ex
+      );
+      // If only one member remains in the group, dissolve it too
+      const remaining = cleared.filter(ex => ex.supersetGroupId === groupId);
+      if (remaining.length <= 1) {
+        return cleared.map(ex =>
+          ex.supersetGroupId === groupId ? { ...ex, supersetGroupId: null, supersetPosition: null } : ex
+        );
+      }
+      return cleared;
+    });
   }
 
   // ══════════════════════════════════════════════
@@ -594,30 +672,99 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
 
         {/* ── Scrollable exercise cards ── */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {exercises.map((ex, exIdx) => {
-            const exSets    = Array.isArray(ex.sets) ? ex.sets : [];
-            const hist      = exerciseHistory[ex.name];
-            const doneCount = exSets.filter(s => s.completed).length;
-            const allExDone = exSets.length > 0 && doneCount === exSets.length;
-            const nextSetIdx = exSets.findIndex(s => !s.completed);
+          {buildRenderGroups(exercises).map((group, groupIdx) => {
+            if (group.type === 'standalone') {
+              const exIdx  = group.indices[0];
+              const ex     = exercises[exIdx];
+              const exSets = Array.isArray(ex.sets) ? ex.sets : [];
+              const hist   = exerciseHistory[ex.name];
+              const doneCount  = exSets.filter(s => s.completed).length;
+              const allExDone  = exSets.length > 0 && doneCount === exSets.length;
+              const nextSetIdx = exSets.findIndex(s => !s.completed);
+              const prevNotLinked = exIdx > 0 && !exercises[exIdx - 1].supersetGroupId;
+              const nextNotLinked = exIdx < exercises.length - 1 && !exercises[exIdx + 1].supersetGroupId;
+              return (
+                <ExerciseCard
+                  key={exIdx}
+                  ex={ex} exIdx={exIdx} exSets={exSets} hist={hist}
+                  doneCount={doneCount} allExDone={allExDone} nextSetIdx={nextSetIdx}
+                  onUpdateSet={updateSet}
+                  onCompleteSet={si => completeSet(exIdx, si)}
+                  onAddSet={() => addSet(exIdx)}
+                  onRemoveSet={() => removeSet(exIdx)}
+                  restPreset={restPreset} setRestPreset={setRestPreset}
+                  isInSuperset={false}
+                  canLinkPrev={prevNotLinked}
+                  canLinkNext={nextNotLinked}
+                  onLinkPrev={prevNotLinked ? () => linkSuperset(exIdx - 1, exIdx) : null}
+                  onLinkNext={nextNotLinked ? () => linkSuperset(exIdx, exIdx + 1) : null}
+                  onUnlink={null}
+                />
+              );
+            }
+
+            // ── Superset group ──
+            const { groupId, indices } = group;
+            const allSetCounts = indices.map(i => (exercises[i].sets || []).length);
+            const totalSets    = Math.min(...allSetCounts);
+            const completedCounts = indices.map(i =>
+              (exercises[i].sets || []).filter(s => s.completed).length
+            );
+            const completedRounds = Math.min(...completedCounts);
+            const currentRound    = Math.min(completedRounds + 1, totalSets);
 
             return (
-              <ExerciseCard
-                key={exIdx}
-                ex={ex}
-                exIdx={exIdx}
-                exSets={exSets}
-                hist={hist}
-                doneCount={doneCount}
-                allExDone={allExDone}
-                nextSetIdx={nextSetIdx}
-                onUpdateSet={updateSet}
-                onCompleteSet={(si) => { completeSet(exIdx, si); }}
-                onAddSet={() => addSet(exIdx)}
-                onRemoveSet={() => removeSet(exIdx)}
-                restPreset={restPreset}
-                setRestPreset={setRestPreset}
-              />
+              <div key={groupId} className="rounded-[16px] overflow-hidden"
+                style={{ border: `2px solid ${SS_COLOR}22`, background: `${SS_COLOR}05` }}>
+                {/* Superset header */}
+                <div className="flex items-center justify-between px-3 py-2"
+                  style={{ background: `${SS_COLOR}10` }}>
+                  <div className="flex items-center gap-1.5">
+                    <Link2 size={11} style={{ color: SS_COLOR }} />
+                    <span style={{ color: SS_COLOR, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em' }}>
+                      SUPERSET
+                    </span>
+                  </div>
+                  <span style={{ color: SS_COLOR, fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    Round {currentRound} of {totalSets}
+                  </span>
+                </div>
+
+                {/* Member cards */}
+                {indices.map((exIdx, pos) => {
+                  const ex     = exercises[exIdx];
+                  const exSets = Array.isArray(ex.sets) ? ex.sets : [];
+                  const hist   = exerciseHistory[ex.name];
+                  const doneCount  = exSets.filter(s => s.completed).length;
+                  const allExDone  = exSets.length > 0 && doneCount === exSets.length;
+                  const nextSetIdx = exSets.findIndex(s => !s.completed);
+                  return (
+                    <div key={exIdx}>
+                      {pos > 0 && (
+                        <div className="flex items-center gap-2 px-4 py-1"
+                          style={{ background: `${SS_COLOR}08` }}>
+                          <div className="flex-1 h-px" style={{ background: `${SS_COLOR}30` }} />
+                          <span style={{ color: SS_COLOR, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>SS</span>
+                          <div className="flex-1 h-px" style={{ background: `${SS_COLOR}30` }} />
+                        </div>
+                      )}
+                      <ExerciseCard
+                        ex={ex} exIdx={exIdx} exSets={exSets} hist={hist}
+                        doneCount={doneCount} allExDone={allExDone} nextSetIdx={nextSetIdx}
+                        onUpdateSet={updateSet}
+                        onCompleteSet={si => completeSet(exIdx, si)}
+                        onAddSet={() => addSet(exIdx)}
+                        onRemoveSet={() => removeSet(exIdx)}
+                        restPreset={restPreset} setRestPreset={setRestPreset}
+                        isInSuperset={true}
+                        canLinkPrev={false} canLinkNext={false}
+                        onLinkPrev={null} onLinkNext={null}
+                        onUnlink={() => unlinkFromSuperset(exIdx)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             );
           })}
 
@@ -831,15 +978,30 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
               </div>
 
               {exercises.length > 0 && (
-                <div className="space-y-2">
-                  {exercises.map((ex, i) => {
+                <div>
+                  {exercises.flatMap((ex, i) => {
                     const hist = exerciseHistory[ex.name];
                     const sets = Array.isArray(ex.sets) ? ex.sets : [];
-                    return (
-                      <div key={i} className="bg-canvas rounded-[14px] p-3 border border-border">
+                    const nextEx   = exercises[i + 1];
+                    const linked   = nextEx && ex.supersetGroupId && ex.supersetGroupId === nextEx.supersetGroupId;
+                    const inSS     = !!ex.supersetGroupId;
+
+                    const card = (
+                      <div key={`ex-${i}`}
+                        className="rounded-[14px] p-3 border mb-0"
+                        style={{
+                          borderColor: inSS ? `${SS_COLOR}40` : undefined,
+                          background:  inSS ? `${SS_COLOR}04` : 'var(--canvas, #F2F2F7)',
+                          marginTop: i === 0 ? 0 : undefined,
+                        }}>
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-primary truncate">{ex.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-semibold text-primary truncate">{ex.name}</p>
+                              {inSS && (
+                                <span style={{ color: SS_COLOR, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>SS</span>
+                              )}
+                            </div>
                             {hist && (
                               <p className="text-[10px] text-tertiary">
                                 Last: {hist.weight} lbs × {hist.reps}
@@ -866,7 +1028,6 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
                             </button>
                           </div>
                         </div>
-                        {/* Sets preview */}
                         <div className="flex gap-1 mt-1.5">
                           {sets.slice(0, 4).map((s, si) => (
                             <div key={si} className="flex-1 text-center py-1 bg-lift-bg rounded-[8px]">
@@ -879,6 +1040,31 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
                         </div>
                       </div>
                     );
+
+                    if (i >= exercises.length - 1) return [card];
+
+                    // Chain-link connector between this card and the next
+                    const connector = (
+                      <button key={`link-${i}`}
+                        onClick={() => linked ? unlinkFromSuperset(i) : linkSuperset(i, i + 1)}
+                        className="w-full flex items-center gap-2 py-1 transition-opacity hover:opacity-70 active:opacity-50">
+                        <div className="flex-1 h-px"
+                          style={{ background: linked ? `${SS_COLOR}40` : '#E5E5EA' }} />
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border transition-colors"
+                          style={linked
+                            ? { borderColor: `${SS_COLOR}50`, background: `${SS_COLOR}10`, color: SS_COLOR }
+                            : { borderColor: '#D1D1D6', color: '#AEAEB2' }}>
+                          <Link2 size={10} />
+                          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>
+                            {linked ? 'SUPERSET' : 'link'}
+                          </span>
+                        </div>
+                        <div className="flex-1 h-px"
+                          style={{ background: linked ? `${SS_COLOR}40` : '#E5E5EA' }} />
+                      </button>
+                    );
+
+                    return [card, connector];
                   })}
                 </div>
               )}
@@ -1014,6 +1200,9 @@ function ExerciseCard({
   ex, exIdx, exSets, hist, doneCount, allExDone, nextSetIdx,
   onUpdateSet, onCompleteSet, onAddSet, onRemoveSet,
   restPreset, setRestPreset,
+  isInSuperset = false,
+  canLinkPrev = false, canLinkNext = false,
+  onLinkPrev, onLinkNext, onUnlink,
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -1154,8 +1343,8 @@ function ExerciseCard({
             })}
           </div>
 
-          {/* ── Add / Remove set + Rest preset ── */}
-          <div className="px-4 py-3 border-t border-border/40 bg-canvas/40 space-y-2.5">
+          {/* ── Add / Remove set + Superset controls ── */}
+          <div className="px-4 py-3 border-t border-border/40 bg-canvas/40 space-y-2">
             <div className="flex gap-2">
               <button onClick={onAddSet}
                 className="flex-1 py-2 text-xs font-semibold text-secondary rounded-[10px] border border-border bg-white active:bg-canvas flex items-center justify-center gap-1">
@@ -1170,6 +1359,36 @@ function ExerciseCard({
                 </button>
               )}
             </div>
+
+            {/* Superset link / unlink */}
+            {(isInSuperset || canLinkPrev || canLinkNext) && (
+              <div className="flex gap-1.5">
+                {isInSuperset ? (
+                  <button onClick={onUnlink}
+                    className="flex-1 py-1.5 rounded-[8px] border flex items-center justify-center gap-1 active:scale-95 transition-all"
+                    style={{ borderColor: `${SS_COLOR}40`, color: SS_COLOR, fontSize: 10, fontWeight: 600 }}>
+                    <Link2Off size={9} /> Remove from superset
+                  </button>
+                ) : (
+                  <>
+                    {canLinkPrev && (
+                      <button onClick={onLinkPrev}
+                        className="flex-1 py-1.5 rounded-[8px] border border-border bg-white flex items-center justify-center gap-1 active:scale-95 transition-all text-tertiary"
+                        style={{ fontSize: 10, fontWeight: 600 }}>
+                        <Link2 size={9} /> Link above
+                      </button>
+                    )}
+                    {canLinkNext && (
+                      <button onClick={onLinkNext}
+                        className="flex-1 py-1.5 rounded-[8px] border border-border bg-white flex items-center justify-center gap-1 active:scale-95 transition-all text-tertiary"
+                        style={{ fontSize: 10, fontWeight: 600 }}>
+                        <Link2 size={9} /> Link below
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}

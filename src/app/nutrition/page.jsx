@@ -15,6 +15,7 @@ import {
   GlassWater, Zap, Dumbbell,
 } from 'lucide-react';
 import FoodSearch from '@/components/shared/FoodSearch';
+import { getRecentFoods } from '@/utils/nutritionUtils';
 
 // ── Meal icons ──────────────────────────────────────────
 const MEAL_ICON_MAP = {
@@ -25,6 +26,32 @@ const MEAL_ICON_MAP = {
   'Pre-Workout':  { Icon: Zap,       color: '#FFD60A', bg: '#FFFDE7' },
   'Post-Workout': { Icon: Dumbbell,  color: '#34C759', bg: '#E8F5E9' },
 };
+
+// ── Recent Foods quick-add ───────────────────────────────
+function RecentFoods({ foods, onAdd }) {
+  if (!foods || foods.length < 2) return null;
+  return (
+    <div className="mb-3">
+      <p className="bc-caption uppercase tracking-wider mb-2">Recent</p>
+      <div
+        className="flex gap-2 overflow-x-auto pb-1"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {foods.map(food => (
+          <button
+            key={food.name}
+            onClick={() => onAdd(food)}
+            className="flex-shrink-0 flex flex-col items-start justify-center px-3 rounded-full border border-border bg-canvas hover:bg-surface-alt active:scale-95 transition-all"
+            style={{ minHeight: 44, paddingTop: 8, paddingBottom: 8 }}
+          >
+            <span className="text-xs font-semibold text-primary whitespace-nowrap leading-tight">{food.name}</span>
+            <span className="text-[10px] text-tertiary whitespace-nowrap leading-tight">{food.calories} cal</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function NutritionPage() {
   const { user } = useAuth();
@@ -156,6 +183,8 @@ export default function NutritionPage() {
     });
     return groups;
   }, [entries]);
+
+  const recentFoods = useMemo(() => getRecentFoods(recentEntries), [recentEntries]);
 
   // ── Persistence ─────────────────────────────────────────
   async function persistEntries(newEntries, wml) {
@@ -449,6 +478,7 @@ export default function NutritionPage() {
               <X size={14} />
             </button>
           </div>
+          <RecentFoods foods={recentFoods} onAdd={handleFoodSelected} />
           <FoodSearch
             onSelect={handleFoodSelected}
             mealLabel={selectedMeal}
