@@ -9,16 +9,39 @@
 // MAIN ENTRY POINT
 // ═══════════════════════════════════════════════════════
 
-export function generateInsights(workouts) {
+export function generateInsights(workouts, trainingProfile) {
   if (!workouts || workouts.length === 0) return [];
 
+  const profile = trainingProfile?.primaryType || 'hybrid';
+
   const insights = [
-    ...checkLegDayRunConflict(workouts),
-    ...checkVolumeSpike(workouts),
+    // Concurrent training rules — runner & hybrid
+    ...(profile !== 'lifter' ? [
+      ...checkLegDayRunConflict(workouts),
+      ...checkVolumeSpike(workouts),
+      ...checkOvertraining(workouts),
+      ...checkPaceCreep(workouts),
+      ...checkSameDaySequencing(workouts),
+      ...checkTempoRunLegGap(workouts),
+      ...checkCNSFatigue(workouts),
+    ] : []),
+
+    // Universal rules
     ...checkRestDayNeeded(workouts),
-    ...checkOvertraining(workouts),
     ...checkSkippedPattern(workouts),
-    ...checkPaceCreep(workouts),
+    ...checkDeloadIndicator(workouts),
+
+    // Hybrid-only balance check
+    ...(profile === 'hybrid' ? checkWeeklyModalityBalance(workouts) : []),
+
+    // Lift-specific rules — lifter & hybrid
+    ...(profile !== 'runner' ? [
+      ...checkSameMuscleRecovery(workouts),
+      ...checkStrengthPlateau(workouts),
+      ...checkVolumePerMuscleGroup(workouts),
+      ...checkExerciseVariety(workouts),
+      ...checkMuscleGroupImbalance(workouts),
+    ] : []),
   ];
 
   const priority = { warning: 0, suggestion: 1, info: 2 };
@@ -90,7 +113,7 @@ function checkLegDayRunConflict(workouts) {
       const runDate = new Date(run.date + 'T00:00:00');
       const diffHours = Math.abs(runDate - legDate) / (1000 * 60 * 60);
 
-      if (diffHours <= 24) {
+      if (diffHours > 0 && diffHours <= 24) {  // same-day handled by checkSameDaySequencing
         const legFirst = legDate <= runDate;
         insights.push({
           // ID keyed to the two workout dates — stable as long as these are planned
@@ -364,4 +387,543 @@ function getTypeStats(workouts, type) {
     skipped,
     skipRate: ofType.length > 0 ? (skipped / ofType.length) * 100 : 0,
   };
+}
+
+function getWeekKey(date) {
+  const d = date ? new Date(date + 'T00:00:00') : new Date();
+  const dow = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+  monday.setHours(0, 0, 0, 0);
+  return monday.toLocaleDateString('en-CA');
+}
+
+function isoWeekKey(dateStr) {
+  return getWeekKey(dateStr);
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 1: SAME-DAY SEQUENCING
+// ═══════════════════════════════════════════════════════
+
+function checkSameDaySequencing(workouts) {
+  const insights = [];
+  const today = new Date().toLocaleDateString('en-CA');
+  const upcoming = workouts.filter(w => w.date >= today && w.status === 'planned');
+
+  const HARD_RUN_TYPES = ['Tempo', 'Intervals', 'Long Run', 'Race'];
+  const LEG_GROUPS     = ['Quads', 'Hamstrings', 'Glutes', 'Calves'];
+
+  const byDate = {};
+  upcoming.forEach(w => {
+    if (!byDate[w.date]) byDate[w.date] = [];
+    byDate[w.date].push(w);
+  });
+
+  const seenDates = new Set();
+  for (const [date, dayWorkouts] of Object.entries(byDate)) {
+    if (seenDates.has(date)) continue;
+    const runs  = dayWorkouts.filter(w => w.type === 'run');
+    const lifts = dayWorkouts.filter(w => w.type === 'lift');
+    if (!runs.length || !lifts.length) continue;
+
+    for (const run of runs) {
+      const isHardRun = HARD_RUN_TYPES.includes(run.details.runType);
+      for (const lift of lifts) {
+        const isLegLift = (lift.details.muscleGroups || []).some(g => LEG_GROUPS.includes(g));
+        if (seenDates.has(date)) continue;
+        if (isHardRun && isLegLift) {
+          seenDates.add(date);
+          insights.push({
+            id: `same-day-sequence-${date}`,
+            type: 'warning',
+            title: 'Hard Run + Legs Same Day',
+            description: `A ${run.details.runType || 'hard run'} and lower body lifting on the same day significantly compounds fatigue. If you must do both today, lift first — strength output drops 15-20% after hard cardio. Better: move the run to tomorrow or swap it for easy cardio.`,
+          });
+        } else if (!seenDates.has(date)) {
+          seenDates.add(date);
+          insights.push({
+            id: `same-day-lift-first-${date}`,
+            type: 'suggestion',
+            title: 'Lift Before You Run Today',
+            description: `You have lifting and a run scheduled today. Do the lifting session first — strength performance is better when legs are fresh. If the run is easy, same-day is fine after lifting.`,
+          });
+        }
+      }
+    }
+  }
+  return insights;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 2: TEMPO RUN → HEAVY LEGS GAP (<48H)
+// ═══════════════════════════════════════════════════════
+
+function checkTempoRunLegGap(workouts) {
+  const insights = [];
+  const HARD_RUN_TYPES  = ['Tempo', 'Intervals', 'Long Run'];
+  const HEAVY_LEG_NAMES = ['squat', 'deadlift', 'leg press', 'rdl', 'romanian deadlift', 'lunge', 'hack squat'];
+
+  const hardRuns = workouts.filter(w =>
+    w.type === 'run' &&
+    (w.status === 'completed' || w.status === 'planned') &&
+    HARD_RUN_TYPES.includes(w.details.runType)
+  );
+
+  const heavyLegSessions = workouts.filter(w =>
+    w.type === 'lift' &&
+    (w.status === 'completed' || w.status === 'planned') &&
+    (w.details.exercises || []).some(ex =>
+      HEAVY_LEG_NAMES.some(p => (ex.name || '').toLowerCase().includes(p))
+    )
+  );
+
+  const seen = new Set();
+  for (const run of hardRuns) {
+    for (const lift of heavyLegSessions) {
+      const runDate  = new Date(run.date  + 'T00:00:00');
+      const liftDate = new Date(lift.date + 'T00:00:00');
+      const diffH    = (liftDate - runDate) / 3600000;
+      if (diffH <= 0 || diffH >= 48) continue;
+      const key = `${run.date}-${lift.date}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      insights.push({
+        id: `tempo-leg-gap-${run.date}-${lift.date}`,
+        type: 'warning',
+        title: 'Threshold Run Too Close to Heavy Legs',
+        description: `Your ${run.details.runType} on ${formatShortDate(run.date)} leaves significant quad and hamstring fatigue that persists 24-48 hours. A heavy leg session ${Math.round(diffH)} hours later raises injury risk and will underperform. Minimum 48h gap is recommended between threshold running and heavy lower body work.`,
+      });
+    }
+  }
+  return insights;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 3: CNS FATIGUE ACCUMULATION
+// ═══════════════════════════════════════════════════════
+
+function checkCNSFatigue(workouts) {
+  const insights = [];
+  const CNS_PATTERNS = ['deadlift', 'squat', 'power clean', 'hang clean', 'snatch', 'thruster', 'clean and jerk'];
+  const HARD_RUNS    = ['Tempo', 'Intervals', 'Long Run', 'Race'];
+
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 5);
+  const cutoffStr = cutoff.toLocaleDateString('en-CA');
+  const todayStr  = now.toLocaleDateString('en-CA');
+
+  const recentCNSLifts = workouts.filter(w =>
+    w.type === 'lift' && w.status === 'completed' &&
+    w.date >= cutoffStr && w.date <= todayStr &&
+    (w.details.exercises || []).some(ex =>
+      CNS_PATTERNS.some(p => (ex.name || '').toLowerCase().includes(p))
+    )
+  );
+
+  const recentHardRuns = workouts.filter(w =>
+    w.type === 'run' && w.status === 'completed' &&
+    w.date >= cutoffStr && w.date <= todayStr &&
+    HARD_RUNS.includes(w.details.runType)
+  );
+
+  if (recentCNSLifts.length >= 3 && recentHardRuns.length >= 1) {
+    const runType = recentHardRuns[0].details.runType || 'threshold';
+    insights.push({
+      id: `cns-fatigue-${cutoffStr}`,
+      type: 'warning',
+      title: 'CNS Load Accumulation This Week',
+      description: `Heavy compound lifts and hard running both heavily stress the central nervous system. You have ${recentCNSLifts.length} CNS-intensive sessions in the last 5 days including ${runType} running. Performance and injury risk are both affected. Consider 1-2 days of light training or rest before your next heavy session.`,
+    });
+  }
+  return insights;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 4: WEEKLY MODALITY BALANCE (hybrid only)
+// ═══════════════════════════════════════════════════════
+
+function checkWeeklyModalityBalance(workouts) {
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 14);
+  const cutoffStr = cutoff.toLocaleDateString('en-CA');
+
+  const recent = workouts.filter(w =>
+    w.status === 'completed' && w.date >= cutoffStr &&
+    (w.type === 'run' || w.type === 'lift')
+  );
+
+  const runCount  = recent.filter(w => w.type === 'run').length;
+  const liftCount = recent.filter(w => w.type === 'lift').length;
+  const total     = runCount + liftCount;
+
+  if (total < 6) return [];
+
+  const weekKey = getWeekKey();
+
+  if (runCount > liftCount * 2) {
+    const runPct  = Math.round((runCount / total) * 100);
+    return [{
+      id: `modality-balance-${weekKey}`,
+      type: 'info',
+      title: 'Training Skewing Toward Running',
+      description: `Your last 2 weeks are ${runPct}% running and ${100 - runPct}% lifting. Research on concurrent training shows best adaptations occur between a 40/60–60/40 split. Consider adding more lifting sessions to balance training stress and reduce adaptation interference.`,
+    }];
+  }
+  if (liftCount > runCount * 2) {
+    const liftPct = Math.round((liftCount / total) * 100);
+    return [{
+      id: `modality-balance-${weekKey}`,
+      type: 'info',
+      title: 'Training Skewing Toward Lifting',
+      description: `Your last 2 weeks are ${liftPct}% lifting and ${100 - liftPct}% running. Research on concurrent training shows best adaptations occur between a 40/60–60/40 split. Consider adding more runs to balance training stress.`,
+    }];
+  }
+  return [];
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 5: SAME MUSCLE GROUP RECOVERY (<48H)
+// ═══════════════════════════════════════════════════════
+
+function checkSameMuscleRecovery(workouts) {
+  const insights = [];
+  const CLUSTERS = [
+    { name: 'Legs',  groups: ['Quads', 'Hamstrings', 'Glutes', 'Calves'] },
+    { name: 'Push',  groups: ['Chest', 'Shoulders', 'Triceps'] },
+    { name: 'Pull',  groups: ['Back', 'Biceps', 'Rear Delts'] },
+  ];
+
+  const relevantWorkouts = workouts
+    .filter(w => w.type === 'lift' && (w.status === 'completed' || w.status === 'planned'))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  let count = 0;
+  const seen = new Set();
+
+  for (const cluster of CLUSTERS) {
+    const sessions = relevantWorkouts.filter(w =>
+      (w.details.muscleGroups || []).some(g => cluster.groups.includes(g))
+    );
+
+    for (let i = 0; i < sessions.length - 1; i++) {
+      const a = sessions[i], b = sessions[i + 1];
+      const key = `${a.id || a.date}-${b.id || b.date}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const diffH = (new Date(b.date + 'T00:00:00') - new Date(a.date + 'T00:00:00')) / 3600000;
+      if (diffH <= 0 || diffH >= 48) continue;
+      if (++count > 2) return insights;
+
+      const nextDay = new Date(b.date + 'T00:00:00');
+      nextDay.setDate(nextDay.getDate() + 1);
+      insights.push({
+        id: `muscle-recovery-${cluster.name.toLowerCase()}-${a.date}-${b.date}`,
+        type: 'warning',
+        title: `${cluster.name} — Undertrained Recovery Time`,
+        description: `You have ${a.details.sessionName || cluster.name} and ${b.details.sessionName || cluster.name} targeting ${cluster.name.toLowerCase()} muscle groups only ${Math.round(diffH)} hours apart. Research shows minimum 48 hours between sessions targeting the same muscles is required for structural repair. Consider shifting the later session to ${formatShortDate(nextDay.toLocaleDateString('en-CA'))}.`,
+      });
+    }
+  }
+  return insights;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 6: STRENGTH PLATEAU (4 sessions same weight)
+// ═══════════════════════════════════════════════════════
+
+function checkStrengthPlateau(workouts) {
+  const COMPOUND_PATTERNS = [
+    'squat', 'deadlift', 'bench', 'row', 'overhead press', 'ohp',
+    'pull-up', 'pullup', 'chin-up', 'hip thrust', 'leg press', 'rdl', 'incline press', 'barbell',
+  ];
+
+  function isCompound(name) {
+    const n = (name || '').toLowerCase();
+    return COMPOUND_PATTERNS.some(p => n.includes(p));
+  }
+
+  const completedLifts = workouts
+    .filter(w => w.type === 'lift' && w.status === 'completed')
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const exerciseMap = {};
+  for (const w of completedLifts) {
+    for (const ex of (w.details.exercises || [])) {
+      if (!ex.name || !isCompound(ex.name)) continue;
+      const name = ex.name.trim();
+      if (!exerciseMap[name]) exerciseMap[name] = [];
+      const sets = (Array.isArray(ex.sets) ? ex.sets : []).filter(s => s.completed && s.weight && s.reps);
+      if (!sets.length) continue;
+      const avgW = sets.reduce((s, set) => s + Number(set.weight), 0) / sets.length;
+      exerciseMap[name].push({ date: w.date, avgWeight: Math.round(avgW) });
+    }
+  }
+
+  const plateaus = [];
+  for (const [name, sessions] of Object.entries(exerciseMap)) {
+    if (sessions.length < 5) continue;
+    const last4 = sessions.slice(0, 4);
+    const spanDays = (new Date(last4[0].date + 'T00:00:00') - new Date(last4[3].date + 'T00:00:00')) / 86400000;
+    if (spanDays < 21) continue;
+    const weights = last4.map(s => s.avgWeight);
+    if (Math.max(...weights) - Math.min(...weights) <= 2.5) {
+      plateaus.push({ name, weight: Math.round(weights.reduce((a, b) => a + b) / 4), spanWeeks: Math.round(spanDays / 7), totalSessions: sessions.length });
+    }
+  }
+
+  plateaus.sort((a, b) => b.totalSessions - a.totalSessions);
+  return plateaus.slice(0, 2).map(p => ({
+    id: `plateau-${p.name.replace(/\s+/g, '-').toLowerCase()}`,
+    type: 'suggestion',
+    title: `${p.name} Progress Stalled`,
+    description: `${p.name} has been at ${p.weight} lbs for ${p.spanWeeks} weeks across ${p.totalSessions} sessions. Options to break through: (1) increase reps before adding weight, (2) add a back-off set at 80%, (3) try a variation, (4) take a deload week then reset.`,
+    category: 'progression',
+  }));
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 7: WEEKLY VOLUME PER MUSCLE GROUP
+// ═══════════════════════════════════════════════════════
+
+function checkVolumePerMuscleGroup(workouts) {
+  const insights = [];
+  const now = new Date();
+  const dow = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + (dow === 0 ? -6 : 1 - dow));
+  monday.setHours(0, 0, 0, 0);
+  const mondayStr = monday.toLocaleDateString('en-CA');
+  const sundayStr = new Date(monday.getTime() + 6 * 86400000).toLocaleDateString('en-CA');
+  const weekKey   = mondayStr;
+
+  const fourWeeksAgo = new Date(monday);
+  fourWeeksAgo.setDate(monday.getDate() - 28);
+  const fourWeeksAgoStr = fourWeeksAgo.toLocaleDateString('en-CA');
+
+  const thisWeekLifts = workouts.filter(w =>
+    w.type === 'lift' &&
+    (w.status === 'planned' || w.status === 'completed') &&
+    w.date >= mondayStr && w.date <= sundayStr
+  );
+
+  const recentLifts = workouts.filter(w =>
+    w.type === 'lift' && w.status === 'completed' &&
+    w.date >= fourWeeksAgoStr && w.date < mondayStr
+  );
+
+  const weekSets = {};
+  for (const w of thisWeekLifts) {
+    for (const ex of (w.details.exercises || [])) {
+      const mg = ex.muscleGroup;
+      if (!mg) continue;
+      const count = Array.isArray(ex.sets) ? ex.sets.length : (typeof ex.sets === 'number' ? ex.sets : 3);
+      weekSets[mg] = (weekSets[mg] || 0) + count;
+    }
+  }
+
+  const muscleWeekHistory = {};
+  for (const w of recentLifts) {
+    const wk = isoWeekKey(w.date);
+    for (const ex of (w.details.exercises || [])) {
+      const mg = ex.muscleGroup;
+      if (!mg) continue;
+      if (!muscleWeekHistory[mg]) muscleWeekHistory[mg] = new Set();
+      muscleWeekHistory[mg].add(wk);
+    }
+  }
+
+  const regularlyTrained = new Set(
+    Object.entries(muscleWeekHistory)
+      .filter(([, weeks]) => weeks.size >= 3)
+      .map(([mg]) => mg)
+  );
+
+  for (const [mg, sets] of Object.entries(weekSets)) {
+    if (sets > 20) {
+      insights.push({
+        id: `high-volume-${mg.toLowerCase().replace(/\s+/g, '-')}-${weekKey}`,
+        type: 'warning',
+        title: `High Weekly Volume: ${mg}`,
+        description: `You have ${sets} planned sets for ${mg} this week. Research suggests 10-20 sets per week is the effective range, with diminishing returns above 20. Consider reducing by ${sets - 18} sets or spreading across an extra session next week.`,
+      });
+    }
+  }
+
+  for (const mg of regularlyTrained) {
+    if ((weekSets[mg] || 0) < 6) {
+      insights.push({
+        id: `low-volume-${mg.toLowerCase().replace(/\s+/g, '-')}-${weekKey}`,
+        type: 'info',
+        title: `Low Volume: ${mg} This Week`,
+        description: `You have only ${weekSets[mg] || 0} sets planned for ${mg} this week. For continued adaptation, research recommends at least 10 sets per muscle group per week. Consider adding a session or extra sets for ${mg}.`,
+      });
+    }
+  }
+
+  return insights;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 8: EXERCISE VARIETY (6+ weeks same exercises)
+// ═══════════════════════════════════════════════════════
+
+function checkExerciseVariety(workouts) {
+  const insights = [];
+  const completedLifts = workouts
+    .filter(w => w.type === 'lift' && w.status === 'completed')
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (completedLifts.length < 12) return insights;
+
+  const sessionGroups = {};
+  for (const w of completedLifts) {
+    const key = (w.details.sessionName || '').split(' ')[0].toLowerCase() || 'workout';
+    if (!sessionGroups[key]) sessionGroups[key] = [];
+    sessionGroups[key].push(w);
+  }
+
+  for (const [sessionType, sessions] of Object.entries(sessionGroups)) {
+    if (sessions.length < 6) continue;
+    const now = new Date();
+    const sixWeeksAgo = new Date(now);
+    sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42);
+    const sixWeeksAgoStr = sixWeeksAgo.toLocaleDateString('en-CA');
+    const recent = sessions.filter(w => w.date >= sixWeeksAgoStr);
+    if (recent.length < 6) continue;
+
+    const getNames = ws => new Set(
+      ws.flatMap(w => (w.details.exercises || []).map(ex => (ex.name || '').toLowerCase().trim()))
+        .filter(Boolean)
+    );
+
+    const half     = Math.floor(recent.length / 2);
+    const firstSet = getNames(recent.slice(0, half));
+    const lastSet  = getNames(recent.slice(half));
+    if (!firstSet.size || !lastSet.size) continue;
+
+    const overlap = [...firstSet].filter(x => lastSet.has(x)).length / Math.min(firstSet.size, lastSet.size);
+    if (overlap >= 0.8) {
+      const name = sessions[sessions.length - 1].details.sessionName || sessionType;
+      insights.push({
+        id: `variety-${sessionType}-${sixWeeksAgoStr}`,
+        type: 'suggestion',
+        title: `Consider Rotating ${name} Exercises`,
+        description: `Your ${name} sessions have used nearly identical exercises for ${recent.length} weeks. The body adapts to repeated stimuli — rotating exercises every 4-6 weeks is a well-established method to restart adaptation. Try swapping one primary and one accessory movement for fresh stimulus.`,
+        category: 'variety',
+      });
+    }
+  }
+  return insights;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 9: PUSH/PULL IMBALANCE (4-week window)
+// ═══════════════════════════════════════════════════════
+
+function checkMuscleGroupImbalance(workouts) {
+  const PUSH_GROUPS = ['Chest', 'Shoulders', 'Triceps'];
+  const PULL_GROUPS = ['Back', 'Biceps', 'Rear Delts'];
+
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 28);
+  const cutoffStr = cutoff.toLocaleDateString('en-CA');
+
+  const recentLifts = workouts.filter(w =>
+    w.type === 'lift' && w.status === 'completed' && w.date >= cutoffStr
+  );
+  if (recentLifts.length < 4) return [];
+
+  let pushSets = 0, pullSets = 0;
+  for (const w of recentLifts) {
+    for (const ex of (w.details.exercises || [])) {
+      const mg   = ex.muscleGroup || '';
+      const sets = Array.isArray(ex.sets) ? ex.sets.length : 3;
+      if (PUSH_GROUPS.includes(mg)) pushSets += sets;
+      else if (PULL_GROUPS.includes(mg)) pullSets += sets;
+    }
+  }
+
+  if (!pushSets || !pullSets) return [];
+  const ratio = pushSets / pullSets;
+
+  if (ratio > 1.5) {
+    return [{
+      id: `push-pull-balance-${cutoffStr}`,
+      type: 'suggestion',
+      title: 'More Pull Work Recommended',
+      description: `Your push:pull ratio is ${ratio.toFixed(1)}:1 over the last 4 weeks. Anterior-dominant training increases shoulder injury risk over time. Adding rows, pull-ups, and rear delt work will improve posture, shoulder health, and overall balance.`,
+      category: 'balance',
+    }];
+  }
+  if (ratio < 0.67) {
+    const inv = (pullSets / pushSets).toFixed(1);
+    return [{
+      id: `push-pull-balance-${cutoffStr}`,
+      type: 'suggestion',
+      title: 'More Push Work Recommended',
+      description: `Your pull:push ratio is ${inv}:1 — pulling volume is dominating. Adding more pressing work will improve upper body balance and support shoulder joint health.`,
+      category: 'balance',
+    }];
+  }
+  return [];
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NEW RULE 10: DELOAD INDICATOR (3+ high-load weeks)
+// ═══════════════════════════════════════════════════════
+
+function checkDeloadIndicator(workouts) {
+  const completed = workouts.filter(w => w.status === 'completed');
+  const now = new Date();
+
+  const weeklyLoads = [];
+  for (let i = 0; i < 8; i++) {
+    const wEnd   = new Date(now); wEnd.setDate(now.getDate() - i * 7);
+    const wStart = new Date(wEnd); wStart.setDate(wEnd.getDate() - 7);
+    const ws = wEnd.toLocaleDateString('en-CA');
+    const ss = wStart.toLocaleDateString('en-CA');
+    let load = 0;
+    completed.filter(w => w.date >= ss && w.date < ws).forEach(w => {
+      if (w.type === 'run')    load += (w.details.actualDistance || 0) * 10;
+      else if (w.type === 'lift')   load += (w.details.totalVolume   || 0) / 100;
+      else if (w.type === 'cardio') load += (w.details.duration      || 0) * 2;
+    });
+    weeklyLoads.push({ load: Math.round(load), weekStart: ss });
+  }
+
+  if (weeklyLoads.length < 4) return [];
+  const peak = Math.max(...weeklyLoads.map(w => w.load));
+  if (peak === 0) return [];
+
+  let streak = 0;
+  for (const { load } of weeklyLoads) {
+    if (load >= peak * 0.8) streak++;
+    else break;
+  }
+
+  if (streak >= 3) {
+    return [{
+      id: `deload-needed-${weeklyLoads[2]?.weekStart || ''}`,
+      type: 'suggestion',
+      title: 'Deload Week Recommended',
+      description: `You have been training at high load for ${streak} consecutive weeks. Planned deload weeks — reducing volume by 40-50% for one week — consistently improve subsequent performance and reduce injury risk. Next week is a good candidate: keep the same exercises and frequency but cut sets by half.`,
+      category: 'recovery',
+    }];
+  }
+  return [];
 }

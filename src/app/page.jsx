@@ -16,8 +16,9 @@ import { useWorkouts } from '@/lib/WorkoutContext';
 import Metric from '@/components/shared/Metric';
 import { formatVolume } from '@/utils/liftUtils';
 import { RunTypeIcon, LiftSessionIcon, ActivityIcon, StatusIcon } from '@/utils/icons';
-import { Flame, Sparkles, ChevronLeft, ChevronRight, TrendingUp, BarChart3, Activity, Footprints, Dumbbell, Zap } from 'lucide-react';
+import { Flame, Sparkles, ChevronLeft, ChevronRight, TrendingUp, BarChart3, Activity, Footprints, Dumbbell, Zap, AlertTriangle, Lightbulb } from 'lucide-react';
 import { getUserTrainingProfile } from '@/utils/trainingProfile';
+import { generateLiftAdjustments } from '@/utils/liftAdjustments';
 import PlanAdaptationList from '@/components/shared/PlanAdaptation';
 import SkipInsightCard from '@/components/shared/SkipInsightCard';
 import { analyzeSkips, computeWeeklySkipRate } from '@/utils/skipIntelligence';
@@ -53,6 +54,7 @@ export default function Dashboard() {
 
   const [trainingTypeOverride, setTrainingTypeOverride] = useState('auto');
   const [dismissedOnboarding,  setDismissedOnboarding]  = useState(false);
+  const [infoNotesOpen,        setInfoNotesOpen]        = useState(false);
 
   const [dismissedInsights, setDismissedInsights] = useState(() => {
     if (typeof window === 'undefined') return new Set();
@@ -133,7 +135,7 @@ export default function Dashboard() {
     if (user) await updateUserSettings(user.id, { last_checkin_date: data.date, last_checkin_data: data });
   }
 
-  const allInsights  = useMemo(() => generateInsights(workouts), [workouts]);
+  const allInsights  = useMemo(() => generateInsights(workouts, trainingProfile), [workouts, trainingProfile]);
   const trainingLoad = useMemo(() => calculateTrainingLoad(workouts), [workouts]);
 
   const trainingProfile = useMemo(() => {
@@ -214,7 +216,16 @@ export default function Dashboard() {
     }
     return { topExercises, volTrend, thisWeekVol, lastWeekVol, streak };
   }, [workouts]);
-  const visibleInsights = useMemo(() => allInsights.filter(i => !dismissedInsights.has(i.id)), [allInsights, dismissedInsights]);
+  const visibleInsights     = useMemo(() => allInsights.filter(i => !dismissedInsights.has(i.id)), [allInsights, dismissedInsights]);
+  const warningInsights     = useMemo(() => visibleInsights.filter(i => i.type === 'warning'),    [visibleInsights]);
+  const suggestionInsights  = useMemo(() => visibleInsights.filter(i => i.type === 'suggestion'), [visibleInsights]);
+  const infoInsights        = useMemo(() => visibleInsights.filter(i => i.type === 'info'),       [visibleInsights]);
+
+  const todayLiftAdjustments = useMemo(() => {
+    const plannedLift = workouts.find(w => w.date === today && w.type === 'lift' && w.status === 'planned');
+    if (!plannedLift) return [];
+    return generateLiftAdjustments(workouts, plannedLift);
+  }, [workouts, today]);
 
   const skipInsights = useMemo(() => analyzeSkips(workouts).filter(i => !dismissedSkips.has(i.id)), [workouts, dismissedSkips]);
   const skipStats    = useMemo(() => computeWeeklySkipRate(workouts), [workouts]);
@@ -501,20 +512,82 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Cross-Training Insights */}
-      {visibleInsights.length>0 && (
+      {/* Cross-Training Insights — split by urgency */}
+      {visibleInsights.length > 0 && (
         <div className="mb-6">
-          <button onClick={()=>{const next=!insightsSectionCollapsed;setInsightsSectionCollapsed(next);if(next)localStorage.setItem('bc-insights-dismissed',JSON.stringify({date:today}));else localStorage.removeItem('bc-insights-dismissed');}} className="flex items-center justify-between w-full mb-3 group min-h-[44px]">
-            <div className="flex items-center gap-2"><p className="bc-caption uppercase tracking-wider">Cross-Training Insights</p><span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px]">{visibleInsights.length} alert{visibleInsights.length!==1?'s':''}</span></div>
-            <span className="bc-caption group-hover:text-primary transition-colors">{insightsSectionCollapsed?'Show':'Hide'}</span>
+          {/* Header */}
+          <button
+            onClick={()=>{const next=!insightsSectionCollapsed;setInsightsSectionCollapsed(next);if(next)localStorage.setItem('bc-insights-dismissed',JSON.stringify({date:today}));else localStorage.removeItem('bc-insights-dismissed');}}
+            className="flex items-center justify-between w-full mb-3 group min-h-[44px]">
+            <div className="flex items-center gap-2">
+              <p className="bc-caption uppercase tracking-wider">Training Insights</p>
+              {warningInsights.length > 0 && (
+                <span className="bc-pill bg-bc-orange-light text-bc-orange-dark text-[10px]">
+                  {warningInsights.length} warning{warningInsights.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <span className="bc-caption group-hover:text-primary transition-colors">
+              {insightsSectionCollapsed ? 'Show' : 'Hide'}
+            </span>
           </button>
+
           {!insightsSectionCollapsed && (
-            <div className="space-y-3">
-              {visibleInsights.map(insight=>(
-                <InsightCard key={insight.id} insight={insight}
-                  onDismiss={(id)=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
-                  onAction={(i)=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
-              ))}
+            <div className="space-y-4">
+              {/* Active Warnings */}
+              {warningInsights.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle size={11} className="text-bc-orange-dark" />
+                    <p className="text-[10px] font-bold text-bc-orange-dark uppercase tracking-wider">Active Warnings</p>
+                  </div>
+                  {warningInsights.map(insight => (
+                    <InsightCard key={insight.id} insight={insight}
+                      onDismiss={id=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
+                      onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
+                  ))}
+                </div>
+              )}
+
+              {/* Suggestions */}
+              {suggestionInsights.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-1.5">
+                    <Lightbulb size={11} className="text-bc-blue" />
+                    <p className="text-[10px] font-bold text-bc-blue uppercase tracking-wider">Suggestions</p>
+                  </div>
+                  {suggestionInsights.map(insight => (
+                    <InsightCard key={insight.id} insight={insight}
+                      onDismiss={id=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
+                      onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
+                  ))}
+                </div>
+              )}
+
+              {/* Training Notes — collapsed by default */}
+              {infoInsights.length > 0 && (
+                <div>
+                  <button onClick={() => setInfoNotesOpen(v => !v)}
+                    className="flex items-center gap-2 min-h-[36px] w-full text-left">
+                    <p className="text-[10px] font-bold text-tertiary uppercase tracking-wider">
+                      Training Notes
+                    </p>
+                    <span className="bc-pill bg-canvas border border-border text-tertiary text-[10px]">
+                      {infoInsights.length}
+                    </span>
+                    <span className="bc-caption ml-auto">{infoNotesOpen ? 'Hide' : 'Show'}</span>
+                  </button>
+                  {infoNotesOpen && (
+                    <div className="space-y-3 mt-2">
+                      {infoInsights.map(insight => (
+                        <InsightCard key={insight.id} insight={insight}
+                          onDismiss={id=>{setDismissedInsights(prev=>{const next=new Set([...prev,id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}
+                          onAction={i=>{setDismissedInsights(prev=>{const next=new Set([...prev,i.id]);try{localStorage.setItem('bc-dismissed-insights',JSON.stringify({weekKey:getWeekKey(),ids:[...next]}))}catch{}return next;});}}/>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -575,7 +648,17 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                  {w.status==='planned'?<button onClick={()=>setLogTarget(w)} className="bc-btn-log min-h-[44px]">Log It</button>:<><ShareWorkoutButton workout={w} userName={user?.display_name||user?.email?.split('@')[0]||''} deepLinkUrl={`https://basecamp.fit/workout/${w.id}`} onShareComplete={(wk)=>incrementShareCount(wk.id)} variant="icon"/><span className="bc-pill bg-bc-green-light text-bc-green-dark text-xs flex items-center gap-1"><StatusIcon status="completed" size={10}/> Done</span></>}
+                  {w.status==='planned'?
+                    <div className="flex flex-col items-end gap-1">
+                      <button onClick={()=>setLogTarget(w)} className="bc-btn-log min-h-[44px]">Log It</button>
+                      {w.type==='lift'&&todayLiftAdjustments.length>0&&(
+                        <button onClick={()=>setLogTarget(w)}
+                          className="flex items-center gap-1 text-[9px] font-semibold text-bc-orange-dark hover:opacity-70 transition-opacity">
+                          <AlertTriangle size={9}/>{todayLiftAdjustments.length} adj
+                        </button>
+                      )}
+                    </div>
+                  :<><ShareWorkoutButton workout={w} userName={user?.display_name||user?.email?.split('@')[0]||''} deepLinkUrl={`https://basecamp.fit/workout/${w.id}`} onShareComplete={(wk)=>incrementShareCount(wk.id)} variant="icon"/><span className="bc-pill bg-bc-green-light text-bc-green-dark text-xs flex items-center gap-1"><StatusIcon status="completed" size={10}/> Done</span></>}
                 </div>
               </div>
             ))}

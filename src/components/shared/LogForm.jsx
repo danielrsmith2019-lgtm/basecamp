@@ -27,10 +27,11 @@ import PostWorkoutPrompt from '@/components/shared/PostWorkoutPrompt';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import { useAuth } from '@/lib/auth';
 import { saveWorkoutTemplate } from '@/lib/database';
+import { generateLiftAdjustments, applyAdjustment } from '@/utils/liftAdjustments';
 import {
   Footprints, Dumbbell, Bike, Play, ChevronRight,
   Check, RotateCcw, X, Plus, Minus, ChevronDown, ChevronUp,
-  Timer, Flame, Layers, Link2, Link2Off,
+  Timer, Flame, Layers, Link2, Link2Off, AlertTriangle,
 } from 'lucide-react';
 
 // ── Superset helpers ──
@@ -215,6 +216,11 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName,     setTemplateName]     = useState('');
 
+  // ── Adjustment banner state ──
+  const [adjBannerOpen,  setAdjBannerOpen]  = useState(true);
+  const [appliedAdjIds,  setAppliedAdjIds]  = useState(new Set());
+  const [ignoredAdjIds,  setIgnoredAdjIds]  = useState(new Set());
+
   // ── Active lift state ──
   const [activeExIdx,      setActiveExIdx]      = useState(0);
   const [restTimer,        setRestTimer]        = useState(null);
@@ -257,6 +263,41 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
     });
     return map;
   }, [exercises, allWorkouts]);
+
+  // ── Training adjustments ──
+  const todayAdjustments = useMemo(() => {
+    if (workoutType !== 'lift' || !exercises.length || mode !== 'setup') return [];
+    return generateLiftAdjustments(allWorkouts, { type: 'lift', date, exercises });
+  }, [allWorkouts, exercises, workoutType, date, mode]);
+
+  const pendingAdjs = todayAdjustments.filter(adj =>
+    !appliedAdjIds.has(adj.id) && !ignoredAdjIds.has(adj.id)
+  );
+
+  function handleApplyAdj(adj) {
+    const result = applyAdjustment(exercises, adj, restPreset);
+    setExercises(result.exercises);
+    if (result.restPreset !== restPreset) setRestPreset(result.restPreset);
+    setAppliedAdjIds(prev => new Set([...prev, adj.id]));
+  }
+
+  function handleIgnoreAdj(adj) {
+    setIgnoredAdjIds(prev => new Set([...prev, adj.id]));
+  }
+
+  function handleApplyAllRecommended() {
+    let exs = [...exercises];
+    let rp  = restPreset;
+    for (const adj of pendingAdjs) {
+      if (adj.severity === 'consider') continue;
+      const result = applyAdjustment(exs, adj, rp);
+      exs = result.exercises;
+      rp  = result.restPreset;
+      setAppliedAdjIds(prev => new Set([...prev, adj.id]));
+    }
+    setExercises(exs);
+    if (rp !== restPreset) setRestPreset(rp);
+  }
 
   // ── Prefill history weights once allWorkouts loads ──
   // Exercises converted from plan format start with null weights.
@@ -426,11 +467,13 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
       const { totalVolume, totalSets } = calculateLiftVolume(exercises);
       const muscleGroups = [...new Set(exercises.map(e => e.muscleGroup).filter(Boolean))];
       details = {
-        sessionName:    sessionName || muscleGroups.join(' / ') || 'Workout',
+        sessionName:        sessionName || muscleGroups.join(' / ') || 'Workout',
         muscleGroups, exercises, totalVolume, totalSets,
-        duration:       liftDuration ? parseInt(liftDuration) : null,
-        caloriesBurned: liftCalories ? parseInt(liftCalories) : null,
-        notes:          liftNotes || null,
+        duration:           liftDuration ? parseInt(liftDuration) : null,
+        caloriesBurned:     liftCalories ? parseInt(liftCalories) : null,
+        notes:              liftNotes || null,
+        appliedAdjustments: appliedAdjIds.size ? [...appliedAdjIds] : undefined,
+        ignoredAdjustments: ignoredAdjIds.size ? [...ignoredAdjIds] : undefined,
       };
     }
     if (workoutType === 'cardio') {
@@ -965,6 +1008,66 @@ export default function LogForm({ workout, onSave, onClose, userWeight = 170 }) 
                 <input type="text" value={sessionName} onChange={e => setSessionName(e.target.value)}
                   placeholder="Push Day, Pull Day, Legs..." className="bc-input" />
               </div>
+
+              {/* ── Adjustment banner ── */}
+              {todayAdjustments.length > 0 && pendingAdjs.length > 0 && (
+                <div className="rounded-[14px] border border-bc-orange/30 overflow-hidden">
+                  <button
+                    onClick={() => setAdjBannerOpen(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-bc-orange-light/40 hover:bg-bc-orange-light/60 transition-colors min-h-[44px]">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={14} className="text-bc-orange-dark flex-shrink-0" />
+                      <span className="text-xs font-semibold text-bc-orange-dark">
+                        {pendingAdjs.length} training adjustment{pendingAdjs.length !== 1 ? 's' : ''} suggested
+                      </span>
+                    </div>
+                    {adjBannerOpen
+                      ? <ChevronUp size={13} className="text-bc-orange-dark" />
+                      : <ChevronDown size={13} className="text-bc-orange-dark" />}
+                  </button>
+
+                  {adjBannerOpen && (
+                    <>
+                      {pendingAdjs.map(adj => {
+                        const sevBg =
+                          adj.severity === 'must'    ? 'bg-bc-red-light/60'    :
+                          adj.severity === 'should'  ? 'bg-bc-orange-light/40' :
+                          'bg-canvas';
+                        return (
+                          <div key={adj.id}
+                            className={`flex items-start gap-3 px-4 py-3 border-t border-border/30 ${sevBg}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-primary truncate">
+                                {adj.exerciseName || 'Rest period'}
+                              </p>
+                              <p className="bc-caption mt-0.5 leading-snug">{adj.reason}</p>
+                              <p className="bc-caption italic mt-0.5 leading-snug text-secondary">{adj.suggestion}</p>
+                            </div>
+                            <div className="flex gap-1.5 flex-shrink-0">
+                              <button onClick={() => handleApplyAdj(adj)}
+                                className="w-8 h-8 rounded-[8px] bg-bc-green-light border border-bc-green/30 flex items-center justify-center text-bc-green-dark hover:bg-bc-green/20 transition-colors min-w-[36px] min-h-[36px]">
+                                <Check size={12} />
+                              </button>
+                              <button onClick={() => handleIgnoreAdj(adj)}
+                                className="w-8 h-8 rounded-[8px] bg-canvas border border-border flex items-center justify-center text-tertiary hover:text-primary transition-colors min-w-[36px] min-h-[36px]">
+                                <X size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {pendingAdjs.some(a => a.severity !== 'consider') && (
+                        <div className="px-4 py-3 border-t border-border/30 bg-canvas/60">
+                          <button onClick={handleApplyAllRecommended}
+                            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-bc-orange-dark border border-bc-orange/30 rounded-[10px] hover:bg-bc-orange-light/30 transition-colors min-h-[40px]">
+                            <Check size={12} /> Apply All Recommended
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
