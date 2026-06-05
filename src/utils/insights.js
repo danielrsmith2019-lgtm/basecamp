@@ -44,8 +44,16 @@ export function generateInsights(workouts, trainingProfile) {
     ] : []),
   ];
 
+  // Deduplicate by ID — multiple rules can fire for the same scenario
+  const seenIds = new Set();
+  const deduped = insights.filter(i => {
+    if (seenIds.has(i.id)) return false;
+    seenIds.add(i.id);
+    return true;
+  });
+
   const priority = { warning: 0, suggestion: 1, info: 2 };
-  return insights.sort((a, b) => (priority[a.type] ?? 2) - (priority[b.type] ?? 2));
+  return deduped.sort((a, b) => (priority[a.type] ?? 2) - (priority[b.type] ?? 2));
 }
 
 
@@ -115,16 +123,14 @@ function checkLegDayRunConflict(workouts) {
       const runDate = new Date(run.date + 'T00:00:00');
       const diffHours = Math.abs(runDate - legDate) / (1000 * 60 * 60);
 
-      if (diffHours > 0 && diffHours <= 24) {  // same-day handled by checkSameDaySequencing
-        const legFirst = legDate <= runDate;
+      // Only fire when leg comes BEFORE the run — checkTempoRunLegGap covers run-before-leg
+      if (diffHours > 0 && diffHours <= 24 && legDate < runDate) {
         insights.push({
           id: `leg-run-conflict-${leg.date}-${run.date}`,
           category: 'leg-run-conflict',
           type: 'warning',
           title: 'Leg Day + Hard Run Conflict',
-          description: legFirst
-            ? `You have ${leg.details.sessionName || 'legs'} on ${formatShortDate(leg.date)} and a ${run.details.runType} the next day. Heavy squats and deadlifts fatigue the same muscles used for hard running.`
-            : `You have a ${run.details.runType} on ${formatShortDate(run.date)} with ${leg.details.sessionName || 'legs'} the day before. Your legs may not be recovered for quality speed work.`,
+          description: `You have ${leg.details.sessionName || 'legs'} on ${formatShortDate(leg.date)} and a ${run.details.runType} the next day. Heavy squats and deadlifts fatigue the same muscles used for hard running. Consider swapping the order or adding a day between them.`,
           action: { label: 'Swap Sessions', type: 'swap' },
         });
       }
