@@ -5,7 +5,7 @@
  * Step 0: Plan Type | Step 1: Goal | Step 2: Fitness | Step 3: Schedule
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronLeft, Loader2, Sparkles, Footprints, Dumbbell, Zap } from 'lucide-react';
 import { useWorkouts } from '@/lib/WorkoutContext';
 import { getUserTrainingProfile } from '@/utils/trainingProfile';
@@ -27,6 +27,68 @@ const DAY_TYPE_OPTIONS = [
   { value: 'lift', label: 'Lift', color: 'text-lift-accent', bg: 'bg-lift-bg',          border: 'border-lift-accent', Icon: Dumbbell   },
   { value: 'both', label: 'Both', color: 'text-bc-indigo',   bg: 'bg-bc-indigo-light',  border: 'border-bc-indigo',   Icon: Zap        },
 ];
+
+function buildTrainingContext(workouts) {
+  if (!workouts || workouts.length === 0) {
+    return { avgWeeklyMiles:0, maxWeeklyMiles:0, longestRun:0, lastLongRunDate:null,
+      lastLongRunDistance:null, recentPaces:[], avgLiftsPerWeek:0, adherence:null,
+      totalRunsLogged:0, totalLiftsLogged:0, hasTrainingHistory:false };
+  }
+  const today = new Date().toLocaleDateString('en-CA');
+  const completed = workouts.filter(w => w.status === 'completed');
+  const runs  = completed.filter(w => w.type === 'run');
+  const lifts = completed.filter(w => w.type === 'lift');
+  const fourWeeksAgo = new Date();
+  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+  const recentRuns = runs.filter(w => new Date(w.date + 'T00:00:00') >= fourWeeksAgo);
+  const weeklyMiles = {};
+  recentRuns.forEach(w => {
+    const d = new Date(w.date + 'T00:00:00'), dow = d.getDay();
+    const mon = new Date(d); mon.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+    const key = mon.toLocaleDateString('en-CA');
+    weeklyMiles[key] = (weeklyMiles[key] || 0) + (w.details?.actualDistance || 0);
+  });
+  const weeklyMileValues = Object.values(weeklyMiles);
+  const avgWeeklyMiles = weeklyMileValues.length > 0
+    ? weeklyMileValues.reduce((a, b) => a + b, 0) / weeklyMileValues.length : 0;
+  const maxWeeklyMiles = Math.max(0, ...weeklyMileValues);
+  const longestRun = runs.reduce((max, w) => Math.max(max, w.details?.actualDistance || 0), 0);
+  const lastLongRun = runs
+    .filter(w => (w.details?.actualDistance || 0) >= 8)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const recentPaces = recentRuns.filter(w => w.details?.actualPace).slice(0, 5).map(w => w.details.actualPace);
+  const recentLifts = lifts.filter(w => new Date(w.date + 'T00:00:00') >= fourWeeksAgo);
+  const pastPlanned   = workouts.filter(w => w.date <= today && w.type !== 'rest');
+  const pastCompleted = pastPlanned.filter(w => w.status === 'completed');
+  const adherence = pastPlanned.length > 0
+    ? Math.round((pastCompleted.length / pastPlanned.length) * 100) : null;
+  return {
+    avgWeeklyMiles:       Math.round(avgWeeklyMiles * 10) / 10,
+    maxWeeklyMiles:       Math.round(maxWeeklyMiles * 10) / 10,
+    longestRun:           Math.round(longestRun * 10) / 10,
+    lastLongRunDate:      lastLongRun?.date || null,
+    lastLongRunDistance:  lastLongRun?.details?.actualDistance || null,
+    recentPaces,
+    avgLiftsPerWeek:      Math.round((recentLifts.length / 4) * 10) / 10,
+    adherence,
+    totalRunsLogged:      runs.length,
+    totalLiftsLogged:     lifts.length,
+    hasTrainingHistory:   completed.length >= 3,
+  };
+}
+
+function normalizePlanJSON(plan) {
+  if (!plan?.weeks) return plan;
+  return {
+    ...plan,
+    weeks: plan.weeks.map(week => ({
+      ...week,
+      runs:     Array.isArray(week.runs)     ? week.runs     : [],
+      lifts:    Array.isArray(week.lifts)    ? week.lifts    : [],
+      restDays: Array.isArray(week.restDays) ? week.restDays : [],
+    })),
+  };
+}
 
 const INITIAL_STATE = {
   planType: null,
@@ -61,6 +123,7 @@ const INITIAL_STATE = {
 export default function PlanWizard({ onComplete, onCancel }) {
   const { workouts } = useWorkouts();
   const trainingProfile = useMemo(() => getUserTrainingProfile(workouts), [workouts]);
+  const trainingContext = useMemo(() => buildTrainingContext(workouts), [workouts]);
 
   const defaultPlanType = trainingProfile.primaryType === 'runner' ? 'running'
     : trainingProfile.primaryType === 'lifter' ? 'lifting'
@@ -71,6 +134,19 @@ export default function PlanWizard({ onComplete, onCancel }) {
   const [form, setForm] = useState({ ...INITIAL_STATE, planType: defaultPlanType });
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
+  const hasPrefilledRef = useRef(false);
+
+  // Pre-fill fitness fields from actual workout logs if user hasn't entered values yet
+  useEffect(() => {
+    if (trainingContext.hasTrainingHistory && !hasPrefilledRef.current) {
+      hasPrefilledRef.current = true;
+      setForm(prev => ({
+        ...prev,
+        weeklyMileage:    prev.weeklyMileage    || (trainingContext.avgWeeklyMiles > 0 ? String(trainingContext.avgWeeklyMiles) : ''),
+        longestRecentRun: prev.longestRecentRun || (trainingContext.longestRun      > 0 ? String(trainingContext.longestRun)      : ''),
+      }));
+    }
+  }, [trainingContext.hasTrainingHistory, trainingContext.avgWeeklyMiles, trainingContext.longestRun]);
 
   function update(field, value) { setForm(prev => ({ ...prev, [field]: value })); }
 
@@ -148,6 +224,7 @@ export default function PlanWizard({ onComplete, onCancel }) {
   }
 
   async function handleGenerate() {
+    if (generating) return;
     setGenerating(true);
     setError(null);
     try {
@@ -155,17 +232,39 @@ export default function PlanWizard({ onComplete, onCancel }) {
       const res = await fetch('/api/generate-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, runsPerWeek, liftsPerWeek }),
+        body: JSON.stringify({ ...form, runsPerWeek, liftsPerWeek, trainingContext }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || 'Plan generation failed');
       }
-      onComplete(await res.json());
+      const planData = await res.json();
+      onComplete(normalizePlanJSON(planData));
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
       setGenerating(false);
     }
+  }
+
+  // Timeout reset: if generation hangs for 30s, unblock the button
+  useEffect(() => {
+    if (!generating) return;
+    const t = setTimeout(() => {
+      setGenerating(false);
+      setError('Generation timed out — please try again.');
+    }, 30000);
+    return () => clearTimeout(t);
+  }, [generating]);
+
+  function getGenerateBlocker() {
+    if (!form.planType) return 'Select a plan type above';
+    if ((form.planType === 'running' || form.planType === 'hybrid') && form.runningGoal === 'race') {
+      if (!form.raceDate || !form.raceDistance) return 'Complete race details in the Goal step';
+    }
+    if (form.availableDays.length < 2) return 'Select at least 2 training days';
+    if (form.fullRestDays.length < 1) return 'Select at least 1 full rest day';
+    return null;
   }
 
   if (generating) {
@@ -546,6 +645,26 @@ export default function PlanWizard({ onComplete, onCancel }) {
               <p className="text-sm text-secondary">Honest answers = better plan.</p>
             </div>
 
+            {/* "We noticed" training summary — shown when user has logged workouts */}
+            {trainingContext.hasTrainingHistory && (
+              <div className="p-3 rounded-[14px] border border-bc-blue/30 bg-bc-blue-light/30">
+                <p className="text-xs font-semibold text-bc-blue mb-2">Based on your recent training:</p>
+                {trainingContext.avgWeeklyMiles > 0 && (
+                  <p className="text-xs text-bc-blue-dark">• Your average week is {trainingContext.avgWeeklyMiles} miles</p>
+                )}
+                {trainingContext.longestRun > 0 && (
+                  <p className="text-xs text-bc-blue-dark">• Your longest run is {trainingContext.longestRun} miles</p>
+                )}
+                {trainingContext.avgLiftsPerWeek > 0 && (
+                  <p className="text-xs text-bc-blue-dark">• You lift {trainingContext.avgLiftsPerWeek}× per week on average</p>
+                )}
+                {trainingContext.adherence !== null && (
+                  <p className="text-xs text-bc-blue-dark">• {trainingContext.adherence}% of planned sessions completed</p>
+                )}
+                <p className="text-xs text-tertiary mt-2">Your plan will continue from where you are — not from scratch.</p>
+              </div>
+            )}
+
             {(form.planType==='running' || form.planType==='hybrid') && (
               <div className="space-y-4">
                 <p className="text-xs font-semibold text-run-accent uppercase tracking-wider">Running</p>
@@ -835,12 +954,23 @@ export default function PlanWizard({ onComplete, onCancel }) {
                            font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
                 Next <ChevronRight size={14} />
               </button>
-            : <button onClick={handleGenerate} disabled={!canAdvance()}
-                className="flex items-center gap-2 px-5 py-2.5 bg-bc-indigo hover:opacity-90
-                           disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm
-                           font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]">
-                <Sparkles size={14} /> Generate Plan
-              </button>
+            : (() => {
+                const blocker = getGenerateBlocker();
+                return (
+                  <div className="flex flex-col items-end gap-1">
+                    <button onClick={handleGenerate} disabled={!!blocker || generating}
+                      className={`flex items-center gap-2 px-5 py-2.5 bg-bc-indigo hover:opacity-90
+                                 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm
+                                 font-semibold rounded-[10px] transition-all active:scale-95 min-h-[44px]
+                                 ${blocker ? 'opacity-50' : ''}`}>
+                      <Sparkles size={14} /> {generating ? 'Generating…' : 'Generate Plan'}
+                    </button>
+                    {blocker && (
+                      <p className="text-xs text-tertiary text-right">{blocker}</p>
+                    )}
+                  </div>
+                );
+              })()
           }
         </div>
       </div>

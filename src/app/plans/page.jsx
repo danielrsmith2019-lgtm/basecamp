@@ -176,7 +176,11 @@ export default function PlansPage() {
       const sb = createClient();
       await sb.from('workouts').delete().eq('user_id',user.id).eq('status','planned');
       const entries = planToWorkouts(generatedPlan);
-      if (entries.length) await addWorkoutsBatch(user.id, entries);
+      if (!entries.length) {
+        console.warn('planToWorkouts returned 0 entries', generatedPlan);
+        throw new Error('Plan generated no sessions — check your inputs and try again.');
+      }
+      await addWorkoutsBatch(user.id, entries);
       setActivePlan({...saved,plan_data:generatedPlan}); setGeneratedPlan(null); setView('active'); refresh?.();
 
       // ── Auto-save race goal to user_settings so Goals page populates ──
@@ -193,8 +197,10 @@ export default function PlansPage() {
         }
       } catch (e) { console.error('Failed to save race goal:', e); }
 
-    } catch { setError('Failed to activate plan. Please try again.'); }
-    finally { setActivating(false); }
+    } catch (err) {
+      console.error('Activation error:', err);
+      setError(err.message || 'Failed to activate plan. Please try again.');
+    } finally { setActivating(false); }
   }
 
   async function handleReactivate() {
@@ -213,6 +219,7 @@ export default function PlansPage() {
   }
 
   function planToWorkouts(plan, fromDate=null) {
+    if (!plan?.weeks?.length) return [];
     const out=[], now=new Date();
     const startDate=new Date(now.getFullYear(),now.getMonth(),now.getDate(),12,0,0);
     const sdow=now.getDay(), sIdx=sdow===0?6:sdow-1;

@@ -491,6 +491,20 @@ function buildSystemPrompt(input, totalWeeks, runsPerWeek, liftsPerWeek, lifting
     planType !== 'running' && `Lifting: ${input.liftingExperience || 'intermediate'}${input.currentBenchMax ? `, bench 1RM ${input.currentBenchMax} lbs` : ''}${input.currentSquatMax ? `, squat 1RM ${input.currentSquatMax} lbs` : ''}${input.currentDeadliftMax ? `, deadlift 1RM ${input.currentDeadliftMax} lbs` : ''}`,
   ].filter(Boolean).join('\n- ');
 
+  // ── Actual training data from user's workout logs ──
+  const tc = input.trainingContext || {};
+  const actualDataSection = tc.hasTrainingHistory ? `
+ACTUAL TRAINING DATA FROM WORKOUT LOGS (overrides user-stated values — use as the true Week 1 baseline):
+${planType !== 'lifting' && tc.avgWeeklyMiles > 0 ? `- Actual avg weekly mileage (last 4 weeks): ${tc.avgWeeklyMiles} mi/week` : ''}
+${planType !== 'lifting' && tc.maxWeeklyMiles > 0 ? `- Peak weekly mileage (last 4 weeks): ${tc.maxWeeklyMiles} mi/week` : ''}
+${planType !== 'lifting' && tc.longestRun > 0 ? `- Longest run ever logged: ${tc.longestRun} miles` : ''}
+${planType !== 'lifting' && tc.lastLongRunDate ? `- Most recent long run (≥8 mi): ${tc.lastLongRunDistance} miles on ${tc.lastLongRunDate}` : ''}
+${planType !== 'running' && tc.avgLiftsPerWeek > 0 ? `- Actual avg lift sessions/week (last 4 weeks): ${tc.avgLiftsPerWeek}` : ''}
+${tc.adherence !== null ? `- Historical training adherence: ${tc.adherence}% of planned sessions completed` : ''}
+CRITICAL: Week 1 of this plan MUST begin at this athlete's actual current baseline — not at beginner levels or from zero. A runner averaging ${tc.avgWeeklyMiles} mi/week does NOT need a Week 1 of 8-10 miles.
+` : '';
+
+
   // ── Mileage section (only for running/hybrid) ──
   const mileageSection = planType !== 'lifting' ? `
 MILEAGE PROGRESSION — CRITICAL:
@@ -567,7 +581,7 @@ DURATION: ${totalWeeks} weeks
 
 ATHLETE CURRENT FITNESS:
 - ${fitnessContext}
-${mileageSection}${runTypes}${liftingSection}
+${actualDataSection}${mileageSection}${runTypes}${liftingSection}
 PLAN STYLE: ${isMileageBased
     ? 'MILEAGE-BASED — every run has a specific distance in miles and a pace range.'
     : 'TIME-BASED — runs are prescribed by duration and effort, not distance.'}
